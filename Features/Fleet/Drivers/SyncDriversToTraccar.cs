@@ -1,5 +1,6 @@
 using Carter;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
@@ -10,7 +11,10 @@ namespace prohpharmacy_trekking_app.Features.Fleet.Drivers;
 
 public static class SyncDriversToTraccar
 {
-    public class Command : IRequest<Result<SyncResponse>> { }
+    public class Command : IRequest<Result<SyncResponse>>
+    {
+        public bool Force { get; set; }
+    }
 
     public class SyncResponse
     {
@@ -37,9 +41,19 @@ public static class SyncDriversToTraccar
                 .Include(s => s.Branch)
                 .ToListAsync(cancellationToken);
 
+            if (request.Force)
+            {
+                foreach (var s in staff)
+                {
+                    s.TraccarDriverId = null;
+                    s.UpdatedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             var response = new SyncResponse
             {
-                AlreadySynced = staff.Count(s => s.TraccarDriverId is not null)
+                AlreadySynced = request.Force ? 0 : staff.Count(s => s.TraccarDriverId is not null)
             };
 
             var unsynced = staff.Where(s => s.TraccarDriverId is null).ToList();
@@ -86,17 +100,22 @@ public class SyncDriversToTraccarEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("api/v1/fleet/drivers/sync", async (ISender sender) =>
+        app.MapPost("api/v1/fleet/drivers/sync", async (
+            [FromQuery] bool force,
+            ISender sender) =>
         {
-            var result = await sender.Send(new SyncDriversToTraccar.Command());
+            var result = await sender.Send(new SyncDriversToTraccar.Command { Force = force });
             return result.IsFailure
                 ? Results.UnprocessableEntity(result.Error)
                 : Results.Ok(result.Value);
         })
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
-        .WithSummary("Sync unregistered staff as Traccar drivers")
-        .WithDescription("Creates Traccar driver entries for any staff members missing a Traccar driver ID. Already synced staff are skipped.")
+        .WithSummary("Sync staff as Traccar drivers")
+        .WithDescription(
+            "Creates Traccar driver entries for staff members. " +
+            "By default only syncs staff missing a Traccar driver ID. " +
+            "Use `?force=true` to clear all stored Traccar driver IDs and re-register everyone — useful after spawning a fresh Traccar instance.")
         .RequireAuthorization();
     }
 }

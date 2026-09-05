@@ -1,5 +1,6 @@
 using Carter;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
@@ -10,7 +11,10 @@ namespace prohpharmacy_trekking_app.Features.Fleet.Devices;
 
 public static class SyncDevicesToTraccar
 {
-    public class Command : IRequest<Result<SyncResponse>> { }
+    public class Command : IRequest<Result<SyncResponse>>
+    {
+        public bool Force { get; set; }
+    }
 
     public class SyncResponse
     {
@@ -35,9 +39,19 @@ public static class SyncDevicesToTraccar
         {
             var devices = await _db.TrackingDevices.ToListAsync(cancellationToken);
 
+            if (request.Force)
+            {
+                foreach (var d in devices)
+                {
+                    d.TraccarDeviceId = null;
+                    d.UpdatedAt = DateTime.UtcNow;
+                }
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
             var response = new SyncResponse
             {
-                AlreadySynced = devices.Count(d => d.TraccarDeviceId is not null)
+                AlreadySynced = request.Force ? 0 : devices.Count(d => d.TraccarDeviceId is not null)
             };
 
             var unsynced = devices.Where(d => d.TraccarDeviceId is null).ToList();
@@ -70,17 +84,22 @@ public class SyncDevicesToTraccarEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("api/v1/fleet/devices/sync", async (ISender sender) =>
+        app.MapPost("api/v1/fleet/devices/sync", async (
+            [FromQuery] bool force,
+            ISender sender) =>
         {
-            var result = await sender.Send(new SyncDevicesToTraccar.Command());
+            var result = await sender.Send(new SyncDevicesToTraccar.Command { Force = force });
             return result.IsFailure
                 ? Results.UnprocessableEntity(result.Error)
                 : Results.Ok(result.Value);
         })
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
-        .WithSummary("Sync unregistered devices to Traccar")
-        .WithDescription("Registers any tracking devices missing a Traccar device ID. Already synced devices are skipped.")
+        .WithSummary("Sync devices to Traccar")
+        .WithDescription(
+            "Registers tracking devices in Traccar. " +
+            "By default only syncs devices missing a Traccar ID. " +
+            "Use `?force=true` to clear all stored Traccar IDs and re-register everything — useful after spawning a fresh Traccar instance.")
         .RequireAuthorization();
     }
 }
