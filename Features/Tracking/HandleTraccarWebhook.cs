@@ -1,5 +1,6 @@
 using Carter;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
@@ -101,8 +102,16 @@ public class TraccarWebhookEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapPost("api/traccar/webhook", async (TraccarWebhookPayload payload, ISender sender) =>
+        app.MapPost("api/traccar/webhook", async (
+            [FromQuery] string? secret,
+            TraccarWebhookPayload payload,
+            ISender sender,
+            IConfiguration config) =>
         {
+            var expected = config.GetValue<string>("TraccarSettings:WebhookSecret");
+            if (!string.IsNullOrEmpty(expected) && secret != expected)
+                return Results.Unauthorized();
+
             await sender.Send(new HandleTraccarWebhook.Command { Payload = payload });
             return Results.Ok();
         })

@@ -104,6 +104,9 @@ public static class AssignDevice
             if (device.TraccarDeviceId is not null)
                 _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, staff.FullName, cancellationToken);
 
+            if (device.TraccarDeviceId is not null && staff.TraccarDriverId is not null)
+                _ = _traccar.LinkDriverToDeviceAsync(device.TraccarDeviceId.Value, staff.TraccarDriverId.Value, cancellationToken);
+
             return Result.Success(new AssignmentResponse
             {
                 AssignmentId = assignment.Id,

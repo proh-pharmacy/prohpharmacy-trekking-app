@@ -73,4 +73,16 @@ public class NullTraccarService(ILogger<NullTraccarService> logger) : ITraccarSe
         logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping driver deletion.");
         return Task.FromResult(false);
     }
+
+    public Task<bool> LinkDriverToDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping driver-device link.");
+        return Task.FromResult(false);
+    }
+
+    public Task<bool> UnlinkDriverFromDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping driver-device unlink.");
+        return Task.FromResult(false);
+    }
 }

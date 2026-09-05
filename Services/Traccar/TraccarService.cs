@@ -84,4 +84,21 @@ public class TraccarService(HttpClient http) : ITraccarService
         var response = await http.DeleteAsync($"api/drivers/{traccarDriverId}", ct);
         return response.IsSuccessStatusCode;
     }
+
+    public async Task<bool> LinkDriverToDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default)
+    {
+        var response = await http.PostAsJsonAsync("api/permissions",
+            new { deviceId = traccarDeviceId, driverId = traccarDriverId }, ct);
+        return response.IsSuccessStatusCode;
+    }
+
+    public async Task<bool> UnlinkDriverFromDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Delete, "api/permissions")
+        {
+            Content = JsonContent.Create(new { deviceId = traccarDeviceId, driverId = traccarDriverId })
+        };
+        var response = await http.SendAsync(request, ct);
+        return response.IsSuccessStatusCode;
+    }
 }
