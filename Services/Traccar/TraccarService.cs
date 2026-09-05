@@ -27,6 +27,9 @@ public class TraccarService(HttpClient http) : ITraccarService
             $"api/positions?deviceId={traccarDeviceId}&from={Uri.EscapeDataString(fromStr)}&to={Uri.EscapeDataString(toStr)}", ct) ?? [];
     }
 
+    public async Task<List<TraccarDevice>> GetAllDevicesAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<TraccarDevice>>("api/devices", ct) ?? [];
+
     public async Task<TraccarDevice?> CreateDeviceAsync(string name, string uniqueId, CancellationToken ct = default)
     {
         var response = await http.PostAsJsonAsync("api/devices", new { name, uniqueId }, ct);
@@ -55,6 +58,9 @@ public class TraccarService(HttpClient http) : ITraccarService
             $"api/drivers?id={traccarDriverId}", ct);
         return drivers?.FirstOrDefault();
     }
+
+    public async Task<List<TraccarDriver>> GetAllDriversAsync(CancellationToken ct = default) =>
+        await http.GetFromJsonAsync<List<TraccarDriver>>("api/drivers", ct) ?? [];
 
     public async Task<TraccarDriver?> CreateDriverAsync(string name, string uniqueId, Dictionary<string, string>? attributes = null, CancellationToken ct = default)
     {

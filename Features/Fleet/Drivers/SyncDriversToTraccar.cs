@@ -21,6 +21,7 @@ public static class SyncDriversToTraccar
         public int Synced { get; set; }
         public int Failed { get; set; }
         public int AlreadySynced { get; set; }
+        public int Deleted { get; set; }
         public List<string> Errors { get; set; } = [];
     }
 
@@ -41,8 +42,14 @@ public static class SyncDriversToTraccar
                 .Include(s => s.Branch)
                 .ToListAsync(cancellationToken);
 
+            var response = new SyncResponse();
+
+            List<int> traccarIdsBefore = [];
             if (request.Force)
             {
+                var allTraccar = await _traccar.GetAllDriversAsync(cancellationToken);
+                traccarIdsBefore = allTraccar.Select(d => d.Id).ToList();
+
                 foreach (var s in staff)
                 {
                     s.TraccarDriverId = null;
@@ -50,13 +57,13 @@ public static class SyncDriversToTraccar
                 }
                 await _db.SaveChangesAsync(cancellationToken);
             }
-
-            var response = new SyncResponse
+            else
             {
-                AlreadySynced = request.Force ? 0 : staff.Count(s => s.TraccarDriverId is not null)
-            };
+                response.AlreadySynced = staff.Count(s => s.TraccarDriverId is not null);
+            }
 
             var unsynced = staff.Where(s => s.TraccarDriverId is null).ToList();
+            var syncedTraccarIds = new HashSet<int>();
 
             foreach (var member in unsynced)
             {
@@ -79,6 +86,7 @@ public static class SyncDriversToTraccar
                 {
                     member.TraccarDriverId = traccarDriver.Id;
                     member.UpdatedAt = DateTime.UtcNow;
+                    syncedTraccarIds.Add(traccarDriver.Id);
                     response.Synced++;
                 }
                 else
@@ -90,6 +98,18 @@ public static class SyncDriversToTraccar
 
             if (response.Synced > 0)
                 await _db.SaveChangesAsync(cancellationToken);
+
+            if (request.Force)
+            {
+                foreach (var orphanId in traccarIdsBefore.Where(id => !syncedTraccarIds.Contains(id)))
+                {
+                    var deleted = await _traccar.DeleteDriverAsync(orphanId, cancellationToken);
+                    if (deleted)
+                        response.Deleted++;
+                    else
+                        response.Errors.Add($"Failed to delete orphan Traccar driver (traccarId: {orphanId}).");
+                }
+            }
 
             return Result.Success(response);
         }
@@ -115,7 +135,7 @@ public class SyncDriversToTraccarEndpoint : ICarterModule
         .WithDescription(
             "Creates Traccar driver entries for staff members. " +
             "By default only syncs staff missing a Traccar driver ID. " +
-            "Use `?force=true` to clear all stored Traccar driver IDs and re-register everyone — useful after spawning a fresh Traccar instance.")
+            "Use `?force=true` to clear all stored Traccar driver IDs, re-register everyone, and delete any orphan drivers that exist in Traccar but not in the local database — useful after spawning a fresh Traccar instance.")
         .RequireAuthorization();
     }
 }

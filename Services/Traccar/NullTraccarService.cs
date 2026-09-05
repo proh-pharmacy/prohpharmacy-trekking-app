@@ -20,6 +20,12 @@ public class NullTraccarService(ILogger<NullTraccarService> logger) : ITraccarSe
         return Task.FromResult(new List<TraccarPosition>());
     }
 
+    public Task<List<TraccarDevice>> GetAllDevicesAsync(CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Returning empty device list.");
+        return Task.FromResult(new List<TraccarDevice>());
+    }
+
     public Task<TraccarDevice?> CreateDeviceAsync(string name, string uniqueId, CancellationToken ct = default)
     {
         logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping device creation.");
@@ -42,6 +48,12 @@ public class NullTraccarService(ILogger<NullTraccarService> logger) : ITraccarSe
     {
         logger.LogWarning("TraccarSettings:BaseUrl is not configured. Returning null driver.");
         return Task.FromResult<TraccarDriver?>(null);
+    }
+
+    public Task<List<TraccarDriver>> GetAllDriversAsync(CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Returning empty driver list.");
+        return Task.FromResult(new List<TraccarDriver>());
     }
 
     public Task<TraccarDriver?> CreateDriverAsync(string name, string uniqueId, Dictionary<string, string>? attributes = null, CancellationToken ct = default)

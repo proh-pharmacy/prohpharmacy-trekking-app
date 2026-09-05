@@ -21,6 +21,7 @@ public static class SyncDevicesToTraccar
         public int Synced { get; set; }
         public int Failed { get; set; }
         public int AlreadySynced { get; set; }
+        public int Deleted { get; set; }
         public List<string> Errors { get; set; } = [];
     }
 
@@ -38,9 +39,14 @@ public static class SyncDevicesToTraccar
         public async Task<Result<SyncResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
             var devices = await _db.TrackingDevices.ToListAsync(cancellationToken);
+            var response = new SyncResponse();
 
+            List<int> traccarIdsBefore = [];
             if (request.Force)
             {
+                var allTraccar = await _traccar.GetAllDevicesAsync(cancellationToken);
+                traccarIdsBefore = allTraccar.Select(d => d.Id).ToList();
+
                 foreach (var d in devices)
                 {
                     d.TraccarDeviceId = null;
@@ -48,13 +54,13 @@ public static class SyncDevicesToTraccar
                 }
                 await _db.SaveChangesAsync(cancellationToken);
             }
-
-            var response = new SyncResponse
+            else
             {
-                AlreadySynced = request.Force ? 0 : devices.Count(d => d.TraccarDeviceId is not null)
-            };
+                response.AlreadySynced = devices.Count(d => d.TraccarDeviceId is not null);
+            }
 
             var unsynced = devices.Where(d => d.TraccarDeviceId is null).ToList();
+            var syncedTraccarIds = new HashSet<int>();
 
             foreach (var device in unsynced)
             {
@@ -63,6 +69,7 @@ public static class SyncDevicesToTraccar
                 {
                     device.TraccarDeviceId = traccarDevice.Id;
                     device.UpdatedAt = DateTime.UtcNow;
+                    syncedTraccarIds.Add(traccarDevice.Id);
                     response.Synced++;
                 }
                 else
@@ -74,6 +81,18 @@ public static class SyncDevicesToTraccar
 
             if (response.Synced > 0)
                 await _db.SaveChangesAsync(cancellationToken);
+
+            if (request.Force)
+            {
+                foreach (var orphanId in traccarIdsBefore.Where(id => !syncedTraccarIds.Contains(id)))
+                {
+                    var deleted = await _traccar.DeleteDeviceAsync(orphanId, cancellationToken);
+                    if (deleted)
+                        response.Deleted++;
+                    else
+                        response.Errors.Add($"Failed to delete orphan Traccar device (traccarId: {orphanId}).");
+                }
+            }
 
             return Result.Success(response);
         }
@@ -99,7 +118,7 @@ public class SyncDevicesToTraccarEndpoint : ICarterModule
         .WithDescription(
             "Registers tracking devices in Traccar. " +
             "By default only syncs devices missing a Traccar ID. " +
-            "Use `?force=true` to clear all stored Traccar IDs and re-register everything — useful after spawning a fresh Traccar instance.")
+            "Use `?force=true` to clear all stored Traccar IDs, re-register everything, and delete any orphan devices that exist in Traccar but not in the local database — useful after spawning a fresh Traccar instance.")
         .RequireAuthorization();
     }
 }
