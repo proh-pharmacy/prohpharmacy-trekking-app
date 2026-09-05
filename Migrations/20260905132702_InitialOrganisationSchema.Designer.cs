@@ -25,7 +25,7 @@ namespace prohpharmacy_trekking_app.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Branch", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Branch", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -98,7 +98,7 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Branches");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.District", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.District", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -137,7 +137,7 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Districts");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Locality", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -176,7 +176,7 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Localities");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Region", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
@@ -212,21 +212,21 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Regions");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Branch", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Branch", b =>
                 {
-                    b.HasOne("prohpharmacy_trekking_app.Organisation.Entities.District", "District")
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.District", "District")
                         .WithMany("Branches")
                         .HasForeignKey("DistrictId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("prohpharmacy_trekking_app.Organisation.Entities.Locality", "Locality")
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", "Locality")
                         .WithMany("Branches")
                         .HasForeignKey("LocalityId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.HasOne("prohpharmacy_trekking_app.Organisation.Entities.Region", "Region")
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", "Region")
                         .WithMany("Branches")
                         .HasForeignKey("RegionId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -239,9 +239,9 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("Region");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.District", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.District", b =>
                 {
-                    b.HasOne("prohpharmacy_trekking_app.Organisation.Entities.Region", "Region")
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", "Region")
                         .WithMany("Districts")
                         .HasForeignKey("RegionId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -250,9 +250,9 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("Region");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Locality", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
                 {
-                    b.HasOne("prohpharmacy_trekking_app.Organisation.Entities.District", "District")
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.District", "District")
                         .WithMany("Localities")
                         .HasForeignKey("DistrictId")
                         .OnDelete(DeleteBehavior.Restrict)
@@ -261,19 +261,19 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("District");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.District", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.District", b =>
                 {
                     b.Navigation("Branches");
 
                     b.Navigation("Localities");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Locality", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
                 {
                     b.Navigation("Branches");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Organisation.Entities.Region", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", b =>
                 {
                     b.Navigation("Branches");
 

@@ -1,144 +1,180 @@
 using Microsoft.EntityFrameworkCore;
-using prohpharmacy_trekking_app.Organisation.Entities;
+using prohpharmacy_trekking_app.Features.Identity.Entities;
+using prohpharmacy_trekking_app.Features.Organisation.Entities;
+using prohpharmacy_trekking_app.Features.Staff.Entities;
 
 namespace prohpharmacy_trekking_app.Database
 {
-    /// <summary>
-    /// Main application DbContext.
-    /// Add DbSet&lt;YourEntity&gt; properties here as you create domain entities.
-    /// </summary>
     public class AppDbContext : DbContext
     {
         public AppDbContext(DbContextOptions<AppDbContext> options) : base(options)
         {
         }
 
+        // Organisation
         public DbSet<Region> Regions => Set<Region>();
         public DbSet<District> Districts => Set<District>();
         public DbSet<Locality> Localities => Set<Locality>();
         public DbSet<Branch> Branches => Set<Branch>();
 
+        // Staff
+        public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
+
+        // Identity
+        public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
+        public DbSet<Role> Roles => Set<Role>();
+        public DbSet<RolePermission> RolePermissions => Set<RolePermission>();
+        public DbSet<UserRole> UserRoles => Set<UserRole>();
+        public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+        public DbSet<StaffInvitation> StaffInvitations => Set<StaffInvitation>();
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
 
+            // ── Organisation ──────────────────────────────────────────────────────
+
             modelBuilder.Entity<Region>(entity =>
             {
-                entity.HasKey(region => region.Id);
-
-                entity.Property(region => region.Code)
-                    .HasMaxLength(20)
-                    .IsRequired();
-
-                entity.Property(region => region.Name)
-                    .HasMaxLength(120)
-                    .IsRequired();
-
-                entity.HasIndex(region => region.Code)
-                    .IsUnique();
-
-                entity.HasIndex(region => region.Name)
-                    .IsUnique();
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.Code).HasMaxLength(20).IsRequired();
+                entity.Property(r => r.Name).HasMaxLength(120).IsRequired();
+                entity.HasIndex(r => r.Code).IsUnique();
+                entity.HasIndex(r => r.Name).IsUnique();
             });
 
             modelBuilder.Entity<District>(entity =>
             {
-                entity.HasKey(district => district.Id);
-
-                entity.Property(district => district.Code)
-                    .HasMaxLength(20)
-                    .IsRequired();
-
-                entity.Property(district => district.Name)
-                    .HasMaxLength(120)
-                    .IsRequired();
-
-                entity.HasOne(district => district.Region)
-                    .WithMany(region => region.Districts)
-                    .HasForeignKey(district => district.RegionId)
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.Code).HasMaxLength(20).IsRequired();
+                entity.Property(d => d.Name).HasMaxLength(120).IsRequired();
+                entity.HasOne(d => d.Region)
+                    .WithMany(r => r.Districts)
+                    .HasForeignKey(d => d.RegionId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasIndex(district => new { district.RegionId, district.Code })
-                    .IsUnique();
-
-                entity.HasIndex(district => new { district.RegionId, district.Name })
-                    .IsUnique();
+                entity.HasIndex(d => new { d.RegionId, d.Code }).IsUnique();
+                entity.HasIndex(d => new { d.RegionId, d.Name }).IsUnique();
             });
 
             modelBuilder.Entity<Locality>(entity =>
             {
-                entity.HasKey(locality => locality.Id);
-
-                entity.Property(locality => locality.Code)
-                    .HasMaxLength(20)
-                    .IsRequired();
-
-                entity.Property(locality => locality.Name)
-                    .HasMaxLength(120)
-                    .IsRequired();
-
-                entity.HasOne(locality => locality.District)
-                    .WithMany(district => district.Localities)
-                    .HasForeignKey(locality => locality.DistrictId)
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.Code).HasMaxLength(20).IsRequired();
+                entity.Property(l => l.Name).HasMaxLength(120).IsRequired();
+                entity.HasOne(l => l.District)
+                    .WithMany(d => d.Localities)
+                    .HasForeignKey(l => l.DistrictId)
                     .OnDelete(DeleteBehavior.Restrict);
-
-                entity.HasIndex(locality => new { locality.DistrictId, locality.Code })
-                    .IsUnique();
-
-                entity.HasIndex(locality => new { locality.DistrictId, locality.Name })
-                    .IsUnique();
+                entity.HasIndex(l => new { l.DistrictId, l.Code }).IsUnique();
+                entity.HasIndex(l => new { l.DistrictId, l.Name }).IsUnique();
             });
 
             modelBuilder.Entity<Branch>(entity =>
             {
-                entity.HasKey(branch => branch.Id);
+                entity.HasKey(b => b.Id);
+                entity.Property(b => b.Code).HasMaxLength(30).IsRequired();
+                entity.Property(b => b.Name).HasMaxLength(160).IsRequired();
+                entity.Property(b => b.BranchType).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(b => b.Address).HasMaxLength(300).IsRequired();
+                entity.Property(b => b.Latitude).HasPrecision(9, 6);
+                entity.Property(b => b.Longitude).HasPrecision(9, 6);
+                entity.Property(b => b.ContactNumber).HasMaxLength(30).IsRequired();
+                entity.HasOne(b => b.Region).WithMany(r => r.Branches).HasForeignKey(b => b.RegionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(b => b.District).WithMany(d => d.Branches).HasForeignKey(b => b.DistrictId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(b => b.Locality).WithMany(l => l.Branches).HasForeignKey(b => b.LocalityId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(b => b.Code).IsUnique();
+                entity.HasIndex(b => b.Name);
+            });
 
-                entity.Property(branch => branch.Code)
-                    .HasMaxLength(30)
-                    .IsRequired();
+            // ── Staff ─────────────────────────────────────────────────────────────
 
-                entity.Property(branch => branch.Name)
-                    .HasMaxLength(160)
-                    .IsRequired();
-
-                entity.Property(branch => branch.BranchType)
-                    .HasConversion<string>()
-                    .HasMaxLength(30)
-                    .IsRequired();
-
-                entity.Property(branch => branch.Address)
-                    .HasMaxLength(300)
-                    .IsRequired();
-
-                entity.Property(branch => branch.Latitude)
-                    .HasPrecision(9, 6);
-
-                entity.Property(branch => branch.Longitude)
-                    .HasPrecision(9, 6);
-
-                entity.Property(branch => branch.ContactNumber)
-                    .HasMaxLength(30)
-                    .IsRequired();
-
-                entity.HasOne(branch => branch.Region)
-                    .WithMany(region => region.Branches)
-                    .HasForeignKey(branch => branch.RegionId)
+            modelBuilder.Entity<StaffMember>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.EmployeeNumber).HasMaxLength(30).IsRequired();
+                entity.Property(s => s.FirstName).HasMaxLength(80).IsRequired();
+                entity.Property(s => s.LastName).HasMaxLength(80).IsRequired();
+                entity.Property(s => s.PhoneNumber).HasMaxLength(30).IsRequired();
+                entity.Property(s => s.EmailAddress).HasMaxLength(200).IsRequired();
+                entity.Property(s => s.JobTitle).HasMaxLength(100).IsRequired();
+                entity.Property(s => s.EmploymentStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+                entity.Property(s => s.ProfilePhotoObjectKey).HasMaxLength(500);
+                entity.UseXminAsConcurrencyToken();
+                entity.HasOne(s => s.Branch)
+                    .WithMany()
+                    .HasForeignKey(s => s.BranchId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(s => s.EmployeeNumber).IsUnique();
+                entity.HasIndex(s => s.EmailAddress).IsUnique();
+            });
 
-                entity.HasOne(branch => branch.District)
-                    .WithMany(district => district.Branches)
-                    .HasForeignKey(branch => branch.DistrictId)
+            // ── Identity ──────────────────────────────────────────────────────────
+
+            modelBuilder.Entity<ApplicationUser>(entity =>
+            {
+                entity.HasKey(u => u.Id);
+                entity.Property(u => u.Email).HasMaxLength(200).IsRequired();
+                entity.Property(u => u.PasswordHash).HasMaxLength(500).IsRequired();
+                entity.HasOne(u => u.StaffMember)
+                    .WithOne(s => s.ApplicationUser)
+                    .HasForeignKey<ApplicationUser>(u => u.StaffMemberId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(u => u.Email).IsUnique();
+                entity.HasIndex(u => u.StaffMemberId).IsUnique();
+            });
 
-                entity.HasOne(branch => branch.Locality)
-                    .WithMany(locality => locality.Branches)
-                    .HasForeignKey(branch => branch.LocalityId)
+            modelBuilder.Entity<Role>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.Name).HasMaxLength(60).IsRequired();
+                entity.Property(r => r.Description).HasMaxLength(300);
+                entity.HasIndex(r => r.Name).IsUnique();
+            });
+
+            modelBuilder.Entity<RolePermission>(entity =>
+            {
+                entity.HasKey(rp => new { rp.RoleId, rp.Permission });
+                entity.Property(rp => rp.Permission).HasMaxLength(80).IsRequired();
+                entity.HasOne(rp => rp.Role)
+                    .WithMany(r => r.RolePermissions)
+                    .HasForeignKey(rp => rp.RoleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<UserRole>(entity =>
+            {
+                entity.HasKey(ur => new { ur.UserId, ur.RoleId });
+                entity.HasOne(ur => ur.User)
+                    .WithMany(u => u.UserRoles)
+                    .HasForeignKey(ur => ur.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(ur => ur.Role)
+                    .WithMany(r => r.UserRoles)
+                    .HasForeignKey(ur => ur.RoleId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
 
-                entity.HasIndex(branch => branch.Code)
-                    .IsUnique();
+            modelBuilder.Entity<RefreshToken>(entity =>
+            {
+                entity.HasKey(rt => rt.Id);
+                entity.Property(rt => rt.Token).HasMaxLength(256).IsRequired();
+                entity.Property(rt => rt.RevokedReason).HasMaxLength(300);
+                entity.HasOne(rt => rt.User)
+                    .WithMany(u => u.RefreshTokens)
+                    .HasForeignKey(rt => rt.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(rt => rt.Token).IsUnique();
+            });
 
-                entity.HasIndex(branch => branch.Name);
+            modelBuilder.Entity<StaffInvitation>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.Token).HasMaxLength(256).IsRequired();
+                entity.HasOne(i => i.StaffMember)
+                    .WithMany(s => s.Invitations)
+                    .HasForeignKey(i => i.StaffMemberId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(i => i.Token).IsUnique();
             });
         }
     }

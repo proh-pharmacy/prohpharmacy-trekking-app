@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Identity.Seeding;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
 using prohpharmacy_trekking_app.Utilities;
@@ -135,11 +136,12 @@ app.UseAuthorization();
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 app.MapCarter();
 
-// ─── Apply Pending Migrations ────────────────────────────────────────────────
+// ─── Apply Pending Migrations + Seed ─────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
+    await RoleSeeder.SeedAsync(db);
 }
 
 app.Run();
