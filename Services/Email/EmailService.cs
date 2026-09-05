@@ -4,13 +4,13 @@ namespace prohpharmacy_trekking_app.Services.Email;
 
 public class EmailService : IEmailService
 {
-    private readonly IFluentEmail _fluentEmail;
+    private readonly IFluentEmailFactory _factory;
     private readonly IConfiguration _configuration;
     private readonly ILogger<EmailService> _logger;
 
-    public EmailService(IFluentEmail fluentEmail, IConfiguration configuration, ILogger<EmailService> logger)
+    public EmailService(IFluentEmailFactory factory, IConfiguration configuration, ILogger<EmailService> logger)
     {
-        _fluentEmail = fluentEmail;
+        _factory = factory;
         _configuration = configuration;
         _logger = logger;
     }
@@ -21,7 +21,7 @@ public class EmailService : IEmailService
         {
             var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffInvitationEmail.cshtml");
 
-            var response = await _fluentEmail
+            var response = await _factory.Create()
                 .To(to)
                 .Subject($"You're invited to join {model.AppName}")
                 .UsingTemplateFromFile(templatePath, model)
@@ -43,7 +43,7 @@ public class EmailService : IEmailService
         {
             var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffWelcomeEmail.cshtml");
 
-            var response = await _fluentEmail
+            var response = await _factory.Create()
                 .To(to)
                 .Subject($"Welcome to {model.AppName} — Your account is ready")
                 .UsingTemplateFromFile(templatePath, model)
