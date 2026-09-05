@@ -1,0 +1,153 @@
+[
+  {
+    "code": "AHF",
+    "region": "Ahafo",
+    "cities": ["Acherensua", "Bechem", "Duayaw Nkwanta", "Goaso", "Hwidiem", "Kenyasi", "Kukuom"]
+  },
+  {
+    "code": "ASH",
+    "region": "Ashanti",
+    "cities": [
+      "Abrepo Junction", "Abuakwa", "Adum", "Afrancho", "Agogo", "Agona", "Ahodwo", "Airport",
+      "Akumadan", "Akomadan", "Amakom", "Aputuogya", "Asafo", "Ash-Town", "Asokore Mampong",
+      "Asokwa", "Asuofia", "Atonsu", "Ayeduasi", "Ayigya", "Bantama", "Barekese", "Bekwai",
+      "Boadi", "Bomso", "Breman", "Brewery", "Buoho", "Buokrom Estate", "Daban", "Dakwadwom",
+      "Deduako", "Denyame", "Drobonso", "Effiduase", "Ejisu", "Ejura", "Emina", "Esreso",
+      "Fawode", "Fomena", "Gyinyasi", "Jacobu", "Jachie Pramso", "Juaben", "Kaasi", "KNUST",
+      "Kodie", "Komfo Anokye", "Konongo", "Kotei", "Krofrom", "Kumasi", "Kumawu", "Kwadaso",
+      "Maakro", "Mamponteng", "Mampong", "Mankranso", "Manso Adubia", "Manso Nkwanta",
+      "New Edubiase", "Nkawie", "North Suntreso", "Nsuta", "Ntonso", "Nyinahin", "Obuasi",
+      "Offinso", "Oforikrom", "Old Tafo", "Pankrono", "Santasi", "Sokoban", "South Suntreso",
+      "Suame", "Tafo", "Takwa-Maakro", "Tanoso", "Tepa", "TUC", "Twedie", "Tutuka"
+    ]
+  },
+  {
+    "code": "BON",
+    "region": "Bono",
+    "cities": [
+      "Banda Ahenkro", "Bechem", "Berekum", "Brekum", "Dormaa Ahenkro", "Duayaw Nkwanta",
+      "New Drobo", "Nsawkaw", "Sampa", "Sunyani"
+    ]
+  },
+  {
+    "code": "BOE",
+    "region": "Bono East",
+    "cities": [
+      "Atebubu", "Buipe", "Jema", "Kintampo", "Kwame Danso", "Nkoranza", "Prang",
+      "Techiman", "Wenchi", "Yeji"
+    ]
+  },
+  {
+    "code": "CEN",
+    "region": "Central",
+    "cities": [
+      "Agona Swedru", "Amanfrom", "Anomabu", "Apam", "Assin Fosu", "Bawjiase",
+      "Breman Asikuma", "Budumburam", "Cape Coast", "Domeabra", "Dunkwa-on-Offin", "Elmina",
+      "Foso", "Kasoa Ofaakor", "Kasoa Zongo", "Liberia Camp", "Mankessim", "Millennium City",
+      "Mumford", "Nyakrom", "Nyananor", "Nyanyano", "Oduponkpehe", "Opeikuma",
+      "Pentecost Seminary", "Saltpond", "Twifo Praso", "Winneba"
+    ]
+  },
+  {
+    "code": "EAS",
+    "region": "Eastern",
+    "cities": [
+      "Abetifi", "Abomosu", "Abompe", "Aburi", "Adeiso", "Adjeiikrom", "Adukrom", "Ahwerease",
+      "Akim Oda", "Akim Swedru", "Akosombo", "Akropong", "Akwatia", "Akyem Hemang", "Amanokrom",
+      "Apirede", "Asamankese", "Asesewa", "Atimpoku", "Ayiensu", "Begoro", "Bepoase", "Bisibom",
+      "Bososo", "Brekusu", "Coaltar", "Dawu", "Dedesoworako", "Donkorkrom", "Dwenase",
+      "Gyankama", "Juaso", "Kade", "Kibi", "Kitase", "Koforidua", "Kukurantumi", "Kwabeng",
+      "Mamfe", "Mampong", "Mpraeso", "New Abirem", "Nkawkaw", "Nsawam", "Nsutam", "Obooho",
+      "Obosomase", "Odumase Krobo", "Ofoase", "Osino", "Peduase", "Saaman", "Somanya",
+      "Suhum", "Summer", "Tease", "Tutu"
+    ]
+  },
+  {
+    "code": "GAC",
+    "region": "Greater Accra",
+    "cities": [
+      "Abelemkpe", "Ablekuma", "Abokobi", "Abossey Okai", "Abeka", "Accra Newtown", "Achimota",
+      "Ada Foah", "Adabraka", "Adenta", "Afienya", "Agbogba", "Agbogbloshie", "Airport",
+      "Airport Residential Area", "Alajo", "Amasaman", "Apenkwa", "Ashaiman", "Ashaley Botwe",
+      "Ashongman", "Asylum Down", "Atomic Junction", "Awoshie", "Baatsona - Spintex",
+      "Bawaleshie", "Bortianor", "Bubiashie", "Burma Camp", "Cantonment", "Dansoman",
+      "Darkuman", "Dawhenya", "Dodowa", "Dome", "Dzorwulu", "East Legon", "Frafraha", "Gbawe",
+      "Haatso", "James Town", "Kanda", "Kaneshie", "Kasoa", "Kissieman", "Kokomlemle",
+      "Kokrobite", "Korle Bu", "Korle Gonno", "Kpone", "Kwabenya", "Kwashieman", "Labadi",
+      "Labone", "Lapaz", "Lartebiokorshie", "Lashibi", "Legon", "Maamobi", "Madina", "Makola",
+      "Mallam", "McCarthy Hill", "Michel Camp", "Miotso", "Nima", "North Legon", "Nungua",
+      "Oblogo Mallam", "Odoponkpehe", "Odorkor", "Osu", "Oyarifa", "Oyibi", "Patang",
+      "Prampram", "Ridge", "Roman Ridge", "Sakumono", "Santa Maria", "Sowutuom", "Taifa",
+      "Tema", "Tema New Town", "Tesano", "Teshie", "Tetegu", "Tieman", "Tudu", "Weija",
+      "West Legon", "Westhills"
+    ]
+  },
+  {
+    "code": "NNE",
+    "region": "North East",
+    "cities": ["Bunkpurugu", "Chereponi", "Gambaga", "Nalerigu", "Walewale", "Yunyoo"]
+  },
+  {
+    "code": "NOR",
+    "region": "Northern",
+    "cities": [
+      "Bimbila", "Gushiegu", "Kpandae", "Kumbungu", "Nyankpala", "Sagnarigu",
+      "Salaga", "Savelugu", "Tamale", "Tolon", "Yendi"
+    ]
+  },
+  {
+    "code": "OTI",
+    "region": "Oti",
+    "cities": [
+      "Chinderi", "Dambai", "Jasikan", "Kadjebi", "Kete Krachi", "Kpassa",
+      "Nkonya", "Nkwanta", "Worawora"
+    ]
+  },
+  {
+    "code": "SAV",
+    "region": "Savannah",
+    "cities": ["Bamboi", "Bole", "Buipe", "Daboya", "Damango", "Salaga", "Sawla", "Yapei"]
+  },
+  {
+    "code": "UPE",
+    "region": "Upper East",
+    "cities": [
+      "Bawku", "Bolgatanga", "Bongo", "Fumbisi", "Navrongo", "Paga",
+      "Pusiga", "Pwalugu", "Sandema", "Tongo", "Zebilla"
+    ]
+  },
+  {
+    "code": "UPW",
+    "region": "Upper West",
+    "cities": [
+      "Funsi", "Gwollu", "Hamile", "Han", "Issa", "Jirapa", "Kaleo",
+      "Lambussie", "Lawra", "Nadowli", "Nandom", "Tumu", "Wa", "Wechiau"
+    ]
+  },
+  {
+    "code": "VOL",
+    "region": "Volta",
+    "cities": [
+      "Abor", "Adaklu Waya", "Adidome", "Aflao", "Agbozume", "Akatsi", "Anloga", "Ave Dakpa",
+      "Battor", "Denu", "Dzodze", "Ho", "Hohoe", "Keta", "Klikor", "Kpando",
+      "Kpetoe", "Kpeve", "Peki", "Sogakope", "Tsito"
+    ]
+  },
+  {
+    "code": "WES",
+    "region": "Western",
+    "cities": [
+      "Aboso", "Agona Nkwanta", "Asankragua", "Axim", "Bogoso", "Effiakuma",
+      "Elubo", "Half Assini", "Inchaban", "Prestea", "Samreboi", "Sekondi",
+      "Shama", "Takoradi", "Tarkwa"
+    ]
+  },
+  {
+    "code": "WEN",
+    "region": "Western North",
+    "cities": [
+      "Akontombra", "Bibiani", "Dadieso", "Enchi", "Juaboso",
+      "Sefwi Bekwai", "Sefwi Wiawso", "Sewhi Anhwiaso"
+    ]
+  }
+]

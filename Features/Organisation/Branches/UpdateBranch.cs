@@ -1,7 +1,6 @@
 using Carter;
 using FluentValidation;
 using MediatR;
-using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Organisation.Enums;
@@ -19,7 +18,6 @@ public static class UpdateBranch
         public BranchType BranchType { get; set; }
         public Guid RegionId { get; set; }
         public Guid DistrictId { get; set; }
-        public Guid LocalityId { get; set; }
         public string Address { get; set; } = string.Empty;
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
@@ -35,7 +33,6 @@ public static class UpdateBranch
             RuleFor(x => x.BranchType).IsInEnum();
             RuleFor(x => x.RegionId).NotEmpty();
             RuleFor(x => x.DistrictId).NotEmpty();
-            RuleFor(x => x.LocalityId).NotEmpty();
             RuleFor(x => x.Address).NotEmpty().MaximumLength(300);
             RuleFor(x => x.ContactNumber).NotEmpty().MaximumLength(30);
         }
@@ -73,18 +70,10 @@ public static class UpdateBranch
             if (district.RegionId != request.RegionId)
                 return Result.Failure<BranchResponse>(Error.BadRequest("District does not belong to the specified region."));
 
-            var locality = await _db.Localities.FindAsync([request.LocalityId], cancellationToken);
-            if (locality is null)
-                return Result.Failure<BranchResponse>(Error.CreateNotFoundError("Locality not found."));
-
-            if (locality.DistrictId != request.DistrictId)
-                return Result.Failure<BranchResponse>(Error.BadRequest("Locality does not belong to the specified district."));
-
             branch.Name = request.Name.Trim();
             branch.BranchType = request.BranchType;
             branch.RegionId = request.RegionId;
             branch.DistrictId = request.DistrictId;
-            branch.LocalityId = request.LocalityId;
             branch.Address = request.Address.Trim();
             branch.Latitude = request.Latitude ?? branch.Latitude;
             branch.Longitude = request.Longitude ?? branch.Longitude;
@@ -93,7 +82,7 @@ public static class UpdateBranch
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(CreateBranch.Handler.ToResponse(branch, region.Name, district.Name, locality.Name));
+            return Result.Success(CreateBranch.Handler.ToResponse(branch, region.Name, district.Name));
         }
     }
 }

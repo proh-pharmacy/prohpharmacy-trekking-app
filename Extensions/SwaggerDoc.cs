@@ -18,6 +18,7 @@ namespace prohpharmacy_trekking_app.Extensions
             public const string Organisation = "Organisation";
             public const string Staff = "Staff";
             public const string Fleet = "Fleet";
+            public const string Tracking = "Tracking";
             public const string Trekking = "Trekking";
             public const string Customers = "Customers";
             public const string Visits = "Visits";

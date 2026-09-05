@@ -14,7 +14,6 @@ public static class CreateRegion
 {
     public class Command : IRequest<Result<RegionResponse>>
     {
-        public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
     }
 
@@ -31,13 +30,7 @@ public static class CreateRegion
     {
         public Validator()
         {
-            RuleFor(x => x.Code)
-                .NotEmpty().WithMessage("Region code is required.")
-                .MaximumLength(20).WithMessage("Region code must not exceed 20 characters.");
-
-            RuleFor(x => x.Name)
-                .NotEmpty().WithMessage("Region name is required.")
-                .MaximumLength(120).WithMessage("Region name must not exceed 120 characters.");
+            RuleFor(x => x.Name).NotEmpty().MaximumLength(120);
         }
     }
 
@@ -58,20 +51,19 @@ public static class CreateRegion
             if (!validation.IsValid)
                 return Result.Failure<RegionResponse>(Error.ValidationError(validation));
 
-            var codeExists = await _db.Regions
-                .AnyAsync(r => r.Code.ToLower() == request.Code.Trim().ToLower(), cancellationToken);
-            if (codeExists)
-                return Result.Failure<RegionResponse>(Error.Conflict("A region with this code already exists."));
-
             var nameExists = await _db.Regions
                 .AnyAsync(r => r.Name.ToLower() == request.Name.Trim().ToLower(), cancellationToken);
             if (nameExists)
                 return Result.Failure<RegionResponse>(Error.Conflict("A region with this name already exists."));
 
+            var code = await StringUtilities.GenerateUniqueCodeAsync(
+                request.Name,
+                c => _db.Regions.AnyAsync(r => r.Code == c, cancellationToken));
+
             var region = new Region
             {
-                Code = request.Code.Trim().ToUpper(),
-                Name = StringUtilities.FillTemplate(request.Name.Trim(), []),
+                Code = code,
+                Name = request.Name.Trim(),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow
             };

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -11,9 +12,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260905212918_StaffTraccarDriverId")]
+    partial class StaffTraccarDriverId
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -402,8 +405,8 @@ namespace prohpharmacy_trekking_app.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
 
                     b.Property<string>("ContactNumber")
                         .IsRequired()
@@ -422,6 +425,9 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Property<decimal>("Latitude")
                         .HasPrecision(9, 6)
                         .HasColumnType("numeric(9,6)");
+
+                    b.Property<Guid>("LocalityId")
+                        .HasColumnType("uuid");
 
                     b.Property<decimal>("Longitude")
                         .HasPrecision(9, 6)
@@ -445,6 +451,8 @@ namespace prohpharmacy_trekking_app.Migrations
 
                     b.HasIndex("DistrictId");
 
+                    b.HasIndex("LocalityId");
+
                     b.HasIndex("Name");
 
                     b.HasIndex("RegionId");
@@ -460,8 +468,8 @@ namespace prohpharmacy_trekking_app.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -491,6 +499,45 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Districts");
                 });
 
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Code")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DistrictId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("character varying(120)");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DistrictId", "Code")
+                        .IsUnique();
+
+                    b.HasIndex("DistrictId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Localities");
+                });
+
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", b =>
                 {
                     b.Property<Guid>("Id")
@@ -499,8 +546,8 @@ namespace prohpharmacy_trekking_app.Migrations
 
                     b.Property<string>("Code")
                         .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
@@ -731,6 +778,12 @@ namespace prohpharmacy_trekking_app.Migrations
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", "Locality")
+                        .WithMany("Branches")
+                        .HasForeignKey("LocalityId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", "Region")
                         .WithMany("Branches")
                         .HasForeignKey("RegionId")
@@ -738,6 +791,8 @@ namespace prohpharmacy_trekking_app.Migrations
                         .IsRequired();
 
                     b.Navigation("District");
+
+                    b.Navigation("Locality");
 
                     b.Navigation("Region");
                 });
@@ -751,6 +806,17 @@ namespace prohpharmacy_trekking_app.Migrations
                         .IsRequired();
 
                     b.Navigation("Region");
+                });
+
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
+                {
+                    b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.District", "District")
+                        .WithMany("Localities")
+                        .HasForeignKey("DistrictId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("District");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", b =>
@@ -789,6 +855,13 @@ namespace prohpharmacy_trekking_app.Migrations
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.District", b =>
+                {
+                    b.Navigation("Branches");
+
+                    b.Navigation("Localities");
+                });
+
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Organisation.Entities.Locality", b =>
                 {
                     b.Navigation("Branches");
                 });

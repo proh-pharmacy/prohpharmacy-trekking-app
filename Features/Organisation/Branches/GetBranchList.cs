@@ -16,7 +16,6 @@ public static class GetBranchList
     {
         public Guid? RegionId { get; set; }
         public Guid? DistrictId { get; set; }
-        public Guid? LocalityId { get; set; }
         public string? BranchType { get; set; }
         public string? Search { get; set; }
         public string? Sort { get; set; }
@@ -36,7 +35,6 @@ public static class GetBranchList
             var query = _db.Branches
                 .Include(b => b.Region)
                 .Include(b => b.District)
-                .Include(b => b.Locality)
                 .AsNoTracking();
 
             if (request.IncludeInactive != true)
@@ -48,9 +46,6 @@ public static class GetBranchList
             if (request.DistrictId.HasValue)
                 query = query.Where(b => b.DistrictId == request.DistrictId.Value);
 
-            if (request.LocalityId.HasValue)
-                query = query.Where(b => b.LocalityId == request.LocalityId.Value);
-
             if (!string.IsNullOrWhiteSpace(request.BranchType))
                 query = query.Where(b => b.BranchType.ToString().ToLower() == request.BranchType.ToLower());
 
@@ -58,31 +53,13 @@ public static class GetBranchList
                 .WithSearch(request.Search, nameof(Entities.Branch.Name), nameof(Entities.Branch.Code))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(b => (object)ToResponse((Entities.Branch)b));
+                .BuildAsync(b => (object)CreateBranch.Handler.ToResponse(
+                    (Entities.Branch)b,
+                    ((Entities.Branch)b).Region?.Name ?? string.Empty,
+                    ((Entities.Branch)b).District?.Name ?? string.Empty));
 
             return Result.Success(result);
         }
-
-        private static BranchResponse ToResponse(Entities.Branch b) => new()
-        {
-            Id = b.Id,
-            Code = b.Code,
-            Name = b.Name,
-            BranchType = b.BranchType.ToString(),
-            RegionId = b.RegionId,
-            RegionName = b.Region?.Name ?? string.Empty,
-            DistrictId = b.DistrictId,
-            DistrictName = b.District?.Name ?? string.Empty,
-            LocalityId = b.LocalityId,
-            LocalityName = b.Locality?.Name ?? string.Empty,
-            Address = b.Address,
-            Latitude = b.Latitude,
-            Longitude = b.Longitude,
-            ContactNumber = b.ContactNumber,
-            IsActive = b.IsActive,
-            CreatedAt = b.CreatedAt,
-            UpdatedAt = b.UpdatedAt
-        };
     }
 }
 
@@ -94,7 +71,6 @@ public class GetBranchListEndpoint : ICarterModule
             ISender sender,
             [FromQuery] Guid? regionId,
             [FromQuery] Guid? districtId,
-            [FromQuery] Guid? localityId,
             [FromQuery] string? branchType,
             [FromQuery] string? search,
             [FromQuery] string? sort,
@@ -106,7 +82,6 @@ public class GetBranchListEndpoint : ICarterModule
             {
                 RegionId = regionId,
                 DistrictId = districtId,
-                LocalityId = localityId,
                 BranchType = branchType,
                 Search = search,
                 Sort = sort,
@@ -122,7 +97,7 @@ public class GetBranchListEndpoint : ICarterModule
         .WithTags("Organisation - Branches")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("List / search branches")
-        .WithDescription("Filter by regionId, districtId, localityId, or branchType (Retail | Wholesale | Laboratory).")
+        .WithDescription("Filter by regionId, districtId, or branchType (Retail | Wholesale | Laboratory).")
         .RequireAuthorization();
     }
 }

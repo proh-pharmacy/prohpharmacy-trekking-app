@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Fleet.Devices.CreateTrackingDevice;
 
@@ -32,11 +33,13 @@ public static class UpdateTrackingDevice
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly ITraccarService _traccar;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
         {
             _db = db;
             _validator = validator;
+            _traccar = traccar;
         }
 
         public async Task<Result<DeviceResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -59,6 +62,9 @@ public static class UpdateTrackingDevice
             device.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (device.TraccarDeviceId is not null)
+                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
 
             var active = device.Assignments.FirstOrDefault();
 

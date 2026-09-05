@@ -7,7 +7,10 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Identity.Seeding;
+using prohpharmacy_trekking_app.Features.Organisation.Seeding;
+using prohpharmacy_trekking_app.Hubs;
 using prohpharmacy_trekking_app.Services.Email;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
 using prohpharmacy_trekking_app.Utilities;
@@ -70,6 +73,12 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 
 // ─── Email ────────────────────────────────────────────────────────────────────
 builder.Services.AddEmailServices(builder.Configuration);
+
+// ─── Traccar ──────────────────────────────────────────────────────────────────
+builder.Services.AddTraccarServices(builder.Configuration);
+
+// ─── SignalR ──────────────────────────────────────────────────────────────────
+builder.Services.AddSignalR();
 
 // ─── Caching & Problem Details ────────────────────────────────────────────────
 builder.Services.AddMemoryCache();
@@ -139,6 +148,7 @@ app.UseAuthorization();
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 app.MapCarter();
+app.MapHub<TrackingHub>("/hubs/tracking");
 
 // ─── Apply Pending Migrations + Seed ─────────────────────────────────────────
 using (var scope = app.Services.CreateScope())
@@ -146,6 +156,7 @@ using (var scope = app.Services.CreateScope())
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     await db.Database.MigrateAsync();
     await RoleSeeder.SeedAsync(db);
+    await GhanaRegionSeeder.SeedAsync(db);
 }
 
 app.Run();

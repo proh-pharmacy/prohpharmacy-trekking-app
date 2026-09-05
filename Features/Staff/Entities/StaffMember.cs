@@ -18,6 +18,7 @@ public class StaffMember
     public EmploymentStatus EmploymentStatus { get; set; } = EmploymentStatus.Pending;
     public DateOnly JoinedOn { get; set; }
     public string? ProfilePhotoObjectKey { get; set; }
+    public int? TraccarDriverId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Guid? CreatedBy { get; set; }
     public DateTime? UpdatedAt { get; set; }

@@ -15,11 +15,11 @@ namespace prohpharmacy_trekking_app.Database
         // Organisation
         public DbSet<Region> Regions => Set<Region>();
         public DbSet<District> Districts => Set<District>();
-        public DbSet<Locality> Localities => Set<Locality>();
         public DbSet<Branch> Branches => Set<Branch>();
 
         // Fleet
         public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+
         public DbSet<TrackingDevice> TrackingDevices => Set<TrackingDevice>();
         public DbSet<VehicleStaffAssignment> VehicleStaffAssignments => Set<VehicleStaffAssignment>();
         public DbSet<StaffDeviceAssignment> StaffDeviceAssignments => Set<StaffDeviceAssignment>();
@@ -44,7 +44,7 @@ namespace prohpharmacy_trekking_app.Database
             modelBuilder.Entity<Region>(entity =>
             {
                 entity.HasKey(r => r.Id);
-                entity.Property(r => r.Code).HasMaxLength(20).IsRequired();
+                entity.Property(r => r.Code).HasMaxLength(100).IsRequired();
                 entity.Property(r => r.Name).HasMaxLength(120).IsRequired();
                 entity.HasIndex(r => r.Code).IsUnique();
                 entity.HasIndex(r => r.Name).IsUnique();
@@ -53,7 +53,7 @@ namespace prohpharmacy_trekking_app.Database
             modelBuilder.Entity<District>(entity =>
             {
                 entity.HasKey(d => d.Id);
-                entity.Property(d => d.Code).HasMaxLength(20).IsRequired();
+                entity.Property(d => d.Code).HasMaxLength(100).IsRequired();
                 entity.Property(d => d.Name).HasMaxLength(120).IsRequired();
                 entity.HasOne(d => d.Region)
                     .WithMany(r => r.Districts)
@@ -63,23 +63,10 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasIndex(d => new { d.RegionId, d.Name }).IsUnique();
             });
 
-            modelBuilder.Entity<Locality>(entity =>
-            {
-                entity.HasKey(l => l.Id);
-                entity.Property(l => l.Code).HasMaxLength(20).IsRequired();
-                entity.Property(l => l.Name).HasMaxLength(120).IsRequired();
-                entity.HasOne(l => l.District)
-                    .WithMany(d => d.Localities)
-                    .HasForeignKey(l => l.DistrictId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasIndex(l => new { l.DistrictId, l.Code }).IsUnique();
-                entity.HasIndex(l => new { l.DistrictId, l.Name }).IsUnique();
-            });
-
             modelBuilder.Entity<Branch>(entity =>
             {
                 entity.HasKey(b => b.Id);
-                entity.Property(b => b.Code).HasMaxLength(30).IsRequired();
+                entity.Property(b => b.Code).HasMaxLength(100).IsRequired();
                 entity.Property(b => b.Name).HasMaxLength(160).IsRequired();
                 entity.Property(b => b.BranchType).HasConversion<string>().HasMaxLength(30).IsRequired();
                 entity.Property(b => b.Address).HasMaxLength(300).IsRequired();
@@ -88,7 +75,6 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(b => b.ContactNumber).HasMaxLength(30).IsRequired();
                 entity.HasOne(b => b.Region).WithMany(r => r.Branches).HasForeignKey(b => b.RegionId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(b => b.District).WithMany(d => d.Branches).HasForeignKey(b => b.DistrictId).OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(b => b.Locality).WithMany(l => l.Branches).HasForeignKey(b => b.LocalityId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(b => b.Code).IsUnique();
                 entity.HasIndex(b => b.Name);
             });

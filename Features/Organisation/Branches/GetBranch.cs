@@ -26,36 +26,17 @@ public static class GetBranch
             var branch = await _db.Branches
                 .Include(b => b.Region)
                 .Include(b => b.District)
-                .Include(b => b.Locality)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(b => b.Id == request.Id, cancellationToken);
 
             if (branch is null)
                 return Result.Failure<BranchResponse>(Error.CreateNotFoundError("Branch not found."));
 
-            return Result.Success(ToResponse(branch));
+            return Result.Success(CreateBranch.Handler.ToResponse(
+                branch,
+                branch.Region?.Name ?? string.Empty,
+                branch.District?.Name ?? string.Empty));
         }
-
-        private static BranchResponse ToResponse(Entities.Branch b) => new()
-        {
-            Id = b.Id,
-            Code = b.Code,
-            Name = b.Name,
-            BranchType = b.BranchType.ToString(),
-            RegionId = b.RegionId,
-            RegionName = b.Region?.Name ?? string.Empty,
-            DistrictId = b.DistrictId,
-            DistrictName = b.District?.Name ?? string.Empty,
-            LocalityId = b.LocalityId,
-            LocalityName = b.Locality?.Name ?? string.Empty,
-            Address = b.Address,
-            Latitude = b.Latitude,
-            Longitude = b.Longitude,
-            ContactNumber = b.ContactNumber,
-            IsActive = b.IsActive,
-            CreatedAt = b.CreatedAt,
-            UpdatedAt = b.UpdatedAt
-        };
     }
 }
 

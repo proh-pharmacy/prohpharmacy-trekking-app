@@ -19,13 +19,21 @@ namespace prohpharmacy_trekking_app.Extensions
         {
             _logger.LogError(exception, "Unhandled exception: {Message}", exception.Message);
 
-            var (statusCode, title) = exception switch
+            var (statusCode, title, message) = exception switch
             {
-                UnauthorizedAccessException => (StatusCodes.Status401Unauthorized, "Unauthorized"),
-                ArgumentException or ArgumentNullException => (StatusCodes.Status400BadRequest, "Bad Request"),
-                KeyNotFoundException => (StatusCodes.Status404NotFound, "Not Found"),
-                InvalidOperationException => (StatusCodes.Status400BadRequest, "Invalid Operation"),
-                _ => (StatusCodes.Status500InternalServerError, "Internal Server Error")
+                BadHttpRequestException { InnerException: System.Text.Json.JsonException jsonEx }
+                    => (StatusCodes.Status400BadRequest, "Invalid Request Body", jsonEx.Message),
+                BadHttpRequestException ex
+                    => (StatusCodes.Status400BadRequest, "Bad Request", ex.Message),
+                UnauthorizedAccessException ex
+                    => (StatusCodes.Status401Unauthorized, "Unauthorized", ex.Message),
+                ArgumentException or ArgumentNullException
+                    => (StatusCodes.Status400BadRequest, "Bad Request", exception.Message),
+                KeyNotFoundException ex
+                    => (StatusCodes.Status404NotFound, "Not Found", ex.Message),
+                InvalidOperationException ex
+                    => (StatusCodes.Status400BadRequest, "Invalid Operation", ex.Message),
+                _ => (StatusCodes.Status500InternalServerError, "Internal Server Error", "An unexpected error occurred.")
             };
 
             httpContext.Response.StatusCode = statusCode;
@@ -34,7 +42,7 @@ namespace prohpharmacy_trekking_app.Extensions
             {
                 code = statusCode.ToString(),
                 title,
-                message = exception.Message,
+                message,
                 path = httpContext.Request.Path
             };
 

@@ -6,6 +6,7 @@ using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Enums;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Fleet.Devices;
@@ -43,11 +44,13 @@ public static class AssignDevice
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly ITraccarService _traccar;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
         {
             _db = db;
             _validator = validator;
+            _traccar = traccar;
         }
 
         public async Task<Result<AssignmentResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -92,6 +95,9 @@ public static class AssignDevice
 
             _db.StaffDeviceAssignments.Add(assignment);
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (device.TraccarDeviceId is not null)
+                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, staff.FullName, cancellationToken);
 
             return Result.Success(new AssignmentResponse
             {

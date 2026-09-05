@@ -6,6 +6,7 @@ using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Shared;
+using prohpharmacy_trekking_app.Utilities;
 
 namespace prohpharmacy_trekking_app.Features.Organisation.Districts;
 
@@ -14,7 +15,6 @@ public static class CreateDistrict
     public class Command : IRequest<Result<DistrictResponse>>
     {
         public Guid RegionId { get; set; }
-        public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
     }
 
@@ -33,13 +33,8 @@ public static class CreateDistrict
     {
         public Validator()
         {
-            RuleFor(x => x.RegionId).NotEmpty().WithMessage("RegionId is required.");
-            RuleFor(x => x.Code)
-                .NotEmpty().WithMessage("District code is required.")
-                .MaximumLength(20);
-            RuleFor(x => x.Name)
-                .NotEmpty().WithMessage("District name is required.")
-                .MaximumLength(120);
+            RuleFor(x => x.RegionId).NotEmpty();
+            RuleFor(x => x.Name).NotEmpty().MaximumLength(120);
         }
     }
 
@@ -64,16 +59,20 @@ public static class CreateDistrict
             if (region is null)
                 return Result.Failure<DistrictResponse>(Error.CreateNotFoundError("Region not found."));
 
-            var duplicate = await _db.Districts.AnyAsync(
-                d => d.RegionId == request.RegionId && d.Code.ToLower() == request.Code.Trim().ToLower(),
+            var nameExists = await _db.Districts.AnyAsync(
+                d => d.RegionId == request.RegionId && d.Name.ToLower() == request.Name.Trim().ToLower(),
                 cancellationToken);
-            if (duplicate)
-                return Result.Failure<DistrictResponse>(Error.Conflict("A district with this code already exists in the region."));
+            if (nameExists)
+                return Result.Failure<DistrictResponse>(Error.Conflict("A district with this name already exists in the region."));
+
+            var code = await StringUtilities.GenerateUniqueCodeAsync(
+                request.Name,
+                c => _db.Districts.AnyAsync(d => d.RegionId == request.RegionId && d.Code == c, cancellationToken));
 
             var district = new District
             {
                 RegionId = request.RegionId,
-                Code = request.Code.Trim().ToUpper(),
+                Code = code,
                 Name = request.Name.Trim(),
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow

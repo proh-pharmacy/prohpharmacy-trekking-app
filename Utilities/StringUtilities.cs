@@ -1,9 +1,33 @@
 using System.Security.Cryptography;
+using System.Text.RegularExpressions;
 
 namespace prohpharmacy_trekking_app.Utilities
 {
     public static class StringUtilities
     {
+        public static string Slugify(string name)
+        {
+            var slug = name.Trim().ToUpper();
+            slug = Regex.Replace(slug, @"[^A-Z0-9\s]", "");
+            slug = Regex.Replace(slug, @"\s+", "-");
+            return slug;
+        }
+
+        public static async Task<string> GenerateUniqueCodeAsync(
+            string name,
+            Func<string, Task<bool>> existsAsync)
+        {
+            var baseCode = Slugify(name);
+            if (!await existsAsync(baseCode)) return baseCode;
+
+            for (var i = 2; i <= 999; i++)
+            {
+                var candidate = $"{baseCode}-{i}";
+                if (!await existsAsync(candidate)) return candidate;
+            }
+
+            return $"{baseCode}-{Guid.NewGuid().ToString("N")[..6].ToUpper()}";
+        }
         /// <summary>Generates a random 4-digit OTP.</summary>
         public static string GenerateRandomOtp()
         {

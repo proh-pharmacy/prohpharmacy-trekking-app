@@ -11,7 +11,6 @@ namespace prohpharmacy_trekking_app.Features.Organisation.Entities
         public DateTime? UpdatedAt { get; set; }
 
         public Region Region { get; set; } = null!;
-        public ICollection<Locality> Localities { get; set; } = [];
         public ICollection<Branch> Branches { get; set; } = [];
     }
 }
