@@ -15,6 +15,13 @@ namespace prohpharmacy_trekking_app.Extensions
             public const string General = "General";
             public const string Auth = "Auth";
             public const string Admin = "Admin";
+            public const string Organisation = "Organisation";
+            public const string Staff = "Staff";
+            public const string Fleet = "Fleet";
+            public const string Trekking = "Trekking";
+            public const string Customers = "Customers";
+            public const string Visits = "Visits";
+            public const string Reports = "Reports";
         }
 
         // ─── Operation Filters ─────────────────────────────────────────────────────
