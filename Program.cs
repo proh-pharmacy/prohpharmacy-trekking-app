@@ -7,6 +7,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Identity.Seeding;
+using prohpharmacy_trekking_app.Services.Email;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
 using prohpharmacy_trekking_app.Utilities;
@@ -66,6 +67,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
     options.SerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
 });
+
+// ─── Email ────────────────────────────────────────────────────────────────────
+builder.Services.AddEmailServices(builder.Configuration);
 
 // ─── Caching & Problem Details ────────────────────────────────────────────────
 builder.Services.AddMemoryCache();

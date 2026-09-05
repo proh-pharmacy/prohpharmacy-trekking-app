@@ -4,7 +4,9 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Providers;
+using prohpharmacy_trekking_app.Services.Email;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Enums;
@@ -23,6 +25,8 @@ public static class CreateStaff
         public string JobTitle { get; set; } = string.Empty;
         public Guid BranchId { get; set; }
         public DateOnly JoinedOn { get; set; }
+        public bool GrantAppAccess { get; set; }
+        public string? InitialPassword { get; set; }
     }
 
     public class StaffResponse
@@ -40,6 +44,7 @@ public static class CreateStaff
         public string EmploymentStatus { get; set; } = string.Empty;
         public DateOnly JoinedOn { get; set; }
         public bool HasAppAccess { get; set; }
+        public string? InitialPassword { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -56,6 +61,10 @@ public static class CreateStaff
             RuleFor(x => x.JobTitle).NotEmpty().MaximumLength(100);
             RuleFor(x => x.BranchId).NotEmpty();
             RuleFor(x => x.JoinedOn).NotEmpty();
+            RuleFor(x => x.InitialPassword)
+                .MinimumLength(8)
+                .When(x => x.InitialPassword is not null)
+                .WithMessage("Initial password must be at least 8 characters.");
         }
     }
 
@@ -64,12 +73,17 @@ public static class CreateStaff
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
         private readonly AuthProvider _auth;
+        private readonly IEmailService _email;
+        private readonly IConfiguration _config;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, AuthProvider auth)
+        public Handler(AppDbContext db, IValidator<Command> validator, AuthProvider auth,
+            IEmailService email, IConfiguration config)
         {
             _db = db;
             _validator = validator;
             _auth = auth;
+            _email = email;
+            _config = config;
         }
 
         public async Task<Result<StaffResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -106,7 +120,7 @@ public static class CreateStaff
                 EmailAddress = request.EmailAddress.Trim().ToLower(),
                 JobTitle = request.JobTitle.Trim(),
                 BranchId = request.BranchId,
-                EmploymentStatus = EmploymentStatus.Pending,
+                EmploymentStatus = request.GrantAppAccess ? EmploymentStatus.Active : EmploymentStatus.Pending,
                 JoinedOn = request.JoinedOn,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = creatorId is not null ? Guid.Parse(creatorId) : null
@@ -115,7 +129,44 @@ public static class CreateStaff
             _db.StaffMembers.Add(staff);
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(ToResponse(staff, branch.Name));
+            string? plainPassword = null;
+
+            if (request.GrantAppAccess)
+            {
+                plainPassword = string.IsNullOrWhiteSpace(request.InitialPassword)
+                    ? $"{request.FirstName.Trim().ToLower()}{request.LastName.Trim().ToLower()}"
+                    : request.InitialPassword;
+
+                _db.ApplicationUsers.Add(new ApplicationUser
+                {
+                    StaffMemberId = staff.Id,
+                    Email = staff.EmailAddress,
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword),
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow
+                });
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                var appName = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
+                var loginUrl = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
+                var supportEmail = _config["EmailSettings:SupportEmail"] ?? string.Empty;
+
+                _ = _email.SendStaffWelcomeEmailAsync(staff.EmailAddress, new StaffWelcomeEmailModel
+                {
+                    StaffFullName = staff.FullName,
+                    EmployeeNumber = staff.EmployeeNumber,
+                    Email = staff.EmailAddress,
+                    InitialPassword = plainPassword,
+                    LoginUrl = loginUrl,
+                    AppName = appName,
+                    SupportEmail = supportEmail
+                });
+            }
+
+            var response = ToResponse(staff, branch.Name, request.GrantAppAccess);
+            response.InitialPassword = plainPassword;
+            return Result.Success(response);
         }
 
         internal static StaffResponse ToResponse(StaffMember s, string branchName, bool hasAppAccess = false) => new()
@@ -153,7 +204,11 @@ public class CreateStaffEndpoint : ICarterModule
         .WithTags("Staff")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Create a new staff member")
-        .WithDescription("Creates a staff record. Use POST /api/v1/invitations to grant application access.")
+        .WithDescription(
+            "Creates a staff record. " +
+            "Set `grantAppAccess: true` to also create a login account immediately. " +
+            "Provide `initialPassword` or leave it null to auto-derive it as `firstname + lastname` (e.g. `johndoe`). " +
+            "The plain-text initial password is returned once in the response — store it safely and share it with the staff member.")
         .RequireAuthorization();
     }
 }

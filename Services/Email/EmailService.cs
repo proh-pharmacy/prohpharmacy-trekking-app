@@ -1,0 +1,61 @@
+using FluentEmail.Core;
+
+namespace prohpharmacy_trekking_app.Services.Email;
+
+public class EmailService : IEmailService
+{
+    private readonly IFluentEmail _fluentEmail;
+    private readonly IConfiguration _configuration;
+    private readonly ILogger<EmailService> _logger;
+
+    public EmailService(IFluentEmail fluentEmail, IConfiguration configuration, ILogger<EmailService> logger)
+    {
+        _fluentEmail = fluentEmail;
+        _configuration = configuration;
+        _logger = logger;
+    }
+
+    public async Task SendStaffInvitationEmailAsync(string to, StaffInvitationEmailModel model)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffInvitationEmail.cshtml");
+
+            var response = await _fluentEmail
+                .To(to)
+                .Subject($"You're invited to join {model.AppName}")
+                .UsingTemplateFromFile(templatePath, model)
+                .SendAsync();
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send invitation email to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending invitation email to {Email}", to);
+        }
+    }
+
+    public async Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffWelcomeEmail.cshtml");
+
+            var response = await _fluentEmail
+                .To(to)
+                .Subject($"Welcome to {model.AppName} — Your account is ready")
+                .UsingTemplateFromFile(templatePath, model)
+                .SendAsync();
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send welcome email to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending welcome email to {Email}", to);
+        }
+    }
+}
