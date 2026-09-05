@@ -19,8 +19,8 @@ public static class SyncDevicesToTraccar
     public class SyncResponse
     {
         public int Synced { get; set; }
-        public int Failed { get; set; }
         public int AlreadySynced { get; set; }
+        public int Failed { get; set; }
         public int Deleted { get; set; }
         public List<string> Errors { get; set; } = [];
     }
@@ -42,59 +42,98 @@ public static class SyncDevicesToTraccar
         {
             var devices = await _db.TrackingDevices.ToListAsync(cancellationToken);
             var response = new SyncResponse();
+            var dbChanged = false;
 
-            List<int> traccarIdsBefore = [];
             if (request.Force)
             {
-                var allTraccar = await _traccar.GetAllDevicesAsync(cancellationToken);
-                traccarIdsBefore = allTraccar.Select(d => d.Id).ToList();
+                // Full reconciliation:
+                // 1. Fetch everything from Traccar and index by UniqueId
+                // 2. Match local devices by UniqueId — re-link if found, create if not
+                // 3. Delete any Traccar device with no matching local UniqueId (true orphans)
 
-                foreach (var d in devices)
+                var allTraccar = await _traccar.GetAllDevicesAsync(cancellationToken);
+                var traccarByUniqueId = allTraccar.ToDictionary(d => d.UniqueId, d => d.Id);
+                var knownTraccarIds = new HashSet<int>();
+
+                foreach (var device in devices)
                 {
-                    d.TraccarDeviceId = null;
-                    d.UpdatedAt = DateTime.UtcNow;
+                    if (traccarByUniqueId.TryGetValue(device.TraccarUniqueId, out var existingTraccarId))
+                    {
+                        // Already in Traccar — just ensure local ID is correct
+                        knownTraccarIds.Add(existingTraccarId);
+
+                        if (device.TraccarDeviceId != existingTraccarId)
+                        {
+                            device.TraccarDeviceId = existingTraccarId;
+                            device.UpdatedAt = DateTime.UtcNow;
+                            dbChanged = true;
+                            _logger.LogInformation("Device {DeviceId} ({Name}) re-linked to existing Traccar entry #{TraccarId}",
+                                device.Id, device.Name, existingTraccarId);
+                        }
+
+                        response.AlreadySynced++;
+                    }
+                    else
+                    {
+                        // Not in Traccar — create it
+                        var traccarDevice = await _traccar.CreateDeviceAsync(device.Name, device.TraccarUniqueId, cancellationToken);
+                        if (traccarDevice is not null)
+                        {
+                            device.TraccarDeviceId = traccarDevice.Id;
+                            device.UpdatedAt = DateTime.UtcNow;
+                            knownTraccarIds.Add(traccarDevice.Id);
+                            dbChanged = true;
+                            response.Synced++;
+                        }
+                        else
+                        {
+                            response.Failed++;
+                            response.Errors.Add($"Failed to sync device '{device.Name}' (id: {device.Id}).");
+                        }
+                    }
                 }
-                await _db.SaveChangesAsync(cancellationToken);
+
+                // Delete orphans — Traccar entries with no matching local device
+                foreach (var orphan in allTraccar.Where(d => !knownTraccarIds.Contains(d.Id)))
+                {
+                    var deleted = await _traccar.DeleteDeviceAsync(orphan.Id, cancellationToken);
+                    if (deleted)
+                    {
+                        response.Deleted++;
+                        _logger.LogInformation("Deleted orphan Traccar device #{TraccarId} ({Name})", orphan.Id, orphan.Name);
+                    }
+                    else
+                    {
+                        response.Errors.Add($"Failed to delete orphan Traccar device #{orphan.Id} ({orphan.Name}).");
+                    }
+                }
             }
             else
             {
+                // Light sync: only create Traccar entries for local devices that have none
                 response.AlreadySynced = devices.Count(d => d.TraccarDeviceId is not null);
-            }
+                var unsynced = devices.Where(d => d.TraccarDeviceId is null).ToList();
 
-            var unsynced = devices.Where(d => d.TraccarDeviceId is null).ToList();
-            var syncedTraccarIds = new HashSet<int>();
-
-            foreach (var device in unsynced)
-            {
-                var traccarDevice = await _traccar.CreateDeviceAsync(device.Name, device.TraccarUniqueId, cancellationToken);
-                if (traccarDevice is not null)
+                foreach (var device in unsynced)
                 {
-                    device.TraccarDeviceId = traccarDevice.Id;
-                    device.UpdatedAt = DateTime.UtcNow;
-                    syncedTraccarIds.Add(traccarDevice.Id);
-                    response.Synced++;
-                }
-                else
-                {
-                    response.Failed++;
-                    response.Errors.Add($"Failed to sync device '{device.Name}' (id: {device.Id}).");
-                }
-            }
-
-            if (response.Synced > 0)
-                await _db.SaveChangesAsync(cancellationToken);
-
-            if (request.Force)
-            {
-                foreach (var orphanId in traccarIdsBefore.Where(id => !syncedTraccarIds.Contains(id)))
-                {
-                    var deleted = await _traccar.DeleteDeviceAsync(orphanId, cancellationToken);
-                    if (deleted)
-                        response.Deleted++;
+                    var traccarDevice = await _traccar.CreateDeviceAsync(device.Name, device.TraccarUniqueId, cancellationToken);
+                    if (traccarDevice is not null)
+                    {
+                        device.TraccarDeviceId = traccarDevice.Id;
+                        device.UpdatedAt = DateTime.UtcNow;
+                        dbChanged = true;
+                        response.Synced++;
+                    }
                     else
-                        response.Errors.Add($"Failed to delete orphan Traccar device (traccarId: {orphanId}).");
+                    {
+                        response.Failed++;
+                        response.Errors.Add($"Failed to sync device '{device.Name}' (id: {device.Id}).");
+                    }
                 }
             }
+
+            if (dbChanged)
+                await _db.SaveChangesAsync(cancellationToken);
 
             _logger.LogInformation(
                 "Device sync complete — synced: {Synced}, already synced: {AlreadySynced}, failed: {Failed}, deleted: {Deleted}",
@@ -126,8 +165,9 @@ public class SyncDevicesToTraccarEndpoint : ICarterModule
         .WithSummary("Sync devices to Traccar")
         .WithDescription(
             "Registers tracking devices in Traccar. " +
-            "By default only syncs devices missing a Traccar ID. " +
-            "Use `?force=true` to clear all stored Traccar IDs, re-register everything, and delete any orphan devices that exist in Traccar but not in the local database — useful after spawning a fresh Traccar instance.")
+            "Default (`force=false`): creates Traccar entries only for devices that have none. " +
+            "With `force=true`: performs a full reconciliation — re-links any device already in Traccar by its unique ID, " +
+            "creates any that are missing, and deletes Traccar entries that have no matching local device.")
         .RequireAuthorization();
     }
 }
