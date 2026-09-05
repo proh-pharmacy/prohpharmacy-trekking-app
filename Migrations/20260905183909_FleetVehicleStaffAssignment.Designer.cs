@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -11,9 +12,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260905183909_FleetVehicleStaffAssignment")]
+    partial class FleetVehicleStaffAssignment
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,37 +24,6 @@ namespace prohpharmacy_trekking_app.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.StaffDeviceAssignment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime>("AssignedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("DeviceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Notes")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("StaffMemberId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UnassignedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DeviceId", "UnassignedAt");
-
-                    b.HasIndex("StaffMemberId", "UnassignedAt");
-
-                    b.ToTable("StaffDeviceAssignments");
-                });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", b =>
                 {
@@ -162,6 +134,37 @@ namespace prohpharmacy_trekking_app.Migrations
                         .IsUnique();
 
                     b.ToTable("Vehicles");
+                });
+
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleDeviceAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("AssignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<DateTime?>("UnassignedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("DeviceId", "UnassignedAt");
+
+                    b.ToTable("VehicleDeviceAssignments");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStaffAssignment", b =>
@@ -652,25 +655,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("StaffMembers");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.StaffDeviceAssignment", b =>
-                {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", "Device")
-                        .WithMany("Assignments")
-                        .HasForeignKey("DeviceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "StaffMember")
-                        .WithMany("DeviceAssignments")
-                        .HasForeignKey("StaffMemberId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Device");
-
-                    b.Navigation("StaffMember");
-                });
-
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", b =>
                 {
                     b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Branch", "Branch")
@@ -680,6 +664,25 @@ namespace prohpharmacy_trekking_app.Migrations
                         .IsRequired();
 
                     b.Navigation("Branch");
+                });
+
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleDeviceAssignment", b =>
+                {
+                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", "Device")
+                        .WithMany("Assignments")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", "Vehicle")
+                        .WithMany("DeviceAssignments")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Device");
+
+                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStaffAssignment", b =>
@@ -831,6 +834,8 @@ namespace prohpharmacy_trekking_app.Migrations
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", b =>
                 {
+                    b.Navigation("DeviceAssignments");
+
                     b.Navigation("StaffAssignments");
                 });
 
@@ -870,8 +875,6 @@ namespace prohpharmacy_trekking_app.Migrations
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", b =>
                 {
                     b.Navigation("ApplicationUser");
-
-                    b.Navigation("DeviceAssignments");
 
                     b.Navigation("Invitations");
                 });

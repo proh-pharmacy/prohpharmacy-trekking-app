@@ -17,7 +17,6 @@ public static class GetUserList
         public string? Role { get; set; }
         public bool? IsActive { get; set; }
         public string? Search { get; set; }
-        public string? Sort { get; set; }
         public int? PageNumber { get; set; }
         public int? PageSize { get; set; }
     }
@@ -28,7 +27,8 @@ public static class GetUserList
         public Guid StaffMemberId { get; set; }
         public string Email { get; set; } = string.Empty;
         public string FullName { get; set; } = string.Empty;
-        public string EmployeeNumber { get; set; } = string.Empty;
+        public string? EmployeeNumber { get; set; }
+        public string? StaffRole { get; set; }
         public Guid BranchId { get; set; }
         public string BranchName { get; set; } = string.Empty;
         public List<string> Roles { get; set; } = [];
@@ -45,63 +45,64 @@ public static class GetUserList
 
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var usersQuery = _db.ApplicationUsers
+            var query = _db.ApplicationUsers
                 .Include(u => u.StaffMember).ThenInclude(s => s.Branch)
                 .Include(u => u.UserRoles).ThenInclude(ur => ur.Role)
                 .AsNoTracking();
 
             if (request.IsActive.HasValue)
-                usersQuery = usersQuery.Where(u => u.IsActive == request.IsActive.Value);
+                query = query.Where(u => u.IsActive == request.IsActive.Value);
 
             if (request.BranchId.HasValue)
-                usersQuery = usersQuery.Where(u => u.StaffMember.BranchId == request.BranchId.Value);
+                query = query.Where(u => u.StaffMember.BranchId == request.BranchId.Value);
 
             if (!string.IsNullOrWhiteSpace(request.Role))
-                usersQuery = usersQuery.Where(u => u.UserRoles.Any(ur => ur.Role.Name.ToLower() == request.Role.ToLower()));
+                query = query.Where(u => u.UserRoles.Any(ur => ur.Role.Name.ToLower() == request.Role.ToLower()));
 
             if (!string.IsNullOrWhiteSpace(request.Search))
             {
                 var search = request.Search.ToLower();
-                usersQuery = usersQuery.Where(u =>
+                query = query.Where(u =>
                     u.Email.ToLower().Contains(search) ||
                     u.StaffMember.FirstName.ToLower().Contains(search) ||
                     u.StaffMember.LastName.ToLower().Contains(search) ||
-                    u.StaffMember.EmployeeNumber.ToLower().Contains(search));
+                    (u.StaffMember.EmployeeNumber != null &&
+                     u.StaffMember.EmployeeNumber.ToLower().Contains(search)));
             }
 
-            var total = await usersQuery.CountAsync(cancellationToken);
-            var pageNum = request.PageNumber ?? 1;
-            var pageSize = request.PageSize ?? 20;
+            var paginated = await Paginator.PaginateAsync(
+                query.OrderByDescending(u => u.CreatedAt),
+                request.PageNumber ?? 1,
+                request.PageSize ?? 20);
 
-            var users = await usersQuery
-                .OrderByDescending(u => u.CreatedAt)
-                .Skip((pageNum - 1) * pageSize)
-                .Take(pageSize)
-                .ToListAsync(cancellationToken);
-
-            var data = users.Select(u => new UserSummaryResponse
+            var result = new Paginator.PaginatedData<UserSummaryResponse>
             {
-                UserId = u.Id,
-                StaffMemberId = u.StaffMemberId,
-                Email = u.Email,
-                FullName = u.StaffMember.FullName,
-                EmployeeNumber = u.StaffMember.EmployeeNumber,
-                BranchId = u.StaffMember.BranchId,
-                BranchName = u.StaffMember.Branch?.Name ?? string.Empty,
-                Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
-                IsActive = u.IsActive,
-                LastLoginAt = u.LastLoginAt,
-                CreatedAt = u.CreatedAt
-            }).ToList();
+                TotalCount = paginated.TotalCount,
+                TotalPages = paginated.TotalPages,
+                CurrentPage = paginated.CurrentPage,
+                PageSize = paginated.PageSize,
+                NextPageUrl = paginated.NextPageUrl,
+                PreviousPageUrl = paginated.PreviousPageUrl,
+                Path = paginated.Path,
+                Links = paginated.Links,
+                Data = paginated.Data.Select(u => new UserSummaryResponse
+                {
+                    UserId = u.Id,
+                    StaffMemberId = u.StaffMemberId,
+                    Email = u.Email,
+                    FullName = u.StaffMember.FullName,
+                    EmployeeNumber = u.StaffMember.EmployeeNumber,
+                    StaffRole = u.StaffMember.Role,
+                    BranchId = u.StaffMember.BranchId,
+                    BranchName = u.StaffMember.Branch?.Name ?? string.Empty,
+                    Roles = u.UserRoles.Select(ur => ur.Role.Name).ToList(),
+                    IsActive = u.IsActive,
+                    LastLoginAt = u.LastLoginAt,
+                    CreatedAt = u.CreatedAt
+                }).ToList()
+            };
 
-            return Result.Success<object>(new
-            {
-                TotalCount = total,
-                TotalPages = (int)Math.Ceiling(total / (double)pageSize),
-                CurrentPage = pageNum,
-                PageSize = pageSize,
-                Data = data
-            });
+            return Result.Success<object>(result);
         }
     }
 }
@@ -116,7 +117,6 @@ public class GetUserListEndpoint : ICarterModule
             [FromQuery] string? role,
             [FromQuery] bool? isActive,
             [FromQuery] string? search,
-            [FromQuery] string? sort,
             [FromQuery] int? pageNumber,
             [FromQuery] int? pageSize) =>
         {
@@ -126,7 +126,6 @@ public class GetUserListEndpoint : ICarterModule
                 Role = role,
                 IsActive = isActive,
                 Search = search,
-                Sort = sort,
                 PageNumber = pageNumber,
                 PageSize = pageSize
             });
@@ -138,7 +137,7 @@ public class GetUserListEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("List application users")
-        .WithDescription("Filter by branchId, role name, isActive, or search term.")
+        .WithDescription("Filter by branchId, role name, isActive, or search by name / email / employee number.")
         .RequireAuthorization();
     }
 }

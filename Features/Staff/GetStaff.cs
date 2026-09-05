@@ -26,14 +26,21 @@ public static class GetStaff
             var staff = await _db.StaffMembers
                 .Include(s => s.Branch)
                 .Include(s => s.ApplicationUser)
+                .Include(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.Device)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(s => s.Id == request.Id, cancellationToken);
 
             if (staff is null)
                 return Result.Failure<StaffResponse>(Error.CreateNotFoundError("Staff member not found."));
 
+            var activeDevice = staff.DeviceAssignments.FirstOrDefault();
+
             return Result.Success(
-                CreateStaff.Handler.ToResponse(staff, staff.Branch?.Name ?? string.Empty, staff.ApplicationUser is not null));
+                CreateStaff.Handler.ToResponse(staff, staff.Branch?.Name ?? string.Empty,
+                    staff.ApplicationUser is not null,
+                    currentDeviceId: activeDevice?.DeviceId,
+                    currentDeviceName: activeDevice?.Device?.Name));
         }
     }
 }

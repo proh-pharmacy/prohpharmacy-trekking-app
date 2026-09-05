@@ -4,93 +4,133 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>You're Invited</title>
+  <title>You're Invited - @Model.AppName</title>
 </head>
-<body style="margin:0;padding:0;background-color:#f0f4f1;font-family:'Segoe UI',Arial,sans-serif;">
+<body style="margin:0;padding:0;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
 
-  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f0f4f1;padding:40px 0;">
+  <!-- Outer Backdrop (centers email in the middle with soft neutral canvas) -->
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;width:100%;margin:0;padding:48px 16px;">
     <tr>
-      <td align="center">
-        <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;border-radius:10px;overflow:hidden;box-shadow:0 4px 20px rgba(0,0,0,0.08);">
+      <td align="center" valign="top">
 
-          <!-- Header -->
+        <!-- Centered Email Container (580px width, clean border, NO box shadows) -->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:580px;width:100%;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;text-align:left;">
           <tr>
-            <td style="background-color:#1a6b3c;padding:36px 40px;text-align:center;">
-              <p style="margin:0;font-size:13px;color:#a8d5bc;letter-spacing:2px;text-transform:uppercase;">Proh Pharmacy</p>
-              <h1 style="margin:8px 0 0;font-size:26px;color:#ffffff;font-weight:700;letter-spacing:-0.5px;">
-                Trekking Operations
+            <td style="padding:42px 38px 36px;">
+
+              <!-- Brand Header -->
+              <p style="margin:0 0 14px;font-size:11px;font-weight:600;color:#00bf6f;letter-spacing:1px;text-transform:uppercase;">
+                @Model.AppName
+              </p>
+
+              <!-- Main Heading -->
+              <h1 style="margin:0 0 14px;font-size:24px;font-weight:600;color:#4b5563;letter-spacing:-0.3px;line-height:1.3;">
+                Welcome @Model.StaffFullName
               </h1>
-              <div style="margin:16px auto 0;width:48px;height:3px;background-color:#c0392b;border-radius:2px;"></div>
-            </td>
-          </tr>
 
-          <!-- Body -->
-          <tr>
-            <td style="background-color:#ffffff;padding:44px 40px 36px;">
-
-              <p style="margin:0 0 8px;font-size:15px;color:#6b7280;">Hello,</p>
-              <h2 style="margin:0 0 24px;font-size:22px;color:#1a6b3c;font-weight:700;">
-                @Model.StaffFullName
-              </h2>
-
-              <p style="margin:0 0 20px;font-size:15px;color:#374151;line-height:1.7;">
-                You have been invited to join <strong>@Model.AppName</strong> as a member of the field operations team.
-                Click the button below to set your password and activate your account.
+              <!-- Intro Paragraph -->
+              <p style="margin:0 0 26px;font-size:14.5px;color:#475569;line-height:1.65;font-weight:400;">
+                You have been invited to join <span style="color:#4b5563;font-weight:500;">@Model.AppName</span> as a member of the field operations team. Use the link below to set your password and activate your account.
               </p>
 
-              <!-- CTA Button -->
-              <table width="100%" cellpadding="0" cellspacing="0" style="margin:32px 0;">
+              <!-- Feature Card (Clean Green Border with Subtle Green Tint - NO box shadows) -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="border:1.5px solid #00bf6f;border-radius:4px;background-color:#f2faf5;margin-bottom:28px;">
                 <tr>
-                  <td align="center">
-                    <a href="@Model.InvitationLink"
-                       style="display:inline-block;padding:14px 40px;background-color:#1a6b3c;color:#ffffff;
-                              text-decoration:none;font-size:15px;font-weight:600;border-radius:6px;
-                              letter-spacing:0.3px;">
-                      Activate My Account
-                    </a>
+                  <td style="padding:24px 24px 18px;">
+
+                    <!-- Card Subheading -->
+                    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#4b5563;">
+                      Invitation Details
+                    </p>
+
+                    <!-- Invitation Details 2-Column Table (Label | Value) -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:16px;">
+                      <tr>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;width:36%;">
+                          Full Name
+                        </td>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#4b5563;font-weight:500;">
+                          @Model.StaffFullName
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">
+                          Assigned Team
+                        </td>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#4b5563;font-weight:400;">
+                          Field Operations
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">
+                          Expires On
+                        </td>
+                        <td style="padding:10px 8px;font-size:13.5px;color:#4b5563;font-weight:500;">
+                          @Model.ExpiresAt
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Expiration Notice (Ultra-subtle red tint background, red foreground, NO left border, NO icon) -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                           style="background-color:#fff8f8;border-radius:4px;margin:14px 0 18px;">
+                      <tr>
+                        <td style="padding:11px 14px;">
+                          <p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.5;font-weight:400;">
+                            <span style="font-weight:500;">Expiration notice:</span> This invitation expires on @Model.ExpiresAt. If you did not request this, please contact your administrator immediately.
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Divider -->
+                    <div style="border-top:1px solid #d6ece0;margin:16px 0 14px;"></div>
+
+                    <!-- Bottom Bar (Invited user & Sign In Button) -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" style="font-size:13.5px;color:#64748b;font-weight:400;">
+                          Invited user: <span style="color:#4b5563;font-weight:500;">@Model.StaffFullName</span>
+                        </td>
+                        <td align="right" valign="middle">
+                          <a href="@Model.InvitationLink"
+                             style="display:inline-block;padding:9px 22px;background-color:#00bf6f;color:#ffffff;text-decoration:none;font-size:13.5px;font-weight:500;border-radius:3px;">
+                            Sign In
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
                   </td>
                 </tr>
               </table>
 
-              <!-- Expiry notice -->
-              <table width="100%" cellpadding="0" cellspacing="0"
-                     style="background-color:#fef2f2;border-left:4px solid #c0392b;border-radius:4px;margin-bottom:28px;">
-                <tr>
-                  <td style="padding:14px 18px;">
-                    <p style="margin:0;font-size:13px;color:#991b1b;font-weight:600;">
-                      ⚠ This invitation expires on @Model.ExpiresAt
-                    </p>
-                    <p style="margin:6px 0 0;font-size:13px;color:#7f1d1d;">
-                      If you did not request this, please contact your administrator immediately.
-                    </p>
-                  </td>
-                </tr>
-              </table>
+              <!-- Fallback Direct Link -->
+              <div style="margin:0 0 28px;">
+                <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:400;">
+                  If the button above doesn't work, copy and paste this link into your browser:
+                </p>
+                <p style="margin:0;font-size:12px;color:#00bf6f;word-break:break-all;line-height:1.5;">
+                  <a href="@Model.InvitationLink" style="color:#00bf6f;text-decoration:underline;">@Model.InvitationLink</a>
+                </p>
+              </div>
 
-              <p style="margin:0 0 8px;font-size:13px;color:#6b7280;">
-                If the button above doesn't work, copy and paste this link into your browser:
-              </p>
-              <p style="margin:0;font-size:12px;color:#1a6b3c;word-break:break-all;">
-                @Model.InvitationLink
-              </p>
+              <!-- Footer -->
+              <div style="border-top:1px solid #e5e7eb;padding-top:20px;">
+                <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:400;">
+                  Need help? Reach us at <a href="mailto:@Model.SupportEmail" style="color:#00bf6f;text-decoration:none;font-weight:500;">@Model.SupportEmail</a>
+                </p>
+                <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.5;font-weight:400;">
+                  &copy; @Model.Year @Model.AppName · Proh Pharmacy · All rights reserved
+                </p>
+              </div>
 
             </td>
           </tr>
-
-          <!-- Footer -->
-          <tr>
-            <td style="background-color:#f8faf9;border-top:1px solid #e5e7eb;padding:24px 40px;text-align:center;">
-              <p style="margin:0 0 6px;font-size:12px;color:#9ca3af;">
-                Need help? Reach us at
-                <a href="mailto:@Model.SupportEmail" style="color:#1a6b3c;text-decoration:none;">@Model.SupportEmail</a>
-              </p>
-              <p style="margin:0;font-size:11px;color:#d1d5db;">
-                &copy; @DateTime.UtcNow.Year Proh Pharmacy · All rights reserved
-              </p>
-            </td>
-          </tr>
-
         </table>
+
       </td>
     </tr>
   </table>

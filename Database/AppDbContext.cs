@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
@@ -16,6 +17,12 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<District> Districts => Set<District>();
         public DbSet<Locality> Localities => Set<Locality>();
         public DbSet<Branch> Branches => Set<Branch>();
+
+        // Fleet
+        public DbSet<Vehicle> Vehicles => Set<Vehicle>();
+        public DbSet<TrackingDevice> TrackingDevices => Set<TrackingDevice>();
+        public DbSet<VehicleStaffAssignment> VehicleStaffAssignments => Set<VehicleStaffAssignment>();
+        public DbSet<StaffDeviceAssignment> StaffDeviceAssignments => Set<StaffDeviceAssignment>();
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
@@ -86,17 +93,78 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasIndex(b => b.Name);
             });
 
+            // ── Fleet ─────────────────────────────────────────────────────────────
+
+            modelBuilder.Entity<Vehicle>(entity =>
+            {
+                entity.HasKey(v => v.Id);
+                entity.Property(v => v.RegistrationNumber).HasMaxLength(30).IsRequired();
+                entity.Property(v => v.DisplayName).HasMaxLength(80).IsRequired();
+                entity.Property(v => v.Make).HasMaxLength(80).IsRequired();
+                entity.Property(v => v.Model).HasMaxLength(80).IsRequired();
+                entity.Property(v => v.Colour).HasMaxLength(50).IsRequired();
+                entity.Property(v => v.OperationalStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.HasOne(v => v.Branch)
+                    .WithMany()
+                    .HasForeignKey(v => v.BranchId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(v => v.RegistrationNumber).IsUnique();
+            });
+
+            modelBuilder.Entity<TrackingDevice>(entity =>
+            {
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.TraccarUniqueId).HasMaxLength(100).IsRequired();
+                entity.Property(d => d.Name).HasMaxLength(100).IsRequired();
+                entity.Property(d => d.PhoneNumber).HasMaxLength(30);
+                entity.Property(d => d.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
+                entity.Property(d => d.LastLatitude).HasPrecision(9, 6);
+                entity.Property(d => d.LastLongitude).HasPrecision(9, 6);
+                entity.HasIndex(d => d.TraccarUniqueId).IsUnique();
+            });
+
+            modelBuilder.Entity<StaffDeviceAssignment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Notes).HasMaxLength(500);
+                entity.HasOne(a => a.StaffMember)
+                    .WithMany(s => s.DeviceAssignments)
+                    .HasForeignKey(a => a.StaffMemberId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(a => a.Device)
+                    .WithMany(d => d.Assignments)
+                    .HasForeignKey(a => a.DeviceId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(a => new { a.DeviceId, a.UnassignedAt });
+                entity.HasIndex(a => new { a.StaffMemberId, a.UnassignedAt });
+            });
+
+            modelBuilder.Entity<VehicleStaffAssignment>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.Notes).HasMaxLength(500);
+                entity.HasOne(a => a.Vehicle)
+                    .WithMany(v => v.StaffAssignments)
+                    .HasForeignKey(a => a.VehicleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(a => a.StaffMember)
+                    .WithMany()
+                    .HasForeignKey(a => a.StaffMemberId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(a => new { a.VehicleId, a.UnassignedAt });
+            });
+
             // ── Staff ─────────────────────────────────────────────────────────────
 
             modelBuilder.Entity<StaffMember>(entity =>
             {
                 entity.HasKey(s => s.Id);
-                entity.Property(s => s.EmployeeNumber).HasMaxLength(30).IsRequired();
+                entity.Property(s => s.EmployeeNumber).HasMaxLength(30);
                 entity.Property(s => s.FirstName).HasMaxLength(80).IsRequired();
                 entity.Property(s => s.LastName).HasMaxLength(80).IsRequired();
                 entity.Property(s => s.PhoneNumber).HasMaxLength(30).IsRequired();
                 entity.Property(s => s.EmailAddress).HasMaxLength(200).IsRequired();
-                entity.Property(s => s.JobTitle).HasMaxLength(100).IsRequired();
+                entity.Property(s => s.Role).HasMaxLength(60);
                 entity.Property(s => s.EmploymentStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
                 entity.Property(s => s.ProfilePhotoObjectKey).HasMaxLength(500);
                 entity.UseXminAsConcurrencyToken();
@@ -104,7 +172,8 @@ namespace prohpharmacy_trekking_app.Database
                     .WithMany()
                     .HasForeignKey(s => s.BranchId)
                     .OnDelete(DeleteBehavior.Restrict);
-                entity.HasIndex(s => s.EmployeeNumber).IsUnique();
+                entity.HasIndex(s => s.EmployeeNumber).IsUnique()
+                    .HasFilter("\"EmployeeNumber\" IS NOT NULL");
                 entity.HasIndex(s => s.EmailAddress).IsUnique();
             });
 

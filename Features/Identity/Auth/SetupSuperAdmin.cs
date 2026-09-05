@@ -87,7 +87,7 @@ public static class SetupSuperAdmin
                 LastName = request.LastName.Trim(),
                 PhoneNumber = request.PhoneNumber.Trim(),
                 EmailAddress = request.Email.Trim().ToLower(),
-                JobTitle = "Super Administrator",
+                Role = "SuperAdmin",
                 BranchId = request.BranchId,
                 EmploymentStatus = EmploymentStatus.Active,
                 JoinedOn = DateOnly.FromDateTime(DateTime.UtcNow),

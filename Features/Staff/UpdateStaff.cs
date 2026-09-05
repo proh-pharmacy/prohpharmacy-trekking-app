@@ -17,7 +17,7 @@ public static class UpdateStaff
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
-        public string JobTitle { get; set; } = string.Empty;
+        public string? Role { get; set; }
         public Guid BranchId { get; set; }
     }
 
@@ -28,7 +28,7 @@ public static class UpdateStaff
             RuleFor(x => x.FirstName).NotEmpty().MaximumLength(80);
             RuleFor(x => x.LastName).NotEmpty().MaximumLength(80);
             RuleFor(x => x.PhoneNumber).NotEmpty().MaximumLength(30);
-            RuleFor(x => x.JobTitle).NotEmpty().MaximumLength(100);
+            RuleFor(x => x.Role).NotEmpty().MaximumLength(60).When(x => x.Role is not null);
             RuleFor(x => x.BranchId).NotEmpty();
         }
     }
@@ -65,10 +65,18 @@ public static class UpdateStaff
             if (branch is null)
                 return Result.Failure<StaffResponse>(Error.CreateNotFoundError("Branch not found."));
 
+            if (request.Role is not null)
+            {
+                var role = await _db.Roles
+                    .FirstOrDefaultAsync(r => r.Name == request.Role.Trim(), cancellationToken);
+                if (role is null)
+                    return Result.Failure<StaffResponse>(Error.CreateNotFoundError($"Role '{request.Role}' not found."));
+                staff.Role = role.Name;
+            }
+
             staff.FirstName = request.FirstName.Trim();
             staff.LastName = request.LastName.Trim();
             staff.PhoneNumber = request.PhoneNumber.Trim();
-            staff.JobTitle = request.JobTitle.Trim();
             staff.BranchId = request.BranchId;
             staff.UpdatedAt = DateTime.UtcNow;
 
@@ -95,6 +103,7 @@ public class UpdateStaffEndpoint : ICarterModule
         .WithTags("Staff")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Update a staff member")
+        .WithDescription("Updates staff details. `role` must match an existing system role.")
         .RequireAuthorization();
     }
 }

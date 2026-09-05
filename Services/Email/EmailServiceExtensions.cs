@@ -17,6 +17,7 @@ public class StaffInvitationEmailModel
     public string ExpiresAt { get; set; } = string.Empty;
     public string AppName { get; set; } = string.Empty;
     public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
 public class StaffWelcomeEmailModel
@@ -28,6 +29,7 @@ public class StaffWelcomeEmailModel
     public string LoginUrl { get; set; } = string.Empty;
     public string AppName { get; set; } = string.Empty;
     public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
 // ── Interface ─────────────────────────────────────────────────────────────────

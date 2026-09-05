@@ -86,10 +86,29 @@ public static class AcceptInvitation
 
             await _db.SaveChangesAsync(cancellationToken);
 
+            // Auto-assign the role stored on the staff record
+            var systemRole = await _db.Roles
+                .Include(r => r.RolePermissions)
+                .FirstOrDefaultAsync(r => r.Name == staff.Role, cancellationToken);
+
             var roles = new List<string>();
             var permissions = new List<string>();
 
-            var accessExpiry = DateTime.UtcNow.AddMinutes(15);
+            if (systemRole is not null)
+            {
+                _db.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = systemRole.Id,
+                    AssignedAt = DateTime.UtcNow
+                });
+
+                await _db.SaveChangesAsync(cancellationToken);
+
+                roles.Add(systemRole.Name);
+                permissions = systemRole.RolePermissions.Select(rp => rp.Permission).ToList();
+            }
+
             var claims = new List<Claim>
             {
                 new(ClaimTypes.NameIdentifier, user.Id.ToString()),
@@ -98,6 +117,10 @@ public static class AcceptInvitation
                 new(ClaimTypes.Name, staff.FullName)
             };
 
+            claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
+            claims.AddRange(permissions.Select(p => new Claim("permission", p)));
+
+            var accessExpiry = DateTime.UtcNow.AddMinutes(15);
             var accessToken = _jwt.GenerateToken(claims, 15);
 
             var refreshValue = Convert.ToBase64String(RandomNumberGenerator.GetBytes(64));
@@ -147,7 +170,7 @@ public class AcceptInvitationEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Accept an invitation and set password")
-        .WithDescription("Validates the invitation token, creates the user account, and returns an initial auth token pair.")
+        .WithDescription("Validates the invitation token, creates the user account, auto-assigns the staff role, and returns an initial auth token pair.")
         .AllowAnonymous();
     }
 }

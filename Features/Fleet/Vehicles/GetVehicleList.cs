@@ -4,13 +4,14 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
-using static prohpharmacy_trekking_app.Features.Staff.CreateStaff;
+using static prohpharmacy_trekking_app.Features.Fleet.Vehicles.CreateVehicle;
 
-namespace prohpharmacy_trekking_app.Features.Staff;
+namespace prohpharmacy_trekking_app.Features.Fleet.Vehicles;
 
-public static class GetStaffList
+public static class GetVehicleList
 {
     public class Query : IRequest<Result<object>>
     {
@@ -30,44 +31,46 @@ public static class GetStaffList
 
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var query = _db.StaffMembers
-                .Include(s => s.Branch)
-                .Include(s => s.ApplicationUser)
-                .Include(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.Device)
+            var query = _db.Vehicles
+                .Include(v => v.Branch)
+                .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.StaffMember)
                 .AsNoTracking();
 
             if (request.BranchId.HasValue)
-                query = query.Where(s => s.BranchId == request.BranchId.Value);
+                query = query.Where(v => v.BranchId == request.BranchId.Value);
 
             if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(s => s.EmploymentStatus.ToString().ToLower() == request.Status.ToLower());
+                query = query.Where(v => v.OperationalStatus.ToString().ToLower() == request.Status.ToLower());
 
-            var result = await new QueryBuilder<Entities.StaffMember>(query)
-                .WithSearch(request.Search, nameof(Entities.StaffMember.FirstName),
-                    nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress))
+            var result = await new QueryBuilder<Vehicle>(query)
+                .WithSearch(request.Search,
+                    nameof(Vehicle.RegistrationNumber),
+                    nameof(Vehicle.DisplayName),
+                    nameof(Vehicle.Make),
+                    nameof(Vehicle.Model))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(s =>
+                .BuildAsync(v =>
                 {
-                    var activeDevice = s.DeviceAssignments.FirstOrDefault();
-                    return (object)CreateStaff.Handler.ToResponse(s, s.Branch?.Name ?? string.Empty,
-                        s.ApplicationUser is not null,
-                        currentDeviceId: activeDevice?.DeviceId,
-                        currentDeviceName: activeDevice?.Device?.Name);
+                    var activeStaff = v.StaffAssignments.FirstOrDefault();
+                    return (object)CreateVehicle.Handler.ToResponse(
+                        v,
+                        v.Branch?.Name,
+                        activeStaff?.StaffMemberId,
+                        activeStaff?.StaffMember?.FullName);
                 });
 
             return Result.Success(result);
         }
-
     }
 }
 
-public class GetStaffListEndpoint : ICarterModule
+public class GetVehicleListEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("api/v1/staff", async (
+        app.MapGet("api/v1/fleet/vehicles", async (
             ISender sender,
             [FromQuery] Guid? branchId,
             [FromQuery] string? status,
@@ -76,7 +79,7 @@ public class GetStaffListEndpoint : ICarterModule
             [FromQuery] int? pageNumber,
             [FromQuery] int? pageSize) =>
         {
-            var result = await sender.Send(new GetStaffList.Query
+            var result = await sender.Send(new GetVehicleList.Query
             {
                 BranchId = branchId,
                 Status = status,
@@ -90,10 +93,10 @@ public class GetStaffListEndpoint : ICarterModule
                 ? Results.BadRequest(result.Error)
                 : Results.Ok(result.Value);
         })
-        .WithTags("Staff")
-        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
-        .WithSummary("List / search staff members")
-        .WithDescription("Filter by branchId or status (Pending | Active | Suspended | Offboarded).")
+        .WithTags("Fleet")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
+        .WithSummary("List / search vehicles")
+        .WithDescription("Filter by branchId or status (Active | UnderMaintenance | Decommissioned).")
         .RequireAuthorization();
     }
 }

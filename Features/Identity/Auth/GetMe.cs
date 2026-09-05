@@ -3,49 +3,38 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Providers;
 using prohpharmacy_trekking_app.Shared;
+using static prohpharmacy_trekking_app.Features.Identity.Users.GetUser;
 
-namespace prohpharmacy_trekking_app.Features.Identity.Users;
+namespace prohpharmacy_trekking_app.Features.Identity.Auth;
 
-public static class GetUser
+public static class GetMe
 {
-    public class Query : IRequest<Result<UserDetailResponse>>
-    {
-        public Guid UserId { get; set; }
-    }
-
-    public class UserDetailResponse
-    {
-        public Guid UserId { get; set; }
-        public Guid StaffMemberId { get; set; }
-        public string Email { get; set; } = string.Empty;
-        public string FullName { get; set; } = string.Empty;
-        public string? EmployeeNumber { get; set; }
-        public string? Role { get; set; }
-        public Guid BranchId { get; set; }
-        public string BranchName { get; set; } = string.Empty;
-        public string EmploymentStatus { get; set; } = string.Empty;
-        public List<string> Roles { get; set; } = [];
-        public List<string> Permissions { get; set; } = [];
-        public bool IsActive { get; set; }
-        public DateTime? LastLoginAt { get; set; }
-        public DateTime CreatedAt { get; set; }
-        public DateTime? UpdatedAt { get; set; }
-    }
+    public class Query : IRequest<Result<UserDetailResponse>> { }
 
     internal sealed class Handler : IRequestHandler<Query, Result<UserDetailResponse>>
     {
         private readonly AppDbContext _db;
+        private readonly AuthProvider _auth;
 
-        public Handler(AppDbContext db) => _db = db;
+        public Handler(AppDbContext db, AuthProvider auth)
+        {
+            _db = db;
+            _auth = auth;
+        }
 
         public async Task<Result<UserDetailResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
+            var rawId = _auth.GetUserId();
+            if (rawId is null || !Guid.TryParse(rawId, out var userId))
+                return Result.Failure<UserDetailResponse>(Error.Forbidden("Not authenticated."));
+
             var user = await _db.ApplicationUsers
                 .Include(u => u.StaffMember).ThenInclude(s => s.Branch)
                 .Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken);
+                .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
             if (user is null)
                 return Result.Failure<UserDetailResponse>(Error.CreateNotFoundError("User not found."));
@@ -79,20 +68,21 @@ public static class GetUser
     }
 }
 
-public class GetUserEndpoint : ICarterModule
+public class GetMeEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("api/v1/users/{id:guid}", async (Guid id, ISender sender) =>
+        app.MapGet("api/v1/auth/me", async (ISender sender) =>
         {
-            var result = await sender.Send(new GetUser.Query { UserId = id });
+            var result = await sender.Send(new GetMe.Query());
             return result.IsFailure
-                ? Results.NotFound(result.Error)
+                ? Results.Forbid()
                 : Results.Ok(result.Value);
         })
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
-        .WithSummary("Get an application user by ID")
+        .WithSummary("Get the currently authenticated user")
+        .WithDescription("Returns the logged-in user's full profile, roles, and permissions derived from their JWT.")
         .RequireAuthorization();
     }
 }
