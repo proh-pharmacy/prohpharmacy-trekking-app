@@ -1,6 +1,6 @@
-using System.Diagnostics;
 using System.Text.Json.Serialization;
 using Carter;
+using Serilog;
 using FluentValidation;
 using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.EntityFrameworkCore;
@@ -17,6 +17,7 @@ using prohpharmacy_trekking_app.Utilities;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration));
 var assembly = typeof(Program).Assembly;
 var appKey = builder.Configuration.GetValue<string>("SiteSettings:AppKey")
     ?? throw new InvalidOperationException("SiteSettings:AppKey is not configured.");
@@ -124,20 +125,8 @@ app.MapScalarApiReference(options =>
     options.WithCustomCss("a[href*=\"scalar.com\"], [data-testid*=\"scalar\"], .scalar-powered-by { display: none !important; }");
 });
 
-// ─── Request Logging ──────────────────────────────────────────────────────────
-var logger = app.Services.GetRequiredService<ILogger<Program>>();
-
-app.Use(async (context, next) =>
-{
-    var stopwatch = Stopwatch.StartNew();
-    logger.LogInformation("→ {Method} {Path}", context.Request.Method, context.Request.Path);
-    await next();
-    stopwatch.Stop();
-    logger.LogInformation("← {Method} {Path} [{Duration}ms]",
-        context.Request.Method, context.Request.Path, stopwatch.ElapsedMilliseconds);
-});
-
 // ─── Middleware Pipeline ──────────────────────────────────────────────────────
+app.UseSerilogRequestLogging();
 app.UseCors(CorsPolicy);
 app.UseMiddleware<JsonExceptionHandlingMiddleware>();
 app.UseExceptionHandler();

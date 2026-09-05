@@ -51,12 +51,14 @@ public static class CreateTrackingDevice
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _validator = validator;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result<DeviceResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -91,7 +93,16 @@ public static class CreateTrackingDevice
 
             var traccarDevice = await _traccar.CreateDeviceAsync(device.Name, device.TraccarUniqueId, cancellationToken);
             if (traccarDevice is not null)
+            {
                 device.TraccarDeviceId = traccarDevice.Id;
+                _logger.LogInformation("Tracking device {DeviceId} ({Name}) registered in Traccar as #{TraccarId}",
+                    device.Id, device.Name, traccarDevice.Id);
+            }
+            else
+            {
+                _logger.LogWarning("Tracking device {DeviceId} ({Name}) created locally but Traccar registration failed — sync manually",
+                    device.Id, device.Name);
+            }
 
             _db.TrackingDevices.Add(device);
 

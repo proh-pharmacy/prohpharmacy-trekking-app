@@ -29,11 +29,13 @@ public static class SyncDriversToTraccar
     {
         private readonly AppDbContext _db;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, ITraccarService traccar)
+        public Handler(AppDbContext db, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result<SyncResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -110,6 +112,13 @@ public static class SyncDriversToTraccar
                         response.Errors.Add($"Failed to delete orphan Traccar driver (traccarId: {orphanId}).");
                 }
             }
+
+            _logger.LogInformation(
+                "Driver sync complete — synced: {Synced}, already synced: {AlreadySynced}, failed: {Failed}, deleted: {Deleted}",
+                response.Synced, response.AlreadySynced, response.Failed, response.Deleted);
+
+            foreach (var err in response.Errors)
+                _logger.LogWarning("Driver sync error: {Error}", err);
 
             return Result.Success(response);
         }

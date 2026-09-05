@@ -17,8 +17,13 @@ public static class UnassignDevice
     internal sealed class Handler : IRequestHandler<Command, Result>
     {
         private readonly AppDbContext _db;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db) => _db = db;
+        public Handler(AppDbContext db, ILogger<Handler> logger)
+        {
+            _db = db;
+            _logger = logger;
+        }
 
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
@@ -35,6 +40,9 @@ public static class UnassignDevice
 
             active.UnassignedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Device {DeviceId} unassigned from staff {StaffId} (assignment {AssignmentId})",
+                device.Id, active.StaffMemberId, active.Id);
 
             return Result.Success();
         }

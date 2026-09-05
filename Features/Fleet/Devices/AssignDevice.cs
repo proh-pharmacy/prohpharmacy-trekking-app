@@ -45,12 +45,14 @@ public static class AssignDevice
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _validator = validator;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result<AssignmentResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -95,6 +97,9 @@ public static class AssignDevice
 
             _db.StaffDeviceAssignments.Add(assignment);
             await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Device {DeviceId} ({DeviceName}) assigned to staff {StaffId} ({StaffName})",
+                device.Id, device.Name, staff.Id, staff.FullName);
 
             if (device.TraccarDeviceId is not null)
                 _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, staff.FullName, cancellationToken);

@@ -29,11 +29,13 @@ public static class SyncDevicesToTraccar
     {
         private readonly AppDbContext _db;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, ITraccarService traccar)
+        public Handler(AppDbContext db, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result<SyncResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -93,6 +95,13 @@ public static class SyncDevicesToTraccar
                         response.Errors.Add($"Failed to delete orphan Traccar device (traccarId: {orphanId}).");
                 }
             }
+
+            _logger.LogInformation(
+                "Device sync complete — synced: {Synced}, already synced: {AlreadySynced}, failed: {Failed}, deleted: {Deleted}",
+                response.Synced, response.AlreadySynced, response.Failed, response.Deleted);
+
+            foreach (var err in response.Errors)
+                _logger.LogWarning("Device sync error: {Error}", err);
 
             return Result.Success(response);
         }

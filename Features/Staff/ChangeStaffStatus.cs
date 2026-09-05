@@ -37,11 +37,13 @@ public static class ChangeStaffStatus
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, ILogger<Handler> logger)
         {
             _db = db;
             _validator = validator;
+            _logger = logger;
         }
 
         public async Task<Result<StatusResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -92,6 +94,10 @@ public static class ChangeStaffStatus
             }
 
             await _db.SaveChangesAsync(cancellationToken);
+
+            _logger.LogInformation("Staff {StaffId} ({Name}) status changed to {Status}{AccessNote}",
+                staff.Id, staff.FullName, request.Status,
+                appAccessRevoked ? " — app access revoked" : "");
 
             return Result.Success(new StatusResponse
             {
