@@ -52,36 +52,36 @@ public static class GetRegionList
             CreatedAt = r.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class GetRegionListEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapGet("api/v1/organisation/regions", async (
+            ISender sender,
+            [FromQuery] string? search,
+            [FromQuery] string? sort,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
+            [FromQuery] bool? includeInactive) =>
         {
-            app.MapGet("api/v1/organisation/regions", async (
-                ISender sender,
-                [FromQuery] string? search,
-                [FromQuery] string? sort,
-                [FromQuery] int? pageNumber,
-                [FromQuery] int? pageSize,
-                [FromQuery] bool? includeInactive) =>
+            var result = await sender.Send(new GetRegionList.Query
             {
-                var result = await sender.Send(new Query
-                {
-                    Search = search,
-                    Sort = sort,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    IncludeInactive = includeInactive
-                });
+                Search = search,
+                Sort = sort,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                IncludeInactive = includeInactive
+            });
 
-                return result.IsFailure
-                    ? Results.BadRequest(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Regions")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("List / search regions")
-            .RequireAuthorization();
-        }
+            return result.IsFailure
+                ? Results.BadRequest(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Regions")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("List / search regions")
+        .RequireAuthorization();
     }
 }

@@ -101,22 +101,22 @@ public static class CreateLocality
             CreatedAt = l.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class CreateLocalityEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPost("api/v1/organisation/localities", async (CreateLocality.Command command, ISender sender) =>
         {
-            app.MapPost("api/v1/organisation/localities", async (Command command, ISender sender) =>
-            {
-                var result = await sender.Send(command);
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Created($"api/v1/organisation/localities/{result.Value.Id}", result.Value);
-            })
-            .WithTags("Organisation - Localities")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Create a locality under a district")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(command);
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Created($"api/v1/organisation/localities/{result.Value.Id}", result.Value);
+        })
+        .WithTags("Organisation - Localities")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Create a locality under a district")
+        .RequireAuthorization();
     }
 }

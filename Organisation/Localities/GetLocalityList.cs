@@ -65,40 +65,40 @@ public static class GetLocalityList
             CreatedAt = l.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class GetLocalityListEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapGet("api/v1/organisation/localities", async (
+            ISender sender,
+            [FromQuery] Guid? districtId,
+            [FromQuery] Guid? regionId,
+            [FromQuery] string? search,
+            [FromQuery] string? sort,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
+            [FromQuery] bool? includeInactive) =>
         {
-            app.MapGet("api/v1/organisation/localities", async (
-                ISender sender,
-                [FromQuery] Guid? districtId,
-                [FromQuery] Guid? regionId,
-                [FromQuery] string? search,
-                [FromQuery] string? sort,
-                [FromQuery] int? pageNumber,
-                [FromQuery] int? pageSize,
-                [FromQuery] bool? includeInactive) =>
+            var result = await sender.Send(new GetLocalityList.Query
             {
-                var result = await sender.Send(new Query
-                {
-                    DistrictId = districtId,
-                    RegionId = regionId,
-                    Search = search,
-                    Sort = sort,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    IncludeInactive = includeInactive
-                });
+                DistrictId = districtId,
+                RegionId = regionId,
+                Search = search,
+                Sort = sort,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                IncludeInactive = includeInactive
+            });
 
-                return result.IsFailure
-                    ? Results.BadRequest(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Localities")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("List / search localities — filter by districtId or regionId")
-            .RequireAuthorization();
-        }
+            return result.IsFailure
+                ? Results.BadRequest(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Localities")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("List / search localities — filter by districtId or regionId")
+        .RequireAuthorization();
     }
 }

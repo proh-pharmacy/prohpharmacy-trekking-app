@@ -57,22 +57,22 @@ public static class GetBranch
             UpdatedAt = b.UpdatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class GetBranchEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapGet("api/v1/organisation/branches/{id:guid}", async (Guid id, ISender sender) =>
         {
-            app.MapGet("api/v1/organisation/branches/{id:guid}", async (Guid id, ISender sender) =>
-            {
-                var result = await sender.Send(new Query { Id = id });
-                return result.IsFailure
-                    ? Results.NotFound(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Branches")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Get a branch by ID")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(new GetBranch.Query { Id = id });
+            return result.IsFailure
+                ? Results.NotFound(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Branches")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Get a branch by ID")
+        .RequireAuthorization();
     }
 }

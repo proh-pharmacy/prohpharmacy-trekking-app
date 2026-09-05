@@ -84,45 +84,45 @@ public static class GetBranchList
             UpdatedAt = b.UpdatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class GetBranchListEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapGet("api/v1/organisation/branches", async (
+            ISender sender,
+            [FromQuery] Guid? regionId,
+            [FromQuery] Guid? districtId,
+            [FromQuery] Guid? localityId,
+            [FromQuery] string? branchType,
+            [FromQuery] string? search,
+            [FromQuery] string? sort,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
+            [FromQuery] bool? includeInactive) =>
         {
-            app.MapGet("api/v1/organisation/branches", async (
-                ISender sender,
-                [FromQuery] Guid? regionId,
-                [FromQuery] Guid? districtId,
-                [FromQuery] Guid? localityId,
-                [FromQuery] string? branchType,
-                [FromQuery] string? search,
-                [FromQuery] string? sort,
-                [FromQuery] int? pageNumber,
-                [FromQuery] int? pageSize,
-                [FromQuery] bool? includeInactive) =>
+            var result = await sender.Send(new GetBranchList.Query
             {
-                var result = await sender.Send(new Query
-                {
-                    RegionId = regionId,
-                    DistrictId = districtId,
-                    LocalityId = localityId,
-                    BranchType = branchType,
-                    Search = search,
-                    Sort = sort,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    IncludeInactive = includeInactive
-                });
+                RegionId = regionId,
+                DistrictId = districtId,
+                LocalityId = localityId,
+                BranchType = branchType,
+                Search = search,
+                Sort = sort,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                IncludeInactive = includeInactive
+            });
 
-                return result.IsFailure
-                    ? Results.BadRequest(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Branches")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("List / search branches")
-            .WithDescription("Filter by regionId, districtId, localityId, or branchType (Retail | Wholesale | Laboratory).")
-            .RequireAuthorization();
-        }
+            return result.IsFailure
+                ? Results.BadRequest(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Branches")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("List / search branches")
+        .WithDescription("Filter by regionId, districtId, localityId, or branchType (Retail | Wholesale | Laboratory).")
+        .RequireAuthorization();
     }
 }

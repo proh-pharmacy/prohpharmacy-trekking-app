@@ -155,23 +155,23 @@ public static class CreateBranch
             UpdatedAt = b.UpdatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class CreateBranchEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPost("api/v1/organisation/branches", async (CreateBranch.Command command, ISender sender) =>
         {
-            app.MapPost("api/v1/organisation/branches", async (Command command, ISender sender) =>
-            {
-                var result = await sender.Send(command);
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Created($"api/v1/organisation/branches/{result.Value.Id}", result.Value);
-            })
-            .WithTags("Organisation - Branches")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Create a new branch")
-            .WithDescription("Validates the Region → District → Locality hierarchy before creating the branch.")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(command);
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Created($"api/v1/organisation/branches/{result.Value.Id}", result.Value);
+        })
+        .WithTags("Organisation - Branches")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Create a new branch")
+        .WithDescription("Validates the Region → District → Locality hierarchy before creating the branch.")
+        .RequireAuthorization();
     }
 }

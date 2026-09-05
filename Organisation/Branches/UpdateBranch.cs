@@ -96,23 +96,23 @@ public static class UpdateBranch
             return Result.Success(CreateBranch.Handler.ToResponse(branch, region.Name, district.Name, locality.Name));
         }
     }
+}
 
-    public class Endpoint : ICarterModule
+public class UpdateBranchEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPut("api/v1/organisation/branches/{id:guid}", async (Guid id, UpdateBranch.Command command, ISender sender) =>
         {
-            app.MapPut("api/v1/organisation/branches/{id:guid}", async (Guid id, Command command, ISender sender) =>
-            {
-                command.Id = id;
-                var result = await sender.Send(command);
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Branches")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Update a branch")
-            .RequireAuthorization();
-        }
+            command.Id = id;
+            var result = await sender.Send(command);
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Branches")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Update a branch")
+        .RequireAuthorization();
     }
 }

@@ -60,38 +60,38 @@ public static class GetDistrictList
             CreatedAt = d.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class GetDistrictListEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapGet("api/v1/organisation/districts", async (
+            ISender sender,
+            [FromQuery] Guid? regionId,
+            [FromQuery] string? search,
+            [FromQuery] string? sort,
+            [FromQuery] int? pageNumber,
+            [FromQuery] int? pageSize,
+            [FromQuery] bool? includeInactive) =>
         {
-            app.MapGet("api/v1/organisation/districts", async (
-                ISender sender,
-                [FromQuery] Guid? regionId,
-                [FromQuery] string? search,
-                [FromQuery] string? sort,
-                [FromQuery] int? pageNumber,
-                [FromQuery] int? pageSize,
-                [FromQuery] bool? includeInactive) =>
+            var result = await sender.Send(new GetDistrictList.Query
             {
-                var result = await sender.Send(new Query
-                {
-                    RegionId = regionId,
-                    Search = search,
-                    Sort = sort,
-                    PageNumber = pageNumber,
-                    PageSize = pageSize,
-                    IncludeInactive = includeInactive
-                });
+                RegionId = regionId,
+                Search = search,
+                Sort = sort,
+                PageNumber = pageNumber,
+                PageSize = pageSize,
+                IncludeInactive = includeInactive
+            });
 
-                return result.IsFailure
-                    ? Results.BadRequest(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Districts")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("List / search districts — optionally filter by regionId")
-            .RequireAuthorization();
-        }
+            return result.IsFailure
+                ? Results.BadRequest(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Districts")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("List / search districts — optionally filter by regionId")
+        .RequireAuthorization();
     }
 }

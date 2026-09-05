@@ -96,22 +96,22 @@ public static class CreateDistrict
             CreatedAt = d.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class CreateDistrictEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPost("api/v1/organisation/districts", async (CreateDistrict.Command command, ISender sender) =>
         {
-            app.MapPost("api/v1/organisation/districts", async (Command command, ISender sender) =>
-            {
-                var result = await sender.Send(command);
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Created($"api/v1/organisation/districts/{result.Value.Id}", result.Value);
-            })
-            .WithTags("Organisation - Districts")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Create a district under a region")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(command);
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Created($"api/v1/organisation/districts/{result.Value.Id}", result.Value);
+        })
+        .WithTags("Organisation - Districts")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Create a district under a region")
+        .RequireAuthorization();
     }
 }

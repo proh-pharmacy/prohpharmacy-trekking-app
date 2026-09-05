@@ -40,22 +40,22 @@ public static class ToggleBranchStatus
             });
         }
     }
+}
 
-    public class Endpoint : ICarterModule
+public class ToggleBranchStatusEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPatch("api/v1/organisation/branches/{id:guid}/toggle-status", async (Guid id, ISender sender) =>
         {
-            app.MapPatch("api/v1/organisation/branches/{id:guid}/toggle-status", async (Guid id, ISender sender) =>
-            {
-                var result = await sender.Send(new Command { Id = id });
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Ok(result.Value);
-            })
-            .WithTags("Organisation - Branches")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Toggle branch active / inactive status")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(new ToggleBranchStatus.Command { Id = id });
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Ok(result.Value);
+        })
+        .WithTags("Organisation - Branches")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Toggle branch active / inactive status")
+        .RequireAuthorization();
     }
 }

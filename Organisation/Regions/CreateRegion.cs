@@ -91,22 +91,22 @@ public static class CreateRegion
             CreatedAt = r.CreatedAt
         };
     }
+}
 
-    public class Endpoint : ICarterModule
+public class CreateRegionEndpoint : ICarterModule
+{
+    public void AddRoutes(IEndpointRouteBuilder app)
     {
-        public void AddRoutes(IEndpointRouteBuilder app)
+        app.MapPost("api/v1/organisation/regions", async (CreateRegion.Command command, ISender sender) =>
         {
-            app.MapPost("api/v1/organisation/regions", async (Command command, ISender sender) =>
-            {
-                var result = await sender.Send(command);
-                return result.IsFailure
-                    ? Results.UnprocessableEntity(result.Error)
-                    : Results.Created($"api/v1/organisation/regions/{result.Value.Id}", result.Value);
-            })
-            .WithTags("Organisation - Regions")
-            .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
-            .WithSummary("Create a new region")
-            .RequireAuthorization();
-        }
+            var result = await sender.Send(command);
+            return result.IsFailure
+                ? Results.UnprocessableEntity(result.Error)
+                : Results.Created($"api/v1/organisation/regions/{result.Value.Id}", result.Value);
+        })
+        .WithTags("Organisation - Regions")
+        .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
+        .WithSummary("Create a new region")
+        .RequireAuthorization();
     }
 }
