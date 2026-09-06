@@ -3,7 +3,9 @@ using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
+using prohpharmacy_trekking_app.Features.Products.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
+using prohpharmacy_trekking_app.Features.Trekking.Entities;
 
 namespace prohpharmacy_trekking_app.Database
 {
@@ -29,6 +31,14 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
         public DbSet<CustomerPerson> CustomerPersons => Set<CustomerPerson>();
         public DbSet<CustomerLocation> CustomerLocations => Set<CustomerLocation>();
+
+        // Products
+        public DbSet<Product> Products => Set<Product>();
+
+        // Trekking
+        public DbSet<TrekkingTrip> TrekkingTrips => Set<TrekkingTrip>();
+        public DbSet<TrekkingTripStop> TrekkingTripStops => Set<TrekkingTripStop>();
+        public DbSet<TrekkingTripStopProduct> TrekkingTripStopProducts => Set<TrekkingTripStopProduct>();
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
@@ -203,6 +213,68 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasOne(l => l.Region).WithMany().HasForeignKey(l => l.RegionId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(l => l.District).WithMany().HasForeignKey(l => l.DistrictId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(l => l.CapturedBy).WithMany().HasForeignKey(l => l.CapturedByStaffId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── Products ──────────────────────────────────────────────────────────
+
+            modelBuilder.Entity<Product>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+                entity.Property(p => p.Unit).HasMaxLength(50);
+                entity.Property(p => p.Description).HasMaxLength(500);
+            });
+
+            // ── Trekking ──────────────────────────────────────────────────────────
+
+            modelBuilder.Entity<TrekkingTrip>(entity =>
+            {
+                entity.HasKey(t => t.Id);
+                entity.Property(t => t.TrekNumber).HasMaxLength(20).IsRequired();
+                entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(t => t.Notes).HasMaxLength(500);
+                entity.HasOne(t => t.Branch)
+                    .WithMany()
+                    .HasForeignKey(t => t.BranchId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(t => t.Driver)
+                    .WithMany()
+                    .HasForeignKey(t => t.DriverStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(t => t.Vehicle)
+                    .WithMany()
+                    .HasForeignKey(t => t.VehicleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(t => t.TrekNumber).IsUnique();
+            });
+
+            modelBuilder.Entity<TrekkingTripStop>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.Notes).HasMaxLength(500);
+                entity.HasOne(s => s.TrekkingTrip)
+                    .WithMany(t => t.Stops)
+                    .HasForeignKey(s => s.TrekkingTripId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(s => s.CustomerAccount)
+                    .WithMany()
+                    .HasForeignKey(s => s.CustomerAccountId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(s => new { s.TrekkingTripId, s.Sequence }).IsUnique();
+            });
+
+            modelBuilder.Entity<TrekkingTripStopProduct>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.PlannedQuantity).HasPrecision(10, 3);
+                entity.HasOne(p => p.TrekkingTripStop)
+                    .WithMany(s => s.Products)
+                    .HasForeignKey(p => p.TrekkingTripStopId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(p => p.Product)
+                    .WithMany()
+                    .HasForeignKey(p => p.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // ── Staff ─────────────────────────────────────────────────────────────
