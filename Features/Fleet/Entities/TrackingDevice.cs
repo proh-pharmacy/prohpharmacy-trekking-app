@@ -13,6 +13,7 @@ public class TrackingDevice
     public DateTime? LastReportedAt { get; set; }
     public decimal? LastLatitude { get; set; }
     public decimal? LastLongitude { get; set; }
+    public string? LastAddress { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

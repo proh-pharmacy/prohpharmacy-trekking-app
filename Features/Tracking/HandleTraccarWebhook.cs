@@ -48,6 +48,8 @@ public static class HandleTraccarWebhook
             device.LastLatitude = (decimal)position.Latitude;
             device.LastLongitude = (decimal)position.Longitude;
             device.LastReportedAt = position.FixTime;
+            if (!string.IsNullOrEmpty(position.Address))
+                device.LastAddress = position.Address;
             await _db.SaveChangesAsync(cancellationToken);
 
             var staffAssignment = device.Assignments.FirstOrDefault();

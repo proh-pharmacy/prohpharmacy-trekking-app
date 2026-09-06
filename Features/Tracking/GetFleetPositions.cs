@@ -27,6 +27,7 @@ public static class GetFleetPositions
         public string? BranchName { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
+        public string? LastAddress { get; set; }
         public DateTime LastReportedAt { get; set; }
     }
 
@@ -83,6 +84,7 @@ public static class GetFleetPositions
                     BranchName = staff?.Branch?.Name,
                     Latitude = (double)device.LastLatitude!,
                     Longitude = (double)device.LastLongitude!,
+                    LastAddress = device.LastAddress,
                     LastReportedAt = device.LastReportedAt!.Value
                 });
             }

@@ -31,6 +31,7 @@ public static class CreateTrackingDevice
         public DateTime? LastReportedAt { get; set; }
         public decimal? LastLatitude { get; set; }
         public decimal? LastLongitude { get; set; }
+        public string? LastAddress { get; set; }
         public Guid? CurrentStaffId { get; set; }
         public string? CurrentStaffName { get; set; }
         public DateTime CreatedAt { get; set; }
@@ -130,6 +131,7 @@ public static class CreateTrackingDevice
             LastReportedAt = d.LastReportedAt,
             LastLatitude = d.LastLatitude,
             LastLongitude = d.LastLongitude,
+            LastAddress = d.LastAddress,
             CurrentStaffId = currentStaffId,
             CurrentStaffName = currentStaffName,
             CreatedAt = d.CreatedAt,
