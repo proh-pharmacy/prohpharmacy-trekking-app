@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
@@ -23,6 +24,11 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<TrackingDevice> TrackingDevices => Set<TrackingDevice>();
         public DbSet<VehicleStaffAssignment> VehicleStaffAssignments => Set<VehicleStaffAssignment>();
         public DbSet<StaffDeviceAssignment> StaffDeviceAssignments => Set<StaffDeviceAssignment>();
+
+        // Customers
+        public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
+        public DbSet<CustomerPerson> CustomerPersons => Set<CustomerPerson>();
+        public DbSet<CustomerLocation> CustomerLocations => Set<CustomerLocation>();
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
@@ -138,6 +144,63 @@ namespace prohpharmacy_trekking_app.Database
                     .HasForeignKey(a => a.StaffMemberId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(a => new { a.VehicleId, a.UnassignedAt });
+            });
+
+            // ── Customers ─────────────────────────────────────────────────────────
+
+            modelBuilder.Entity<CustomerAccount>(entity =>
+            {
+                entity.HasKey(a => a.Id);
+                entity.Property(a => a.CustomerCode).HasMaxLength(20).IsRequired();
+                entity.Property(a => a.BusinessName).HasMaxLength(200).IsRequired();
+                entity.Property(a => a.TradingName).HasMaxLength(200);
+                entity.Property(a => a.CustomerType).HasConversion<string>().HasMaxLength(40).IsRequired();
+                entity.Property(a => a.PrimaryPhoneNumber).HasMaxLength(30).IsRequired();
+                entity.Property(a => a.WhatsAppNumber).HasMaxLength(30);
+                entity.Property(a => a.RegistrationStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.HasOne(a => a.Region).WithMany().HasForeignKey(a => a.RegionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(a => a.OwningBranch).WithMany().HasForeignKey(a => a.OwningBranchId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(a => a.RegisteredBy).WithMany().HasForeignKey(a => a.RegisteredByStaffId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(a => a.CustomerCode).IsUnique();
+                entity.HasIndex(a => a.BusinessName);
+                entity.HasIndex(a => a.PrimaryPhoneNumber);
+            });
+
+            modelBuilder.Entity<CustomerPerson>(entity =>
+            {
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.FirstName).HasMaxLength(80).IsRequired();
+                entity.Property(p => p.MiddleName).HasMaxLength(80);
+                entity.Property(p => p.LastName).HasMaxLength(80).IsRequired();
+                entity.Property(p => p.RelationshipType).HasConversion<string>().HasMaxLength(40).IsRequired();
+                entity.Property(p => p.PrimaryPhoneNumber).HasMaxLength(30).IsRequired();
+                entity.Property(p => p.AlternativePhoneNumber).HasMaxLength(30);
+                entity.Property(p => p.EmailAddress).HasMaxLength(200);
+                entity.Property(p => p.GhanaCardNumber).HasMaxLength(30);
+                entity.HasOne(p => p.CustomerAccount)
+                    .WithMany(a => a.People)
+                    .HasForeignKey(p => p.CustomerAccountId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<CustomerLocation>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.LocationType).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(l => l.StreetAddress).HasMaxLength(300);
+                entity.Property(l => l.LandmarkAndDirections).HasMaxLength(500).IsRequired();
+                entity.Property(l => l.Latitude).HasPrecision(9, 6);
+                entity.Property(l => l.Longitude).HasPrecision(9, 6);
+                entity.Property(l => l.AccuracyMetres).HasPrecision(8, 2);
+                entity.Property(l => l.CaptureMethod).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(l => l.VerificationStatus).HasConversion<string>().HasMaxLength(40).IsRequired();
+                entity.HasOne(l => l.CustomerAccount)
+                    .WithMany(a => a.Locations)
+                    .HasForeignKey(l => l.CustomerAccountId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(l => l.Region).WithMany().HasForeignKey(l => l.RegionId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.District).WithMany().HasForeignKey(l => l.DistrictId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.CapturedBy).WithMany().HasForeignKey(l => l.CapturedByStaffId).OnDelete(DeleteBehavior.Restrict);
             });
 
             // ── Staff ─────────────────────────────────────────────────────────────
