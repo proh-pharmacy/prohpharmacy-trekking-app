@@ -297,6 +297,8 @@ public class CreateCustomerEndpoint : ICarterModule
             "Registers a customer account with a representative and their GPS location in a single request. " +
             "The owning branch is resolved from the authenticated staff member's branch. " +
             "Location verification status is set to `GpsCaptured` when coordinates are provided.")
+        .Produces<CreateCustomer.CustomerResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

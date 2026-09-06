@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 
@@ -23,15 +24,11 @@ public static class GetCustomerList
         public string? Status { get; set; }
     }
 
-    internal sealed class Handler : IRequestHandler<Query, Result<object>>
+    internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<object>>
     {
-        private readonly AppDbContext _db;
-
-        public Handler(AppDbContext db) => _db = db;
-
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var query = _db.CustomerAccounts
+            var query = db.CustomerAccounts
                 .Include(a => a.Region)
                 .Include(a => a.OwningBranch)
                 .Include(a => a.RegisteredBy)
@@ -52,13 +49,13 @@ public static class GetCustomerList
             if (!string.IsNullOrWhiteSpace(request.Status))
                 query = query.Where(a => a.RegistrationStatus.ToString().ToLower() == request.Status.ToLower());
 
-            var result = await new QueryBuilder<Features.Customers.Entities.CustomerAccount>(query)
-                .WithSearch(request.Search, nameof(Entities.CustomerAccount.BusinessName),
-                    nameof(Entities.CustomerAccount.CustomerCode),
-                    nameof(Entities.CustomerAccount.PrimaryPhoneNumber))
+            var result = await new QueryBuilder<CustomerAccount>(query)
+                .WithSearch(request.Search, nameof(CustomerAccount.BusinessName),
+                    nameof(CustomerAccount.CustomerCode),
+                    nameof(CustomerAccount.PrimaryPhoneNumber))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(a => (object)CreateCustomer.Handler.ToResponse(
+                .BuildAsync(a => CreateCustomer.Handler.ToResponse(
                     a,
                     a.Region,
                     a.OwningBranch,
@@ -104,6 +101,7 @@ public class GetCustomerListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Customers)
         .WithSummary("List customers")
         .WithDescription("Returns a paginated list of customers. Filter by region, branch, type or status. Search by business name, customer code or phone number.")
+        .Produces<Paginator.PaginatedData<CreateCustomer.CustomerResponse>>(200)
         .RequireAuthorization();
     }
 }

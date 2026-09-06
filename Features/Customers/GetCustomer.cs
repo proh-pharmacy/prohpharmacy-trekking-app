@@ -64,6 +64,8 @@ public class GetCustomerEndpoint : ICarterModule
         .WithTags("Customers")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Customers)
         .WithSummary("Get a customer by ID")
+        .Produces<CreateCustomer.CustomerResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }
