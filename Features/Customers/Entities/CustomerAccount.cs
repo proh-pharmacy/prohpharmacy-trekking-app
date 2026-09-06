@@ -18,6 +18,9 @@ public class CustomerAccount
     public RegistrationStatus RegistrationStatus { get; set; } = RegistrationStatus.Active;
     public Guid RegisteredByStaffId { get; set; }
     public Guid? RegisteredDuringTrekId { get; set; }
+    public Guid? ClientGeneratedId { get; set; }
+    public bool CreatedOffline { get; set; }
+    public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

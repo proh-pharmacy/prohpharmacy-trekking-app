@@ -66,6 +66,9 @@ public static class CreateCustomer
         public Guid RegisteredByStaffId { get; set; }
         public string RegisteredByName { get; set; } = string.Empty;
         public Guid? RegisteredDuringTrekId { get; set; }
+        public Guid? ClientGeneratedId { get; set; }
+        public bool CreatedOffline { get; set; }
+        public DateTime RecordedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
         public CustomerPersonResponse? PrimaryPerson { get; set; }
@@ -177,6 +180,8 @@ public static class CreateCustomer
                 RegistrationStatus = RegistrationStatus.Active,
                 RegisteredByStaffId = registeredBy.Id,
                 RegisteredDuringTrekId = request.RegisteredDuringTrekId,
+                CreatedOffline = false,
+                RecordedAt = DateTime.UtcNow,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -250,6 +255,9 @@ public static class CreateCustomer
             RegisteredByStaffId = account.RegisteredByStaffId,
             RegisteredByName = registeredBy.FullName,
             RegisteredDuringTrekId = account.RegisteredDuringTrekId,
+            ClientGeneratedId = account.ClientGeneratedId,
+            CreatedOffline = account.CreatedOffline,
+            RecordedAt = account.RecordedAt,
             CreatedAt = account.CreatedAt,
             UpdatedAt = account.UpdatedAt,
             PrimaryPerson = primaryPerson is null ? null : new CustomerPersonResponse

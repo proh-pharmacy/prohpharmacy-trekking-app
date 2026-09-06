@@ -162,6 +162,8 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasOne(a => a.OwningBranch).WithMany().HasForeignKey(a => a.OwningBranchId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(a => a.RegisteredBy).WithMany().HasForeignKey(a => a.RegisteredByStaffId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(a => a.CustomerCode).IsUnique();
+                entity.HasIndex(a => a.ClientGeneratedId).IsUnique()
+                    .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
                 entity.HasIndex(a => a.BusinessName);
                 entity.HasIndex(a => a.PrimaryPhoneNumber);
             });
