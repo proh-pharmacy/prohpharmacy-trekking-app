@@ -18,6 +18,6 @@ COPY --from=build /src/.env .
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 
-RUN printf '#!/bin/bash\nset -a\n[ -f /app/.env ] && . /app/.env\nset +a\nexec dotnet prohpharmacy_trekking_app.dll\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
+RUN printf '#!/bin/bash\nif [ -f /app/.env ]; then\n  while IFS= read -r line || [ -n "$line" ]; do\n    [[ "$line" =~ ^[[:space:]]*# ]] && continue\n    [[ -z "$line" ]] && continue\n    key="${line%%=*}"\n    val="${line#*=}"\n    export "$key=$val"\n  done < /app/.env\nfi\nexec dotnet prohpharmacy_trekking_app.dll\n' > /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
 ENTRYPOINT ["/app/entrypoint.sh"]
