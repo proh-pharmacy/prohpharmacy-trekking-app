@@ -2,7 +2,7 @@
 
 ## Overview
 
-Traccar is an open-source GPS tracking platform deployed at `https://tracking.prohpharmacy.com`. It runs inside a Docker container on the VPS (`cloud.prohpharmacy.com`) and handles raw GPS data from devices. Our API integrates with Traccar to register devices and drivers, receive position updates, and broadcast them in real time.
+Traccar is an open-source GPS tracking platform deployed at `https://tracking.prohpharmacy.com`. It runs inside a Docker container on the VPS (`cloud.prohpharmacy.com`) and handles raw GPS data from devices. Our API integrates with Traccar to register devices and drivers, receive position updates, reverse geocode them to human-readable addresses, and broadcast them in real time.
 
 ---
 
@@ -13,13 +13,15 @@ Phone (Traccar Client app)
         │  sends GPS over TCP port 5055
         ▼
 Traccar Server (tracking.prohpharmacy.com)
+        │  reverse geocodes coordinates → address (Nominatim/OpenStreetMap)
         │  forwards every position as JSON via HTTP
         ▼
 Our API — POST /api/traccar/webhook
-        │  updates LastLatitude/LastLongitude in DB
+        │  updates LastLatitude, LastLongitude, LastAddress, LastReportedAt in DB
         │  broadcasts via SignalR to connected frontends
         ▼
-Frontend (SignalR "PositionUpdated" event)
+Frontend — GET /api/v1/fleet/positions (on demand)
+           or SignalR "PositionUpdated" event (live)
 ```
 
 ---
@@ -71,6 +73,31 @@ Used when the Traccar VPS is wiped and rebuilt (new instance, no data).
 
 ---
 
+## Reverse Geocoding
+
+Traccar is configured to automatically convert GPS coordinates into a human-readable address (e.g. `"Community 22, Tema, Greater Accra"`) using **Nominatim** (OpenStreetMap) — free, no API key required.
+
+### How it works
+
+- On every position update, Traccar calls Nominatim with the coordinates
+- The resolved address is included in the forwarded webhook payload as `position.address`
+- Our webhook stores it as `LastAddress` on the `TrackingDevice` record
+- `GET /api/v1/fleet/positions` and `GET /api/v1/fleet/devices/{id}` both return `lastAddress`
+
+### Rate limiting
+
+Nominatim is rate-limited to 1 request/second. The `geocoder.reuseDistance` setting (500m) means Traccar reuses the last geocoded address if the vehicle has moved less than 500 metres — reducing API calls significantly for slow-moving or stationary vehicles.
+
+### Config in `traccar.xml`
+
+```xml
+<entry key="geocoder.type">nominatim</entry>
+<entry key="geocoder.url">https://nominatim.openstreetmap.org/reverse</entry>
+<entry key="geocoder.reuseDistance">500</entry>
+```
+
+---
+
 ## Position Webhook
 
 ### Configuration
@@ -106,6 +133,7 @@ Traccar sends this JSON body on every position update:
     "longitude": -0.1870,
     "speed": 12.5,
     "course": 180,
+    "address": "Community 22, Tema, Greater Accra",
     "fixTime": "...",
     "attributes": { "ignition": true, "motion": true, "batteryLevel": 87.0 }
   },
@@ -115,9 +143,9 @@ Traccar sends this JSON body on every position update:
 
 ### What the Webhook Does
 
-1. Validates the `?secret=` param
-2. Looks up the `TrackingDevice` by `TraccarDeviceId`
-3. Updates `LastLatitude`, `LastLongitude`, `LastReportedAt`
+1. Validates the `?secret=` param — rejects with 401 if wrong
+2. Looks up the `TrackingDevice` by `TraccarDeviceId` — silently ignores unknown devices
+3. Updates `LastLatitude`, `LastLongitude`, `LastReportedAt`, and `LastAddress` (if present)
 4. Resolves the assigned staff member and their assigned vehicle
 5. Broadcasts a `PositionUpdated` event via SignalR to:
    - `branch-{branchId}` group (branch-filtered clients)
@@ -129,11 +157,33 @@ Traccar sends this JSON body on every position update:
 
 | Endpoint | Description |
 |---|---|
-| `GET /api/v1/fleet/devices/{id}/position` | Live position from Traccar for a specific device |
+| `GET /api/v1/fleet/devices/{id}/position` | Live position from Traccar for a specific device, includes address |
 | `GET /api/v1/fleet/positions` | All devices with a known position (from DB cache). Optional `?branchId=` filter |
 | `GET /api/v1/fleet/devices/{id}/position/history?from=&to=` | Position history from Traccar. Max 31-day range |
 
-`GET /api/v1/fleet/positions` uses cached `LastLatitude/LastLongitude` from the DB (no Traccar call) — use this for map overviews. `GET .../position` fetches live from Traccar — use this for a single device detail view.
+`GET /api/v1/fleet/positions` uses cached data from DB (no Traccar call) — use this for map overviews and "last seen" display. `GET .../position` fetches live from Traccar — use this for a single device detail view.
+
+### Fleet Positions Response
+
+```json
+[
+  {
+    "deviceId": "uuid",
+    "deviceName": "John Doe",
+    "staffMemberId": "uuid",
+    "staffName": "John Doe",
+    "vehicleId": "uuid",
+    "vehicleRegistration": "GR-1234-24",
+    "vehicleDisplayName": "Van 1",
+    "branchId": "uuid",
+    "branchName": "Tema Branch",
+    "latitude": 5.6037,
+    "longitude": -0.1870,
+    "lastAddress": "Community 22, Tema, Greater Accra",
+    "lastReportedAt": "2026-09-06T09:00:00Z"
+  }
+]
+```
 
 ---
 
@@ -158,17 +208,17 @@ Payload:
   "vehicleId": "uuid",
   "vehicleRegistration": "GR-1234-24",
   "branchId": "uuid",
-  "branchName": "Accra Branch",
+  "branchName": "Tema Branch",
   "latitude": 5.6037,
   "longitude": -0.1870,
   "speed": 12.5,
   "course": 180,
-  "fixTime": "2026-09-06T00:00:00Z",
+  "fixTime": "2026-09-06T09:00:00Z",
   "valid": true,
   "ignition": true,
   "motion": true,
   "batteryLevel": 87.0,
-  "address": "Ring Road, Accra"
+  "address": "Community 22, Tema, Greater Accra"
 }
 ```
 
@@ -184,6 +234,29 @@ Payload:
 | Container name | `traccar` |
 | Config file | `/opt/traccar/conf/traccar.xml` (inside container) |
 | Deployed via | Dokploy (`traccar_compose`) |
+
+### Current `traccar.xml`
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM 'http://java.sun.com/dtd/properties.dtd'>
+<properties>
+
+    <entry key='database.driver'>org.h2.Driver</entry>
+    <entry key='database.url'>jdbc:h2:./data/database</entry>
+    <entry key='database.user'>sa</entry>
+    <entry key='database.password' />
+
+    <entry key="forward.url">https://YOUR_API_URL/api/traccar/webhook?secret=YOUR_SECRET</entry>
+    <entry key="forward.type">json</entry>
+    <entry key="forward.retry.enable">true</entry>
+
+    <entry key="geocoder.type">nominatim</entry>
+    <entry key="geocoder.url">https://nominatim.openstreetmap.org/reverse</entry>
+    <entry key="geocoder.reuseDistance">500</entry>
+
+</properties>
+```
 
 ### Useful Commands
 
