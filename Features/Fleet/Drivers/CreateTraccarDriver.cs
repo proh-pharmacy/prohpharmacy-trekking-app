@@ -104,6 +104,9 @@ public class CreateTraccarDriverEndpoint : ICarterModule
             "Creates a driver entry in Traccar for the given staff member. " +
             "Staff attributes (phone, branch, role, employee number) are pushed as Traccar driver attributes. " +
             "The driver is linked to the staff member — only one Traccar driver per staff member is allowed.")
+        .Produces<CreateTraccarDriver.DriverResponse>(201)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

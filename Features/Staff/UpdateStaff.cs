@@ -104,6 +104,9 @@ public class UpdateStaffEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Update a staff member")
         .WithDescription("Updates staff details. `role` must match an existing system role.")
+        .Produces<StaffResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

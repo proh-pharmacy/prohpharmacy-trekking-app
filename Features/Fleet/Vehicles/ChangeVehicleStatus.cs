@@ -90,6 +90,9 @@ public class ChangeVehicleStatusEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Change vehicle operational status")
         .WithDescription("Valid statuses: Active, UnderMaintenance, Decommissioned.")
+        .Produces<ChangeVehicleStatus.StatusResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

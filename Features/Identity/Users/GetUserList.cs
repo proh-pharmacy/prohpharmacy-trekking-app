@@ -138,6 +138,7 @@ public class GetUserListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("List application users")
         .WithDescription("Filter by branchId, role name, isActive, or search by name / email / employee number.")
+        .Produces<Paginator.PaginatedData<GetUserList.UserSummaryResponse>>(200)
         .RequireAuthorization();
     }
 }

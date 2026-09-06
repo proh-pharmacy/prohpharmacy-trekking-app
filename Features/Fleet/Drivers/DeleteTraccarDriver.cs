@@ -63,6 +63,9 @@ public class DeleteTraccarDriverEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Remove a staff member's Traccar driver registration")
         .WithDescription("Deletes the driver from Traccar and clears the Traccar driver ID from the staff member record.")
+        .Produces(204)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

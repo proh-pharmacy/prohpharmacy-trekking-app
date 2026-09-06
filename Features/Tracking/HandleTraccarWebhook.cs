@@ -118,6 +118,8 @@ public class TraccarWebhookEndpoint : ICarterModule
             return Results.Ok();
         })
         .WithTags("Tracking")
+        .Produces(200)
+        .Produces(401)
         .ExcludeFromDescription();
     }
 }

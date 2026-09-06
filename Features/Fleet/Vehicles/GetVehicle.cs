@@ -58,6 +58,8 @@ public class GetVehicleEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Get a vehicle by ID")
+        .Produces<VehicleResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

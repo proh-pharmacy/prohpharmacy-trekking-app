@@ -126,6 +126,9 @@ public class AssignVehicleToStaffEndpoint : ICarterModule
             "Links an Active staff member to an Active vehicle. " +
             "A vehicle can only have one active staff assignment at a time. " +
             "Unassign the current staff member first if one is already assigned.")
+        .Produces<AssignVehicleToStaff.AssignmentResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

@@ -68,6 +68,9 @@ public class RevokeUserSessionsEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Revoke all active sessions for a user")
         .WithDescription("Forces the user to log in again on all devices.")
+        .Produces<RevokeUserSessions.RevokeResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

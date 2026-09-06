@@ -83,6 +83,7 @@ public class GetMeEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Get the currently authenticated user")
         .WithDescription("Returns the logged-in user's full profile, roles, and permissions derived from their JWT.")
+        .Produces<UserDetailResponse>(200)
         .RequireAuthorization();
     }
 }

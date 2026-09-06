@@ -188,6 +188,8 @@ public class SyncDriversToTraccarEndpoint : ICarterModule
             "Default (`force=false`): creates drivers only for staff missing a Traccar driver ID. " +
             "With `force=true`: performs a full reconciliation — keeps drivers that still exist in Traccar, " +
             "re-creates any that are missing, and deletes Traccar drivers with no matching staff member.")
+        .Produces<SyncDriversToTraccar.SyncResponse>(200)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

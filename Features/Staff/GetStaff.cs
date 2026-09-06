@@ -59,6 +59,8 @@ public class GetStaffEndpoint : ICarterModule
         .WithTags("Staff")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Get a staff member by ID")
+        .Produces<StaffResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

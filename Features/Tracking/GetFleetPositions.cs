@@ -112,6 +112,7 @@ public class GetFleetPositionsEndpoint : ICarterModule
             "Returns the last known position for every device that has reported in. " +
             "Uses cached data updated by the Traccar webhook — no live Traccar call is made. " +
             "Optionally filter by `branchId` to get only devices belonging to a specific branch.")
+        .Produces<List<GetFleetPositions.FleetPositionResponse>>(200)
         .RequireAuthorization();
     }
 }

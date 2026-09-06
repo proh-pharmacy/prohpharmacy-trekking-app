@@ -72,6 +72,9 @@ public class RemoveRoleEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Remove a role from a user")
+        .Produces<RemoveRole.RoleRemovalResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

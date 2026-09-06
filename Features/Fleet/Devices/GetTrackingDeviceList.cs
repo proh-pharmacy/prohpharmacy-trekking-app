@@ -88,6 +88,7 @@ public class GetTrackingDeviceListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("List / search tracking devices")
         .WithDescription("Filter by status (Active | Inactive).")
+        .Produces<Paginator.PaginatedData<DeviceResponse>>(200)
         .RequireAuthorization();
     }
 }

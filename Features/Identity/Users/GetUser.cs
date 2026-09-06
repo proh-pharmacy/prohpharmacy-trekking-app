@@ -93,6 +93,8 @@ public class GetUserEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Get an application user by ID")
+        .Produces<GetUser.UserDetailResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

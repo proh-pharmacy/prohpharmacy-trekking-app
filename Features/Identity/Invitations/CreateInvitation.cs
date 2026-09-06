@@ -168,6 +168,9 @@ public class CreateInvitationEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Send an application-access invitation")
         .WithDescription("Generates a 48-hour invitation token and emails it directly to the staff member's registered email address.")
+        .Produces<CreateInvitation.InvitationResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

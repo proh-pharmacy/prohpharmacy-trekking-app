@@ -116,6 +116,8 @@ public class GetDevicePositionEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Tracking)
         .WithSummary("Get current position for a device")
         .WithDescription("Fetches the latest GPS position directly from Traccar for the given device, including the currently assigned staff member and vehicle.")
+        .Produces<GetDevicePosition.PositionResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

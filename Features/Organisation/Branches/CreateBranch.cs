@@ -151,6 +151,8 @@ public class CreateBranchEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Create a new branch")
         .WithDescription("Validates the Region → District hierarchy before creating the branch.")
+        .Produces<CreateBranch.BranchResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

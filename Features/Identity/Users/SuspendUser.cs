@@ -76,6 +76,9 @@ public class SuspendUserEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Suspend user access")
         .WithDescription("Deactivates the user account and immediately revokes all active refresh tokens.")
+        .Produces<SuspendUser.SuspendResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

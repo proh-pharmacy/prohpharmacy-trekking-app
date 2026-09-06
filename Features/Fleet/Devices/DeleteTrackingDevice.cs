@@ -78,6 +78,9 @@ public class DeleteTrackingDeviceEndpoint : ICarterModule
         .WithDescription(
             "Removes the device from Traccar and deletes it from the local database. " +
             "The device must be unassigned before it can be deleted.")
+        .Produces(204)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

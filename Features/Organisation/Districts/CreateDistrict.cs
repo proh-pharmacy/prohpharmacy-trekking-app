@@ -111,6 +111,8 @@ public class CreateDistrictEndpoint : ICarterModule
         .WithTags("Organisation - Districts")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Create a district under a region")
+        .Produces<CreateDistrict.DistrictResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

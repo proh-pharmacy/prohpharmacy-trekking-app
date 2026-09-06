@@ -171,6 +171,8 @@ public class AcceptInvitationEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Accept an invitation and set password")
         .WithDescription("Validates the invitation token, creates the user account, auto-assigns the staff role, and returns an initial auth token pair.")
+        .Produces<AuthResponse>(200)
+        .Produces<Error>(422)
         .AllowAnonymous();
     }
 }

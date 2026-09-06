@@ -168,6 +168,8 @@ public class SyncDevicesToTraccarEndpoint : ICarterModule
             "Default (`force=false`): creates Traccar entries only for devices that have none. " +
             "With `force=true`: performs a full reconciliation — re-links any device already in Traccar by its unique ID, " +
             "creates any that are missing, and deletes Traccar entries that have no matching local device.")
+        .Produces<SyncDevicesToTraccar.SyncResponse>(200)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

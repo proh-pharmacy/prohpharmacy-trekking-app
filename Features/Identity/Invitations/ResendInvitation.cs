@@ -126,6 +126,9 @@ public class ResendInvitationEndpoint : ICarterModule
             "If the invitation is still active, refreshes its expiry to 48 hours and resends the email. " +
             "If expired, invalidates the old token and issues a brand new one. " +
             "Returns 400 if the invitation was already accepted.")
+        .Produces<InvitationResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

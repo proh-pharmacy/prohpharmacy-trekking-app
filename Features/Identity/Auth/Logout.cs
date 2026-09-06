@@ -71,6 +71,7 @@ public class LogoutEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Log out")
         .WithDescription("Revokes the provided refresh token. The access token remains valid until expiry.")
+        .Produces(200)
         .RequireAuthorization();
     }
 }

@@ -105,6 +105,8 @@ public class GetDevicePositionHistoryEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Tracking)
         .WithSummary("Get position history for a device")
         .WithDescription("Returns GPS position history from Traccar for the given device and time range. Maximum range is 31 days.")
+        .Produces<List<GetDevicePositionHistory.HistoryPointResponse>>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

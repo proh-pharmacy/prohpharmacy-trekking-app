@@ -97,6 +97,7 @@ public class GetVehicleListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("List / search vehicles")
         .WithDescription("Filter by branchId or status (Active | UnderMaintenance | Decommissioned).")
+        .Produces<Paginator.PaginatedData<VehicleResponse>>(200)
         .RequireAuthorization();
     }
 }

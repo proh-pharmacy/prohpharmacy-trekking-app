@@ -179,6 +179,8 @@ public class SetupSuperAdminEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Initial super-admin setup")
         .WithDescription("One-time endpoint to create the first Super Admin. Returns 403 once any user exists.")
+        .Produces<AuthResponse>(201)
+        .Produces<Error>(422)
         .AllowAnonymous();
     }
 }

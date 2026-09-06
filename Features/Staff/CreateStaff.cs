@@ -212,6 +212,8 @@ public class CreateStaffEndpoint : ICarterModule
             "Set `grantAppAccess: true` to also create a login account and assign the role in the same request. " +
             "Provide `initialPassword` or leave it null to auto-derive it as `firstname + lastname` (e.g. `johndoe`). " +
             "The plain-text initial password is returned once in the response.")
+        .Produces<CreateStaff.StaffResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

@@ -56,6 +56,9 @@ public class UnassignVehicleFromStaffEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Unassign the current staff member from a vehicle")
+        .Produces(204)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

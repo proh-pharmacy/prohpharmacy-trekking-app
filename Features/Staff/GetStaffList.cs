@@ -94,6 +94,7 @@ public class GetStaffListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("List / search staff members")
         .WithDescription("Filter by branchId or status (Pending | Active | Suspended | Offboarded).")
+        .Produces<Paginator.PaginatedData<StaffResponse>>(200)
         .RequireAuthorization();
     }
 }

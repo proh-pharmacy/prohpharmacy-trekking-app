@@ -54,6 +54,8 @@ public class GetBranchEndpoint : ICarterModule
         .WithTags("Organisation - Branches")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Get a branch by ID")
+        .Produces<BranchResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

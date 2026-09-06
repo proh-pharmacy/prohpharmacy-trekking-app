@@ -140,6 +140,9 @@ public class AssignDeviceEndpoint : ICarterModule
         .WithDescription(
             "Links a Traccar tracking device to an Active staff member. " +
             "Both the device and the staff member can only have one active assignment at a time.")
+        .Produces<AssignDevice.AssignmentResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

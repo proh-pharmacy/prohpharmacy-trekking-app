@@ -125,6 +125,9 @@ public class ChangeStaffStatusEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Change staff employment status")
         .WithDescription("Suspending or offboarding immediately revokes app access and all active refresh tokens.")
+        .Produces<ChangeStaffStatus.StatusResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

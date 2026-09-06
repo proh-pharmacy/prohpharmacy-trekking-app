@@ -64,6 +64,7 @@ public class GetRoleListEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("List all roles and their permissions")
+        .Produces<List<GetRoleList.RoleResponse>>(200)
         .RequireAuthorization();
     }
 }

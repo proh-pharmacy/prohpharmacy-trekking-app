@@ -111,6 +111,9 @@ public class AssignRoleEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Assign a role to a user")
+        .Produces<AssignRole.RoleAssignmentResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

@@ -92,6 +92,7 @@ public class GetDistrictListEndpoint : ICarterModule
         .WithTags("Organisation - Districts")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("List / search districts — optionally filter by regionId")
+        .Produces<Paginator.PaginatedData<DistrictResponse>>(200)
         .RequireAuthorization();
     }
 }

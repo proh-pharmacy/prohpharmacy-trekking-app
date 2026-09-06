@@ -102,6 +102,9 @@ public class UpdateBranchEndpoint : ICarterModule
         .WithTags("Organisation - Branches")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Update a branch")
+        .Produces<BranchResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

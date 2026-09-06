@@ -135,6 +135,9 @@ public class ResetPasswordEndpoint : ICarterModule
             "Set `resetToDefault: true` to restore the auto-derived default (`firstname + lastname`). " +
             "Or provide a custom `newPassword`. Exactly one of the two must be supplied. " +
             "The new plain-text password is returned once in the response.")
+        .Produces<ResetPassword.ResetPasswordResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

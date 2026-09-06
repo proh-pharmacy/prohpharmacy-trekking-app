@@ -66,6 +66,9 @@ public class ActivateUserEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Reactivate a suspended user")
+        .Produces<ActivateUser.ActivateResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

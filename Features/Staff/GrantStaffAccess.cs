@@ -122,6 +122,9 @@ public class GrantStaffAccessEndpoint : ICarterModule
             "provide `role` to override or assign one for the first time. " +
             "Provide `initialPassword` or leave it null to auto-derive it as `firstname + lastname`. " +
             "Sends a welcome email and flips the employment status to Active.")
+        .Produces<StaffResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

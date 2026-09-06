@@ -82,6 +82,7 @@ public class GetRegionListEndpoint : ICarterModule
         .WithTags("Organisation - Regions")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("List / search regions")
+        .Produces<Paginator.PaginatedData<RegionResponse>>(200)
         .RequireAuthorization();
     }
 }

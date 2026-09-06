@@ -99,6 +99,8 @@ public class CreateRegionEndpoint : ICarterModule
         .WithTags("Organisation - Regions")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Create a new region")
+        .Produces<CreateRegion.RegionResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

@@ -105,6 +105,9 @@ public class UpdateVehicleEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Update a vehicle")
         .WithDescription("Updates vehicle details. Registration number cannot be changed after creation.")
+        .Produces<VehicleResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

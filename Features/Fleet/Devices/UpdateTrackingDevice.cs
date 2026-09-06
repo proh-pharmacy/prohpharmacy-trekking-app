@@ -93,6 +93,9 @@ public class UpdateTrackingDeviceEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Update a tracking device")
         .WithDescription("Updates device name, phone number, and Traccar device ID. Unique ID (IMEI) cannot be changed.")
+        .Produces<DeviceResponse>(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

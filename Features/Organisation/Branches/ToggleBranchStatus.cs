@@ -56,6 +56,9 @@ public class ToggleBranchStatusEndpoint : ICarterModule
         .WithTags("Organisation - Branches")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("Toggle branch active / inactive status")
+        .Produces(200)
+        .Produces<Error>(404)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

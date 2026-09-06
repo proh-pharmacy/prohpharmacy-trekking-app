@@ -141,6 +141,8 @@ public class CreateVehicleEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Register a new vehicle")
         .WithDescription("Adds a vehicle to the fleet. Registration number is normalised to uppercase and must be unique.")
+        .Produces<CreateVehicle.VehicleResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

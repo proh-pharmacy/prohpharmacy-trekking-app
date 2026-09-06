@@ -56,6 +56,8 @@ public class GetTrackingDeviceEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Get a tracking device by ID")
+        .Produces<DeviceResponse>(200)
+        .Produces<Error>(404)
         .RequireAuthorization();
     }
 }

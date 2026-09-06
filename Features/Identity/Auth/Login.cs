@@ -168,6 +168,8 @@ public class LoginEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Log in")
         .WithDescription("Returns a short-lived access token (15 min) and a 7-day rotating refresh token.")
+        .Produces<Login.AuthResponse>(200)
+        .Produces<Error>(422)
         .AllowAnonymous();
     }
 }

@@ -98,6 +98,7 @@ public class GetBranchListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Organisation)
         .WithSummary("List / search branches")
         .WithDescription("Filter by regionId, districtId, or branchType (Retail | Wholesale | Laboratory).")
+        .Produces<Paginator.PaginatedData<BranchResponse>>(200)
         .RequireAuthorization();
     }
 }

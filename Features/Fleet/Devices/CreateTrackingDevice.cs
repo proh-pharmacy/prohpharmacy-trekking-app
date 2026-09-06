@@ -160,6 +160,8 @@ public class CreateTrackingDeviceEndpoint : ICarterModule
             "Registers a GPS tracking device and immediately assigns it to the given staff member. " +
             "**Smartphone:** omit `uniqueId` — a UUID is auto-generated and returned as `traccarUniqueId`. The staff member pastes this into the Device Identifier field in the Traccar Client app. " +
             "**Hardware GPS tracker:** supply the device IMEI as `uniqueId` and configure the tracker to send to `tracking.prohpharmacy.com` on the correct protocol port.")
+        .Produces<CreateTrackingDevice.DeviceResponse>(201)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

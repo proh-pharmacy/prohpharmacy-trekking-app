@@ -91,6 +91,8 @@ public class ChangePasswordEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Change own password")
         .WithDescription("Allows the currently authenticated user to change their own password. Requires the current password for verification.")
+        .Produces(200)
+        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

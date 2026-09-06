@@ -134,6 +134,8 @@ public class RefreshAccessTokenEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Refresh access token")
         .WithDescription("Consumes and rotates the provided refresh token. Returns a new access + refresh token pair.")
+        .Produces<AuthResponse>(200)
+        .Produces<Error>(422)
         .AllowAnonymous();
     }
 }
