@@ -177,6 +177,32 @@ app.MapGet("api/v1/things", async (
 
 ---
 
+## Produces response type — always required
+
+Every endpoint **must** declare `.Produces<T>()` so Scalar shows the correct response schema. Place these calls before `.RequireAuthorization()` or `.AllowAnonymous()`.
+
+| HTTP method / purpose | Required annotations |
+|---|---|
+| POST (create) | `.Produces<CreateFoo.FooResponse>(201).Produces<Error>(422)` |
+| POST (action — assign, sync, etc.) | `.Produces<FooResponse>(200).Produces<Error>(404).Produces<Error>(422)` |
+| GET single | `.Produces<CreateFoo.FooResponse>(200).Produces<Error>(404)` |
+| GET list (paginated) | `.Produces<Paginator.PaginatedData<CreateFoo.FooResponse>>(200)` |
+| GET list (non-paginated) | `.Produces<List<FooResponse>>(200)` |
+| PUT / PATCH | `.Produces<FooResponse>(200).Produces<Error>(404).Produces<Error>(422)` |
+| DELETE / unassign | `.Produces(204).Produces<Error>(404).Produces<Error>(422)` |
+
+Response types nested inside static feature classes must be fully qualified from the endpoint class (which is outside the static class):
+
+```csharp
+// Correct — endpoint class is top-level, so qualify with the feature class name
+.Produces<CreateFoo.FooResponse>(201)
+
+// If the file already has `using static CreateFoo;` then just:
+.Produces<FooResponse>(201)
+```
+
+---
+
 ## Entity conventions
 
 ```csharp
