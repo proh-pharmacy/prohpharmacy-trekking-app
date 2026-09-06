@@ -23,6 +23,7 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         Sequence = 1,
                         CustomerName = "Tema Central Pharmacy",
                         CustomerCode = "GAR-00001",
+                        PrimaryPhoneNumber = "0244 123 456",
                         PrimaryLocationLandmark = "Opposite the blue mosque, after the junction",
                         PrimaryLocationStreet = "Community 5, Tema",
                         Products =
@@ -37,6 +38,7 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         Sequence = 2,
                         CustomerName = "Katamanso Health Store",
                         CustomerCode = "GAR-00002",
+                        PrimaryPhoneNumber = "0201 987 654",
                         PrimaryLocationLandmark = "Near the Katamanso police station, red building",
                         PrimaryLocationStreet = "Main Road, Katamanso",
                         Products =
@@ -50,6 +52,7 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         Sequence = 3,
                         CustomerName = "Ashaiman Pharma Plus",
                         CustomerCode = "GAR-00003",
+                        PrimaryPhoneNumber = "0277 345 678",
                         PrimaryLocationLandmark = "Ground floor of the green plaza, beside mobile money booth",
                         PrimaryLocationStreet = "Ashaiman Market Road",
                         Products =

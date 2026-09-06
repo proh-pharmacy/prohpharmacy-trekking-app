@@ -130,8 +130,8 @@ app.UseSerilogRequestLogging();
 app.UseCors(CorsPolicy);
 app.UseMiddleware<JsonExceptionHandlingMiddleware>();
 app.UseExceptionHandler();
-app.UseHttpsRedirection();
-app.UseStatusCodePages();
+if (!app.Environment.IsDevelopment())
+    app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
 

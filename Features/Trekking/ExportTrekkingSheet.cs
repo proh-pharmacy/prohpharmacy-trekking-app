@@ -55,6 +55,7 @@ public static class ExportTrekkingSheet
                         Sequence = s.Sequence,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
+                        PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
                         PrimaryLocationLandmark = primaryLocation?.LandmarkAndDirections,
                         PrimaryLocationStreet = primaryLocation?.StreetAddress,
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
