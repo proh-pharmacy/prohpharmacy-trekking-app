@@ -20,6 +20,7 @@ public static class TraccarServiceExtensions
         services.AddHttpClient<ITraccarService, TraccarService>(client =>
         {
             client.BaseAddress = new Uri(settings.BaseUrl.TrimEnd('/') + "/");
+            client.Timeout = TimeSpan.FromSeconds(10);
             var credentials = Convert.ToBase64String(
                 Encoding.UTF8.GetBytes($"{settings.Username}:{settings.Password}"));
             client.DefaultRequestHeaders.Authorization =
