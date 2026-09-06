@@ -40,11 +40,37 @@ Frontend — GET /api/v1/fleet/positions (on demand)
 
 ## Device Setup Flow
 
-1. Call `POST /api/v1/fleet/devices` with a `staffMemberId`
+Two device types are supported — smartphone and hardware GPS tracker.
+
+### Smartphone (Traccar Client app)
+
+1. Call `POST /api/v1/fleet/devices` with `staffMemberId` only — omit `uniqueId`
 2. API auto-generates a `TraccarUniqueId` (UUID) and registers the device in Traccar
 3. Traccar assigns a numeric `TraccarDeviceId` — stored on the `TrackingDevice` record
-4. The staff member opens **Traccar Client** on their phone and pastes the `traccarUniqueId` into the **Device Identifier** field
+4. Staff opens **Traccar Client** on their phone → pastes the returned `traccarUniqueId` into the **Device Identifier** field
 5. Traccar Client begins sending GPS positions to `tracking.prohpharmacy.com:5055`
+
+### Hardware GPS Tracker (IMEI-based)
+
+1. Find the **IMEI** printed on the tracker (15-digit number)
+2. Call `POST /api/v1/fleet/devices` with `staffMemberId` and `uniqueId` set to the IMEI
+3. API registers the device in Traccar using the IMEI as the unique identifier
+4. Configure the tracker's server settings:
+   - **Server:** `tracking.prohpharmacy.com`
+   - **Port:** depends on the tracker's protocol (common examples below)
+5. The tracker begins sending positions directly — no app needed
+
+#### Common Hardware Protocols and Ports
+
+| Protocol | Port | Common Brands |
+|---|---|---|
+| GT06 / GT06N | 5023 | Concox, Queclink |
+| TK103 | 5001 | TK Star, Xexun |
+| Teltonika | 5027 | Teltonika FMB series |
+| H02 | 5013 | Huabao, Sinotrack |
+| Osmand | 5055 | Generic OsmAnd |
+
+> Check your tracker's manual for its protocol name, then find the matching port in the [Traccar documentation](https://www.traccar.org/devices/).
 
 ---
 
