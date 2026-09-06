@@ -1,0 +1,28 @@
+# Git
+.git/
+.gitignore
+
+# Build output (restored/built inside Docker)
+bin/
+obj/
+publish/
+
+# IDE
+.vs/
+.vscode/
+.idea/
+
+# Secrets / local config (not committed, but exclude if present locally)
+appsettings.json
+appsettings.*.json
+!appsettings.example.json
+
+# Logs
+logs/
+*.log
+
+# Mac
+.DS_Store
+
+# Docs
+*.md
