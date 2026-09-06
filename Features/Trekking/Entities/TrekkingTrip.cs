@@ -15,6 +15,7 @@ public class TrekkingTrip
     public Guid VehicleId { get; set; }
     public TrekStatus Status { get; set; } = TrekStatus.Draft;
     public string? Notes { get; set; }
+    public Guid? DriverToken { get; set; }
     public Guid CreatedBy { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

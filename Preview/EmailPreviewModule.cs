@@ -47,5 +47,27 @@ public class EmailPreviewModule : ICarterModule
         .WithTags("Preview")
         .WithSummary("Preview — Staff Welcome Email")
         .AllowAnonymous();
+
+        app.MapGet("preview/trek-assignment-email", (IFluentEmailFactory factory) =>
+        {
+            var model = new TrekAssignmentEmailModel
+            {
+                RecipientName = "Kofi Mensah",
+                TrekNumber = "TRK-00001",
+                ScheduledDate = "06 Sep 2026",
+                DriverName = "Kwame Asante",
+                BranchName = "Tema Branch",
+                DriverLinkUrl = "https://yourapp.com/treks/driver?token=00000000-0000-0000-0000-000000000001",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "TrekAssignmentEmail.cshtml");
+            var email = factory.Create().UsingTemplateFromFile(templatePath, model);
+            return Results.Content(email.Data.Body, "text/html");
+        })
+        .WithTags("Preview")
+        .WithSummary("Preview — Trek Assignment Email")
+        .AllowAnonymous();
     }
 }

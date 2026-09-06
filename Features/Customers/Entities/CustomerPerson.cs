@@ -16,6 +16,7 @@ public class CustomerPerson
     public string? GhanaCardNumber { get; set; }
     public bool IsPrimaryContact { get; set; }
     public bool IsCreditResponsiblePerson { get; set; }
+    public string? PortraitUrl { get; set; }
     public bool IsActive { get; set; } = true;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

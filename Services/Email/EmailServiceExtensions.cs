@@ -1,6 +1,7 @@
 using System.Net.Mail;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using FluentEmail.Core;
 using FluentEmail.Core.Interfaces;
 using FluentEmail.Core.Models;
@@ -32,12 +33,26 @@ public class StaffWelcomeEmailModel
     public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
+public class TrekAssignmentEmailModel
+{
+    public string RecipientName { get; set; } = string.Empty;
+    public string TrekNumber { get; set; } = string.Empty;
+    public string ScheduledDate { get; set; } = string.Empty;
+    public string DriverName { get; set; } = string.Empty;
+    public string BranchName { get; set; } = string.Empty;
+    public string DriverLinkUrl { get; set; } = string.Empty;
+    public string AppName { get; set; } = string.Empty;
+    public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
+}
+
 // ── Interface ─────────────────────────────────────────────────────────────────
 
 public interface IEmailService
 {
     Task SendStaffInvitationEmailAsync(string to, StaffInvitationEmailModel model);
     Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model);
+    Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes);
 }
 
 // ── Registration ──────────────────────────────────────────────────────────────
@@ -94,19 +109,32 @@ public class ResendSender : ISender
         var apiKey = settings["ResendApiKey"] ?? string.Empty;
         var supportEmail = settings["SupportEmail"] ?? string.Empty;
 
+        var attachments = email.Data.Attachments?
+            .Select(a =>
+            {
+                if (a.Data.CanSeek) a.Data.Seek(0, SeekOrigin.Begin);
+                using var ms = new MemoryStream();
+                a.Data.CopyTo(ms);
+                return new { filename = a.Filename, content = Convert.ToBase64String(ms.ToArray()) };
+            })
+            .ToArray();
+
         var payload = new
         {
             from = $"{email.Data.FromAddress.Name} <{email.Data.FromAddress.EmailAddress}>",
             to = email.Data.ToAddresses.Select(a => a.EmailAddress).ToArray(),
             reply_to = supportEmail,
             subject = email.Data.Subject,
-            html = email.Data.Body
+            html = email.Data.Body,
+            attachments = attachments is { Length: > 0 } ? attachments : null
         };
+
+        var options = new JsonSerializerOptions { DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull };
 
         var request = new HttpRequestMessage(HttpMethod.Post, "https://api.resend.com/emails")
         {
             Headers = { { "Authorization", $"Bearer {apiKey}" } },
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+            Content = new StringContent(JsonSerializer.Serialize(payload, options), Encoding.UTF8, "application/json")
         };
 
         var ct = token ?? CancellationToken.None;
@@ -137,6 +165,12 @@ public class NullEmailService : IEmailService
     public Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
     {
         _logger.LogWarning("[NullEmailService] Welcome email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
+        return Task.CompletedTask;
+    }
+
+    public Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes)
+    {
+        _logger.LogWarning("[NullEmailService] Trek assignment email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
         return Task.CompletedTask;
     }
 }

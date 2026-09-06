@@ -1,4 +1,5 @@
 using FluentEmail.Core;
+using FluentEmail.Core.Models;
 
 namespace prohpharmacy_trekking_app.Services.Email;
 
@@ -34,6 +35,34 @@ public class EmailService : IEmailService
         catch (Exception ex)
         {
             _logger.LogError(ex, "Error sending invitation email to {Email}", to);
+        }
+    }
+
+    public async Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "TrekAssignmentEmail.cshtml");
+
+            var response = await _factory.Create()
+                .To(to)
+                .Subject($"Trek Assignment — {model.TrekNumber} ({model.ScheduledDate})")
+                .UsingTemplateFromFile(templatePath, model)
+                .Attach(new Attachment
+                {
+                    Filename = $"TrekkingSheet-{model.TrekNumber}.pdf",
+                    Data = new MemoryStream(pdfBytes),
+                    ContentType = "application/pdf"
+                })
+                .SendAsync();
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send trek assignment email to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending trek assignment email to {Email}", to);
         }
     }
 

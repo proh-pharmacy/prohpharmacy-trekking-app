@@ -10,6 +10,7 @@ using prohpharmacy_trekking_app.Features.Identity.Seeding;
 using prohpharmacy_trekking_app.Features.Organisation.Seeding;
 using prohpharmacy_trekking_app.Hubs;
 using prohpharmacy_trekking_app.Services.Email;
+using prohpharmacy_trekking_app.Services.ImageKit;
 using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
@@ -74,6 +75,9 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 
 // ─── Email ────────────────────────────────────────────────────────────────────
 builder.Services.AddEmailServices(builder.Configuration);
+
+// ─── ImageKit ─────────────────────────────────────────────────────────────────
+builder.Services.AddScoped<ImageKitService>();
 
 // ─── Traccar ──────────────────────────────────────────────────────────────────
 builder.Services.AddTraccarServices(builder.Configuration);

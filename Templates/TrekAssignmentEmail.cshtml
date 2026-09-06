@@ -1,0 +1,139 @@
+@model prohpharmacy_trekking_app.Services.Email.TrekAssignmentEmailModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Trek Assignment — @Model.TrekNumber</title>
+</head>
+<body style="margin:0;padding:0;background-color:#f4f6f8;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f4f6f8;width:100%;margin:0;padding:48px 16px;">
+    <tr>
+      <td align="center" valign="top">
+
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"
+               style="max-width:580px;width:100%;background-color:#ffffff;border:1px solid #e2e8f0;border-radius:6px;margin:0 auto;text-align:left;">
+          <tr>
+            <td style="padding:42px 38px 36px;">
+
+              <!-- Brand Header -->
+              <p style="margin:0 0 14px;font-size:11px;font-weight:600;color:#00bf6f;letter-spacing:1px;text-transform:uppercase;">
+                @Model.AppName
+              </p>
+
+              <!-- Main Heading -->
+              <h1 style="margin:0 0 14px;font-size:24px;font-weight:600;color:#4b5563;letter-spacing:-0.3px;line-height:1.3;">
+                Trek Assignment
+              </h1>
+
+              <!-- Intro -->
+              <p style="margin:0 0 26px;font-size:14.5px;color:#475569;line-height:1.65;font-weight:400;">
+                Hi @Model.RecipientName, a trekking sheet has been assigned and is ready for your action. The trekking sheet PDF is attached to this email.
+              </p>
+
+              <!-- Trek Details Card -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="border:1.5px solid #00bf6f;border-radius:4px;background-color:#f2faf5;margin-bottom:28px;">
+                <tr>
+                  <td style="padding:24px 24px 18px;">
+
+                    <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#4b5563;">
+                      Trek Details
+                    </p>
+
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+                      <tr>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;width:36%;">
+                          Trek Number
+                        </td>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#4b5563;font-weight:600;">
+                          @Model.TrekNumber
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">
+                          Scheduled Date
+                        </td>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#4b5563;font-weight:500;">
+                          @Model.ScheduledDate
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">
+                          Driver
+                        </td>
+                        <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#4b5563;font-weight:500;">
+                          @Model.DriverName
+                        </td>
+                      </tr>
+                      <tr>
+                        <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">
+                          Branch
+                        </td>
+                        <td style="padding:10px 8px;font-size:13.5px;color:#4b5563;font-weight:500;">
+                          @Model.BranchName
+                        </td>
+                      </tr>
+                    </table>
+
+                    <!-- Divider -->
+                    <div style="border-top:1px solid #d6ece0;margin:4px 0 18px;"></div>
+
+                    <!-- CTA Row -->
+                    <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td valign="middle" style="font-size:13px;color:#64748b;">
+                          Open the form to enter delivery data
+                        </td>
+                        <td align="right" valign="middle">
+                          <a href="@Model.DriverLinkUrl"
+                             style="display:inline-block;padding:9px 22px;background-color:#00bf6f;color:#ffffff;text-decoration:none;font-size:13.5px;font-weight:500;border-radius:3px;">
+                            Open Driver Form
+                          </a>
+                        </td>
+                      </tr>
+                    </table>
+
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Fallback Link -->
+              <p style="margin:0 0 20px;font-size:13px;color:#64748b;line-height:1.6;">
+                If the button above does not work, copy and paste this link into your browser:<br/>
+                <a href="@Model.DriverLinkUrl" style="color:#00bf6f;text-decoration:none;word-break:break-all;">@Model.DriverLinkUrl</a>
+              </p>
+
+              <!-- Info Notice -->
+              <table width="100%" cellpadding="0" cellspacing="0" border="0"
+                     style="background-color:#fff8f8;border-radius:4px;margin-bottom:26px;">
+                <tr>
+                  <td style="padding:11px 14px;">
+                    <p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.5;font-weight:400;">
+                      <span style="font-weight:500;">Note:</span> The link remains active until the trek is marked as Completed, after which no further edits can be made.
+                    </p>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Footer -->
+              <div style="border-top:1px solid #e5e7eb;padding-top:20px;">
+                <p style="margin:0 0 6px;font-size:12px;color:#64748b;font-weight:400;">
+                  Need help? Reach us at <a href="mailto:@Model.SupportEmail" style="color:#00bf6f;text-decoration:none;font-weight:500;">@Model.SupportEmail</a>
+                </p>
+                <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.5;font-weight:400;">
+                  &copy; @Model.Year @Model.AppName &middot; Proh Pharmacy &middot; All rights reserved
+                </p>
+              </div>
+
+            </td>
+          </tr>
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
