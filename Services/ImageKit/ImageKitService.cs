@@ -7,12 +7,8 @@ public class ImageKitService(IConfiguration configuration)
 {
     private readonly ImageKitClient _client = new()
     {
-        PublicKey = configuration["ImageKitSettings:PublicKey"]
-            ?? throw new InvalidOperationException("ImageKitSettings:PublicKey is not configured."),
         PrivateKey = configuration["ImageKitSettings:PrivateKey"]
-            ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured."),
-        UrlEndpoint = configuration["ImageKitSettings:UrlEndpoint"]
-            ?? throw new InvalidOperationException("ImageKitSettings:UrlEndpoint is not configured.")
+            ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.")
     };
 
     public async Task<string> UploadAsync(IFormFile file, string folder)
