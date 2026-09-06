@@ -17,6 +17,7 @@ public static class CreateTrackingDevice
     public class Command : IRequest<Result<DeviceResponse>>
     {
         public Guid StaffMemberId { get; set; }
+        public string? UniqueId { get; set; }
         public string? PhoneNumber { get; set; }
     }
 
@@ -43,6 +44,7 @@ public static class CreateTrackingDevice
         public Validator()
         {
             RuleFor(x => x.StaffMemberId).NotEmpty();
+            RuleFor(x => x.UniqueId).MaximumLength(50).When(x => x.UniqueId is not null);
             RuleFor(x => x.PhoneNumber).MaximumLength(30).When(x => x.PhoneNumber is not null);
         }
     }
@@ -85,7 +87,7 @@ public static class CreateTrackingDevice
 
             var device = new TrackingDevice
             {
-                TraccarUniqueId = Guid.NewGuid().ToString("N"),
+                TraccarUniqueId = request.UniqueId?.Trim() ?? Guid.NewGuid().ToString("N"),
                 Name = staff.FullName,
                 PhoneNumber = request.PhoneNumber?.Trim(),
                 Status = TrackingDeviceStatus.Active,
@@ -156,8 +158,8 @@ public class CreateTrackingDeviceEndpoint : ICarterModule
         .WithSummary("Register a tracking device for a staff member")
         .WithDescription(
             "Registers a GPS tracking device and immediately assigns it to the given staff member. " +
-            "A unique Traccar identifier is auto-generated and returned in the response as `traccarUniqueId`. " +
-            "The staff member must paste this value into the **Device Identifier** field in the Traccar Client app on their phone.")
+            "**Smartphone:** omit `uniqueId` — a UUID is auto-generated and returned as `traccarUniqueId`. The staff member pastes this into the Device Identifier field in the Traccar Client app. " +
+            "**Hardware GPS tracker:** supply the device IMEI as `uniqueId` and configure the tracker to send to `tracking.prohpharmacy.com` on the correct protocol port.")
         .RequireAuthorization();
     }
 }
