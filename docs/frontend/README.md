@@ -6,6 +6,7 @@ Step-by-step guides for implementing each area of the Proh Pharmacy Trekking fro
 
 | # | Guide | Description |
 |---|---|---|
+| 00 | [API Conventions & Error Handling](./00-api-conventions.md) | Error response shape, status codes, pagination, auth errors |
 | 01 | [Login Implementation](./01-login-implementation.md) | Auth flow, token storage, silent refresh, protected routes |
 | 02 | [Initial Setup](./02-initial-setup.md) | Regions, districts, and branches configuration |
 | 03 | [Roles & Permissions](./03-roles-and-permissions.md) | Role assignment, permission guards, user status management |
