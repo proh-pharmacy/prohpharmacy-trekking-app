@@ -70,7 +70,6 @@ public static class CreateStaff
                 .MaximumLength(60)
                 .When(x => !x.GrantAppAccess && x.Role is not null);
             RuleFor(x => x.BranchId).NotEmpty();
-            RuleFor(x => x.JoinedOn).NotEmpty();
             RuleFor(x => x.InitialPassword)
                 .MinimumLength(8)
                 .WithMessage("Initial password must be at least 8 characters.")
@@ -144,7 +143,7 @@ public static class CreateStaff
                 Role = role?.Name ?? request.Role?.Trim(),
                 BranchId = request.BranchId,
                 EmploymentStatus = request.GrantAppAccess ? EmploymentStatus.Active : EmploymentStatus.Pending,
-                JoinedOn = request.JoinedOn,
+                JoinedOn = request.JoinedOn == default ? DateOnly.FromDateTime(DateTime.UtcNow) : request.JoinedOn,
                 CreatedAt = DateTime.UtcNow,
                 CreatedBy = creatorId is not null ? Guid.Parse(creatorId) : null
             };
