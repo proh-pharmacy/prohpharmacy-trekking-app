@@ -11,6 +11,7 @@ The system uses permission-based access control. Roles are seeded by the backend
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `api/v1/roles` | List all roles with their current permissions |
+| `POST` | `api/v1/roles` | Create a new custom role |
 | `GET` | `api/v1/roles/{id}/permissions` | All permissions grouped by module with enabled true/false |
 | `PUT` | `api/v1/roles/{id}/permissions` | Sync a role's permissions (send enabled list, backend diffs) |
 | `GET` | `api/v1/users` | List all users with their assigned roles |
@@ -55,7 +56,40 @@ Tracking.ViewAll        Reports.Export         Audit.View
 
 ---
 
-## 1. List Roles
+## 1. Create a Role
+
+```http
+POST /api/v1/roles
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "name": "Pharmacist",
+  "description": "Optional description",
+  "permissions": ["Customers.Register", "Visits.Record"]
+}
+```
+
+- `name` is required and must be unique
+- `permissions` is optional — omit or pass `[]` and sync later via `PUT /api/v1/roles/{id}/permissions`
+- New roles are marked `isSystem: false`
+
+### Response `201 Created`
+```json
+{
+  "id": "...",
+  "name": "Pharmacist",
+  "description": "Optional description",
+  "permissions": ["Customers.Register", "Visits.Record"],
+  "isSystem": false
+}
+```
+
+- `422` — name already exists or an invalid permission key was supplied
+
+---
+
+## 2. List Roles
 
 ```http
 GET /api/v1/roles
@@ -77,7 +111,7 @@ Response:
 
 ---
 
-## 2. Get Role Permissions (for toggle UI)
+## 3. Get Role Permissions (for toggle UI)
 
 Returns every available permission grouped by module with `enabled: true/false` for the current role.
 
@@ -116,7 +150,7 @@ Use this to render a toggle UI — one switch per permission, pre-set to `enable
 
 ---
 
-## 3. Sync Role Permissions
+## 4. Sync Role Permissions
 
 Send the full list of **enabled** permission keys. The backend diffs — adds new ones, removes unchecked ones.
 
@@ -171,7 +205,7 @@ const save = async () => {
 
 ---
 
-## 4. Assigning a Role to a User
+## 5. Assigning a Role to a User
 
 A user can hold multiple roles. Their effective permissions are the union of all assigned roles.
 
@@ -199,7 +233,7 @@ Response — returns the user's full roles list after assignment:
 
 ---
 
-## 5. Removing a Role from a User
+## 6. Removing a Role from a User
 
 ```http
 DELETE /api/v1/users/{id}/roles/{roleName}
@@ -211,7 +245,7 @@ Authorization: Bearer <token>
 
 ---
 
-## 6. User Status Management
+## 7. User Status Management
 
 ### Suspend
 ```http
@@ -239,7 +273,7 @@ Authorization: Bearer <token>
 
 ---
 
-## 7. Get a User by ID
+## 8. Get a User by ID
 
 Returns the full combined profile — all staff details plus identity fields.
 
@@ -282,6 +316,8 @@ Response:
 ---
 
 ## 9. Frontend Permission Checks
+
+
 
 Permissions come back in the **login response** — store them in your global auth store. Guard by permission, not role, for finer control.
 
@@ -354,6 +390,7 @@ Settings → Users
 ## Implementation Checklist
 
 - [ ] Roles list page
+- [ ] Create role form (name, description, optional initial permissions) → `POST /api/v1/roles`
 - [ ] Role permission toggle page (GET to load, local state for toggles, PUT to save)
 - [ ] Users list page (paginated, searchable, shows role badges)
 - [ ] Assign role to user (select dropdown → POST)
