@@ -15,7 +15,7 @@ public static class AssignRole
     public class Command : IRequest<Result<RoleAssignmentResponse>>
     {
         public Guid UserId { get; set; }
-        public string RoleName { get; set; } = string.Empty;
+        public List<string> RoleNames { get; set; } = [];
     }
 
     public class RoleAssignmentResponse
@@ -28,7 +28,8 @@ public static class AssignRole
     {
         public Validator()
         {
-            RuleFor(x => x.RoleName).NotEmpty().MaximumLength(60);
+            RuleFor(x => x.RoleNames).NotEmpty().WithMessage("At least one role is required.");
+            RuleForEach(x => x.RoleNames).NotEmpty().MaximumLength(60);
         }
     }
 
@@ -58,26 +59,34 @@ public static class AssignRole
             if (user is null)
                 return Result.Failure<RoleAssignmentResponse>(Error.CreateNotFoundError("User not found."));
 
-            var role = await _db.Roles
-                .FirstOrDefaultAsync(r => r.Name == request.RoleName, cancellationToken);
+            var distinctNames = request.RoleNames.Distinct().ToList();
 
-            if (role is null)
-                return Result.Failure<RoleAssignmentResponse>(Error.CreateNotFoundError($"Role '{request.RoleName}' not found."));
+            var roles = await _db.Roles
+                .Where(r => distinctNames.Contains(r.Name))
+                .ToListAsync(cancellationToken);
 
-            var alreadyAssigned = user.UserRoles.Any(ur => ur.RoleId == role.Id);
-            if (alreadyAssigned)
+            var notFound = distinctNames.Except(roles.Select(r => r.Name)).ToList();
+            if (notFound.Count > 0)
                 return Result.Failure<RoleAssignmentResponse>(
-                    Error.Conflict($"User already has the '{request.RoleName}' role."));
+                    Error.CreateNotFoundError($"Role(s) not found: {string.Join(", ", notFound)}."));
 
             var assignerIdStr = _auth.GetUserId();
+            var assignedAt = DateTime.UtcNow;
+            var assignerId = assignerIdStr is not null ? Guid.Parse(assignerIdStr) : (Guid?)null;
 
-            _db.UserRoles.Add(new UserRole
+            foreach (var role in roles)
             {
-                UserId = user.Id,
-                RoleId = role.Id,
-                AssignedAt = DateTime.UtcNow,
-                AssignedByUserId = assignerIdStr is not null ? Guid.Parse(assignerIdStr) : null
-            });
+                var alreadyAssigned = user.UserRoles.Any(ur => ur.RoleId == role.Id);
+                if (alreadyAssigned) continue;
+
+                _db.UserRoles.Add(new UserRole
+                {
+                    UserId = user.Id,
+                    RoleId = role.Id,
+                    AssignedAt = assignedAt,
+                    AssignedByUserId = assignerId
+                });
+            }
 
             await _db.SaveChangesAsync(cancellationToken);
 
@@ -110,7 +119,8 @@ public class AssignRoleEndpoint : ICarterModule
         })
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
-        .WithSummary("Assign a role to a user")
+        .WithSummary("Assign one or more roles to a user")
+        .WithDescription("Assigns multiple roles in a single request. Roles already assigned are silently skipped — no error. Returns the user's full roles list after assignment.")
         .Produces<AssignRole.RoleAssignmentResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

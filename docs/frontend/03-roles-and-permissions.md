@@ -205,9 +205,9 @@ const save = async () => {
 
 ---
 
-## 5. Assigning a Role to a User
+## 5. Assigning Roles to a User
 
-A user can hold multiple roles. Their effective permissions are the union of all assigned roles.
+A user can hold multiple roles. Their effective permissions are the union of all assigned roles. Send multiple roles in a single request.
 
 ```http
 POST /api/v1/users/{id}/roles
@@ -215,7 +215,7 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "roleName": "BranchManager"
+  "roleNames": ["BranchManager", "CreditOfficer"]
 }
 ```
 
@@ -227,9 +227,9 @@ Response — returns the user's full roles list after assignment:
 }
 ```
 
-- `200` — role assigned
-- `422` — already has this role
-- `404` — user or role not found
+- `200` — roles assigned (roles already assigned are silently skipped)
+- `404` — user or one of the role names not found
+- `422` — validation error (empty list)
 
 ---
 
