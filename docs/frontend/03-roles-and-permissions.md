@@ -429,15 +429,19 @@ const { can } = usePermissions()
 
 ```
 Settings → Roles
-  ├── Roles list (name, description, permission count)
+  ├── Roles list (name, description, permission count) → GET /api/v1/roles
+  ├── Create role → POST /api/v1/roles
+  │     └── Permission picker: load from GET /api/v1/permissions
   └── Role detail → permission toggle page
-        ├── Grouped by module (Customers, Staff, Treks, ...)
-        ├── Toggle switch per permission (pre-loaded from GET)
-        └── Save button → PUT /roles/{id}/permissions
+        ├── Load master list:  GET /api/v1/permissions
+        ├── Load role's state: GET /api/v1/roles/{id}/permissions  (enabled true/false)
+        ├── Cross-reference both to render toggles pre-checked
+        └── Save button → PUT /api/v1/roles/{id}/permissions (full enabled list)
 
 Settings → Users
-  ├── Users list (name, email, roles badges, status)
-  │     ├── Assign role (select from roles list → POST)
+  ├── Users list (name, email, roles badges, status) → GET /api/v1/users
+  ├── User detail → GET /api/v1/users/{id}
+  │     ├── Assign roles (multi-select from GET /api/v1/roles → POST)
   │     ├── Remove role (× badge → DELETE)
   │     ├── Activate / Suspend toggle
   │     ├── Revoke sessions
@@ -448,12 +452,18 @@ Settings → Users
 
 ## Implementation Checklist
 
-- [ ] Roles list page
-- [ ] Create role form (name, description, optional initial permissions) → `POST /api/v1/roles`
-- [ ] Role permission toggle page (GET to load, local state for toggles, PUT to save)
-- [ ] Users list page (paginated, searchable, shows role badges)
-- [ ] Assign role to user (select dropdown → POST)
-- [ ] Remove role from user (× on badge → DELETE)
+- [ ] Roles list page (`GET /api/v1/roles`)
+- [ ] Create role form (name, description, optional initial permissions)
+  - [ ] Permission picker: load from `GET /api/v1/permissions`, render checkboxes grouped by module
+- [ ] Role detail / permission toggle page
+  - [ ] Load master list: `GET /api/v1/permissions`
+  - [ ] Load role's current state: `GET /api/v1/roles/{id}/permissions`
+  - [ ] Cross-reference to pre-check toggles
+  - [ ] Save → `PUT /api/v1/roles/{id}/permissions` with full enabled set
+- [ ] Users list page (paginated, searchable, role badges) (`GET /api/v1/users`)
+- [ ] User detail page (`GET /api/v1/users/{id}`)
+- [ ] Assign roles to user (multi-select from roles list → `POST /api/v1/users/{id}/roles`)
+- [ ] Remove role from user (× on badge → `DELETE /api/v1/users/{id}/roles/{roleName}`)
 - [ ] Activate / Suspend with confirmation
 - [ ] Revoke sessions with confirmation
 - [ ] Reset password action
