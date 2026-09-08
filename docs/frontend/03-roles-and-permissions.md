@@ -271,6 +271,28 @@ POST /api/v1/users/{id}/reset-password
 Authorization: Bearer <token>
 ```
 
+Body is **optional**. Two options:
+
+**Option 1 — no body (recommended):** resets to `firstnamelastname` automatically.
+
+**Option 2 — custom password:**
+```json
+{ "newPassword": "custom123" }
+```
+
+Response:
+```json
+{
+  "userId": "...",
+  "newPassword": "kwameasante",
+  "message": "Password reset successfully. A new credentials email has been sent to ..."
+}
+```
+
+- Returns the new plain-text password **once** — display it to the admin
+- Revokes all active sessions (user is logged out everywhere)
+- Sends a new credentials email to the staff member
+
 ---
 
 ## 8. Get a User by ID
