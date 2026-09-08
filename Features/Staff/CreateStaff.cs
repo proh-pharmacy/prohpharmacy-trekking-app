@@ -118,7 +118,7 @@ public static class CreateStaff
                     return Result.Failure<StaffResponse>(Error.CreateNotFoundError($"Role '{request.Role}' not found."));
             }
 
-            if (request.EmployeeNumber is not null)
+            if (!string.IsNullOrWhiteSpace(request.EmployeeNumber))
             {
                 var numberTaken = await _db.StaffMembers
                     .AnyAsync(s => s.EmployeeNumber == request.EmployeeNumber.Trim().ToUpper(), cancellationToken);
@@ -133,9 +133,31 @@ public static class CreateStaff
 
             var creatorId = _auth.GetUserId();
 
+            string employeeNumber;
+            if (!string.IsNullOrWhiteSpace(request.EmployeeNumber))
+            {
+                employeeNumber = request.EmployeeNumber.Trim().ToUpper();
+            }
+            else
+            {
+                var year = DateTime.UtcNow.Year;
+                var lastNumber = await _db.StaffMembers
+                    .Where(s => s.EmployeeNumber != null && s.EmployeeNumber.StartsWith($"EMP-{year}-"))
+                    .OrderByDescending(s => s.EmployeeNumber)
+                    .Select(s => s.EmployeeNumber)
+                    .FirstOrDefaultAsync(cancellationToken);
+
+                var next = 1;
+                if (lastNumber is not null &&
+                    int.TryParse(lastNumber.Split('-').LastOrDefault(), out var last))
+                    next = last + 1;
+
+                employeeNumber = $"EMP-{year}-{next:D3}";
+            }
+
             var staff = new StaffMember
             {
-                EmployeeNumber = request.EmployeeNumber?.Trim().ToUpper(),
+                EmployeeNumber = employeeNumber,
                 FirstName = request.FirstName.Trim(),
                 LastName = request.LastName.Trim(),
                 PhoneNumber = request.PhoneNumber.Trim(),
