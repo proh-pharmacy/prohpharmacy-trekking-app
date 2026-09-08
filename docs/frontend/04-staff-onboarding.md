@@ -238,9 +238,9 @@ Content-Type: application/json
 
 ---
 
-## 7. Send an Invitation
+## 7. Invite a Staff Member
 
-An alternative to `grant-access` — sends an email to the staff member with a link for them to set their own password.
+Creates a login account immediately and sends a welcome email with the credentials. The staff member can log in straight away — no acceptance step required.
 
 ```http
 POST /api/v1/invitations
@@ -249,36 +249,54 @@ Content-Type: application/json
 
 {
   "staffMemberId": "<guid>",
-  "roleNames": ["Driver", "FieldStaff"]
+  "roleNames": ["Driver", "FieldStaff"],
+  "initialPassword": "mypassword123"
 }
 ```
 
 - `roleNames` is **required** — at least one role must be specified
+- `initialPassword` is optional — defaults to `firstnamelastname` if omitted
 - Staff member must already exist and **not** have app access yet
 - Cannot invite an `Offboarded` staff member
-- If a valid pending invitation already exists, a fresh email is sent, the expiry is extended, and the roles are updated — no duplicate invitation is created
-- Link expires in **48 hours**
-- The specified roles are assigned to the user account when they accept the invitation
+- Employment status is set to `Active` immediately
 
-### Response `200 OK`
+### Response `201 Created`
 ```json
 {
-  "invitationId": "...",
   "staffMemberId": "...",
   "staffFullName": "Kwame Asante",
   "staffEmail": "k.asante@prohpharmacy.com",
   "roles": ["Driver", "FieldStaff"],
-  "expiresAt": "2026-09-10T10:00:00Z",
-  "message": "Invitation email sent to k.asante@prohpharmacy.com."
+  "initialPassword": "kwameasante"
 }
 ```
+
+- `initialPassword` is returned **once** — display it to the admin immediately
+- A welcome email is also sent to the staff member with their credentials
+
+### Resend welcome email
+
+If a staff member has lost access or never logged in:
+
+```http
+POST /api/v1/invitations/resend
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "staffMemberId": "<guid>"
+}
+```
+
+- Resets the password to `firstnamelastname` and resends the welcome email
+- Returns the new plain `initialPassword` in the response
 
 **grant-access vs invitation:**
 | | `grant-access` | `invitation` |
 |---|---|---|
-| Password set by | Admin | Staff member |
-| Immediate access | Yes | No — after they accept |
-| Returns password | Yes (once) | No |
+| Roles | Single role | Multiple roles |
+| Immediate access | Yes | Yes |
+| Returns password | Yes (once) | Yes (once) |
 
 ---
 

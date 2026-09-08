@@ -7,18 +7,12 @@ namespace prohpharmacy_trekking_app.Features.Staff;
 
 internal static class StaffAccessHelper
 {
-    /// <summary>
-    /// Creates an ApplicationUser + UserRole for the given staff member, then fires the welcome email.
-    /// Any pending changes on <paramref name="staff"/> (role name, status, etc.) are persisted in the
-    /// first SaveChanges call inside this method — callers do not need a separate save beforehand.
-    /// Returns the plain-text password that was used.
-    /// </summary>
     internal static async Task<string> GrantAccessAsync(
         AppDbContext db,
         IEmailService email,
         IConfiguration config,
         StaffMember staff,
-        Role role,
+        List<Role> roles,
         string? requestedPassword,
         Guid? creatorId,
         CancellationToken cancellationToken)
@@ -39,13 +33,13 @@ internal static class StaffAccessHelper
         db.ApplicationUsers.Add(appUser);
         await db.SaveChangesAsync(cancellationToken);
 
-        db.UserRoles.Add(new UserRole
+        db.UserRoles.AddRange(roles.Select(r => new UserRole
         {
             UserId = appUser.Id,
-            RoleId = role.Id,
+            RoleId = r.Id,
             AssignedAt = DateTime.UtcNow,
             AssignedByUserId = creatorId
-        });
+        }));
 
         await db.SaveChangesAsync(cancellationToken);
 

@@ -159,7 +159,7 @@ public static class CreateStaff
             {
                 var creatorGuid = creatorId is not null ? Guid.Parse(creatorId) : (Guid?)null;
                 plainPassword = await StaffAccessHelper.GrantAccessAsync(
-                    _db, _email, _config, staff, role!, request.InitialPassword, creatorGuid, cancellationToken);
+                    _db, _email, _config, staff, [role!], request.InitialPassword, creatorGuid, cancellationToken);
                 assignedRoles.Add(role!.Name);
             }
 

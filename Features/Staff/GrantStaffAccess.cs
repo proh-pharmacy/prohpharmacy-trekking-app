@@ -91,7 +91,7 @@ public static class GrantStaffAccess
             staff.UpdatedAt = DateTime.UtcNow;
 
             var plainPassword = await StaffAccessHelper.GrantAccessAsync(
-                _db, _email, _config, staff, role, request.InitialPassword, creatorGuid, cancellationToken);
+                _db, _email, _config, staff, [role], request.InitialPassword, creatorGuid, cancellationToken);
 
             var response = CreateStaff.Handler.ToResponse(staff, staff.Branch?.Name ?? string.Empty, true, [role.Name]);
             response.InitialPassword = plainPassword;
