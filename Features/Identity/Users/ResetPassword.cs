@@ -119,10 +119,11 @@ public class ResetPasswordEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("api/v1/users/{id:guid}/reset-password", async (
-            Guid id, ResetPassword.Command command, ISender sender) =>
+            Guid id, ISender sender, ResetPassword.Command? command) =>
         {
-            command.UserId = id;
-            var result = await sender.Send(command);
+            var cmd = command ?? new ResetPassword.Command { ResetToDefault = true };
+            cmd.UserId = id;
+            var result = await sender.Send(cmd);
             return result.IsFailure
                 ? Results.UnprocessableEntity(result.Error)
                 : Results.Ok(result.Value);
