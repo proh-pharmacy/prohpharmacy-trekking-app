@@ -1,3 +1,4 @@
+using System.Linq.Expressions;
 using Microsoft.EntityFrameworkCore;
 
 namespace prohpharmacy_trekking_app.Utilities
@@ -85,15 +86,23 @@ namespace prohpharmacy_trekking_app.Utilities
         {
             var result = _query;
 
-            // Apply search
+            // Apply search — OR across all columns
             if (!string.IsNullOrWhiteSpace(_searchKey) && _searchColumns.Any())
             {
                 var searchKeyLower = _searchKey.ToLower();
+                var param = Expression.Parameter(typeof(T), "x");
+                Expression? combined = null;
+
                 foreach (var column in _searchColumns)
                 {
-                    result = result.Where(x =>
-                        EF.Property<string>(x!, column).ToLower().Contains(searchKeyLower));
+                    var property = Expression.Property(param, column);
+                    var toLower = Expression.Call(property, typeof(string).GetMethod("ToLower", Type.EmptyTypes)!);
+                    var contains = Expression.Call(toLower, typeof(string).GetMethod("Contains", [typeof(string)])!, Expression.Constant(searchKeyLower));
+                    combined = combined == null ? (Expression)contains : Expression.OrElse(combined, contains);
                 }
+
+                if (combined != null)
+                    result = result.Where(Expression.Lambda<Func<T, bool>>(combined, param));
             }
 
             // Apply sort
