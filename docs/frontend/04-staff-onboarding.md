@@ -2,7 +2,7 @@
 
 ## Overview
 
-Staff are the people who work at branches — drivers, managers, pharmacy reps, etc. Creating a staff member records their employment details. Optionally granting app access sends them an invitation email so they can log in.
+Staff are the people who work at branches — drivers, field staff, managers, etc. Creating a staff member records their employment details. App access (login account) can be granted at creation time or later as a separate step.
 
 ---
 
@@ -15,51 +15,128 @@ Staff are the people who work at branches — drivers, managers, pharmacy reps, 
 | `POST` | `api/v1/staff` | Create a new staff member |
 | `PATCH` | `api/v1/staff/{id}` | Update staff details |
 | `PATCH` | `api/v1/staff/{id}/status` | Change employment status |
-| `POST` | `api/v1/staff/{id}/grant-access` | Send invitation email + create user account |
+| `POST` | `api/v1/staff/{id}/grant-access` | Grant login access to an existing staff member |
 
 ---
 
-## 1. Listing Staff
+## 1. List Staff
 
 ```http
 GET /api/v1/staff
 Authorization: Bearer <token>
 ```
 
-Supports pagination and filters (branch, status, search). Check Scalar for the full query parameter list.
+Supports pagination and filters. Returns `PaginatedData<StaffResponse>`.
 
 ---
 
-## 2. Creating a Staff Member
+## 2. Get a Staff Member
+
+```http
+GET /api/v1/staff/{id}
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "id": "...",
+  "employeeNumber": "EMP-2026-001",
+  "firstName": "Kwame",
+  "lastName": "Asante",
+  "fullName": "Kwame Asante",
+  "phoneNumber": "+233201234567",
+  "emailAddress": "k.asante@prohpharmacy.com",
+  "role": "Driver",
+  "branchId": "...",
+  "branchName": "Tema Branch",
+  "employmentStatus": "Active",
+  "joinedOn": "2026-09-08",
+  "hasAppAccess": true,
+  "systemRoles": ["Driver"],
+  "currentDeviceId": "...",
+  "currentDeviceName": "Device 001",
+  "createdAt": "2026-09-08T10:00:00Z",
+  "updatedAt": null
+}
+```
+
+---
+
+## 3. Create a Staff Member
 
 ```http
 POST /api/v1/staff
 Authorization: Bearer <token>
 Content-Type: application/json
+```
 
+### Required fields
+
+```json
 {
   "firstName": "Kwame",
   "lastName": "Asante",
-  "email": "k.asante@prohpharmacy.com",
   "phoneNumber": "+233201234567",
+  "emailAddress": "k.asante@prohpharmacy.com",
   "branchId": "<branch-guid>",
-  "employmentType": "FullTime",
-  "jobTitle": "Driver"
+  "joinedOn": "2026-09-08",
+  "role": "Driver"
 }
 ```
 
-- `201` — staff created, returns the staff record including auto-generated `employeeNumber`
-- `422` — validation error (missing fields, duplicate email, etc.)
-- `422` — branch is inactive
+### Optional fields
 
-### What happens
-- A staff record is created with status `Active`
-- An `employeeNumber` is auto-generated (e.g. `EMP-2026-0012`)
-- No user account or login access is created yet — that's a separate step
+| Field | Type | Notes |
+|---|---|---|
+| `employeeNumber` | `string` | Custom employee number. Auto-generated if omitted |
+| `grantAppAccess` | `bool` | `true` to create a login account in the same request |
+| `initialPassword` | `string` | Min 8 chars. If omitted, defaults to `firstnamelastname` (e.g. `kwameasante`) |
+
+### Full example with app access
+
+```json
+{
+  "firstName": "Kwame",
+  "lastName": "Asante",
+  "phoneNumber": "+233201234567",
+  "emailAddress": "k.asante@prohpharmacy.com",
+  "branchId": "<branch-guid>",
+  "joinedOn": "2026-09-08",
+  "role": "Driver",
+  "grantAppAccess": true,
+  "initialPassword": "mypassword123"
+}
+```
+
+### Notes
+- `role` must match a seeded system role: `SuperAdmin`, `OperationsManager`, `BranchManager`, `FieldStaff`, `Driver`, `CreditOfficer`, `Auditor`
+- `branchId` must be an active branch — inactive branch returns `400`
+- `emailAddress` must be unique — duplicate returns `422`
+- If `grantAppAccess: true`, the plain-text `initialPassword` is returned **once** in the response — store or display it to the admin immediately
+- If `grantAppAccess: false`, employment status is set to `Pending` until access is granted later
+
+### Response `201 Created`
+```json
+{
+  "id": "...",
+  "employeeNumber": "EMP-2026-012",
+  "fullName": "Kwame Asante",
+  "role": "Driver",
+  "branchName": "Tema Branch",
+  "employmentStatus": "Active",
+  "hasAppAccess": true,
+  "systemRoles": ["Driver"],
+  "initialPassword": "kwameasante",
+  "..."
+}
+```
 
 ---
 
-## 3. Updating a Staff Member
+## 4. Update a Staff Member
+
+Cannot update `emailAddress` or `joinedOn` after creation.
 
 ```http
 PATCH /api/v1/staff/{id}
@@ -70,14 +147,18 @@ Content-Type: application/json
   "firstName": "Kwame",
   "lastName": "Asante",
   "phoneNumber": "+233209999999",
-  "jobTitle": "Senior Driver",
-  "branchId": "<branch-guid>"
+  "branchId": "<branch-guid>",
+  "role": "FieldStaff"
 }
 ```
 
+- All fields are **required** in the update payload
+- `role` is optional — omit to keep the current role
+- Returns `422` if trying to update an `Offboarded` staff member
+
 ---
 
-## 4. Changing Employment Status
+## 5. Change Employment Status
 
 ```http
 PATCH /api/v1/staff/{id}/status
@@ -85,17 +166,31 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "status": "Inactive"
+  "status": "Suspended"
 }
 ```
 
-Common status values: `Active`, `Inactive`, `OnLeave`, `Terminated`.
+Valid statuses: `Pending` `Active` `Suspended` `Offboarded`
+
+Response:
+```json
+{
+  "staffMemberId": "...",
+  "employmentStatus": "Suspended",
+  "appAccessRevoked": true
+}
+```
+
+**Important behaviour:**
+- Setting `Suspended` or `Offboarded` immediately **revokes app access** and invalidates all refresh tokens — the staff member is logged out everywhere
+- Setting `Active` re-enables app access if the staff member has an account
+- `appAccessRevoked: true` in the response means you should inform the admin that the login was also disabled
 
 ---
 
-## 5. Granting App Access
+## 6. Grant App Access (for existing staff)
 
-Once a staff member is created, you can optionally give them login access to the system. This sends them an invitation email with a link to set their password.
+Use this when a staff member was created without `grantAppAccess: true` and needs login access later.
 
 ```http
 POST /api/v1/staff/{id}/grant-access
@@ -103,67 +198,56 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "email": "k.asante@prohpharmacy.com",
-  "roles": ["Driver"]
+  "role": "Driver",
+  "initialPassword": "mypassword123"
 }
 ```
 
-- `200` — invitation sent, user account created
-- `422` — already has access, or invalid role
-
-### What happens on the backend
-1. A user account is created linked to this staff member
-2. A time-limited invitation token is generated
-3. An invitation email is sent with a link: `{FrontendUrl}/accept-invitation?token=<token>`
-
----
-
-## 6. The Invitation Acceptance Flow
-
-When the staff member clicks the email link, the frontend must handle `/accept-invitation?token=<token>`:
-
-```http
-POST /api/v1/invitations/accept
-Content-Type: application/json
-
-{
-  "token": "<token-from-url>",
-  "password": "theirChosenPassword",
-  "confirmPassword": "theirChosenPassword"
-}
-```
-
-- `200` — account activated, they can now log in
-- `422` — token expired, already used, or passwords don't match
-
-After success, redirect to `/login` with a success toast.
+- `role` is optional if the staff member already has a role assigned — provide it to override
+- `initialPassword` is optional — defaults to `firstnamelastname` if omitted
+- Returns `422` if staff member already has access
+- Returns `400` if staff member is `Offboarded`
+- Sends a welcome email to the staff member
+- Returns the full staff response including `initialPassword` once
 
 ---
 
 ## UI Flow
 
 ```
-Staff → Staff List
+Staff → Staff List (paginated, search, filter by branch/status)
   └── Create Staff (modal or page)
-        ├── Personal details (name, phone, email)
-        ├── Branch assignment
-        └── Job title / employment type
+        ├── First name, last name, phone, email
+        ├── Branch dropdown (active branches only)
+        ├── Role dropdown (seeded roles)
+        ├── Joined on (date picker)
+        ├── Employee number (optional)
+        ├── Grant app access toggle
+        │     └── (if on) Initial password field (optional — show auto-default hint)
+        └── Submit → show initialPassword in a one-time reveal dialog
 
 Staff → Staff Detail Page
-  ├── Edit details
-  ├── Change status (Active / Inactive / On Leave / Terminated)
-  └── Grant App Access button
-        └── Role selection → sends invitation email
+  ├── View all fields
+  ├── Edit button → PATCH /staff/{id}
+  ├── Status badge + Change status dropdown (Active/Suspended/Offboarded)
+  │     └── Warn: "This will revoke app access and log them out"
+  └── Grant Access button (shown only if hasAppAccess: false)
+        └── Role (pre-filled if set) + optional password → POST /staff/{id}/grant-access
+              └── Show initialPassword in a one-time reveal dialog
 ```
 
 ---
 
 ## Implementation Checklist
 
-- [ ] Staff list page (paginated, search, filter by branch/status)
-- [ ] Create staff form (branch dropdown populated from `GET /organisation/branches`)
-- [ ] Staff detail / edit page
-- [ ] Change employment status action
-- [ ] Grant access modal (email pre-filled, role multi-select)
-- [ ] `/accept-invitation` page — reads token from URL, shows set password form
-- [ ] Resend invitation (see `POST api/v1/invitations/{id}/resend` in roles doc)
+- [ ] Staff list page (paginated, search, filter by branch and status)
+- [ ] Staff detail page (all fields, edit button, status badge)
+- [ ] Create staff form
+  - [ ] Branch dropdown from `GET /organisation/branches`
+  - [ ] Role dropdown from `GET /roles`
+  - [ ] Grant access toggle + password field
+  - [ ] One-time initial password reveal on success
+- [ ] Edit staff form (PATCH)
+- [ ] Change status with confirmation warning when suspending/offboarding
+- [ ] Grant access modal (for existing staff without access)
+- [ ] One-time initial password reveal after granting access
