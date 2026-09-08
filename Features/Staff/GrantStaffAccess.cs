@@ -17,7 +17,7 @@ public static class GrantStaffAccess
     {
         public Guid StaffMemberId { get; set; }
         public string? InitialPassword { get; set; }
-        public string? Role { get; set; }
+        public List<string> RoleNames { get; set; } = [];
     }
 
     public class Validator : AbstractValidator<Command>
@@ -28,9 +28,7 @@ public static class GrantStaffAccess
                 .MinimumLength(8)
                 .WithMessage("Initial password must be at least 8 characters.")
                 .When(x => x.InitialPassword is not null);
-            RuleFor(x => x.Role)
-                .MaximumLength(60)
-                .When(x => x.Role is not null);
+            RuleForEach(x => x.RoleNames).NotEmpty().MaximumLength(60);
         }
     }
 
@@ -72,28 +70,35 @@ public static class GrantStaffAccess
             if (staff.EmploymentStatus == Enums.EmploymentStatus.Offboarded)
                 return Result.Failure<StaffResponse>(Error.BadRequest("Cannot grant access to an offboarded staff member."));
 
-            // Resolve role: use request role if provided, fall back to existing staff.Role
-            var roleName = request.Role?.Trim() ?? staff.Role;
-            if (string.IsNullOrWhiteSpace(roleName))
-                return Result.Failure<StaffResponse>(
-                    Error.BadRequest("A role is required. This staff member has no role assigned yet — provide one in the request."));
+            // Resolve roles: use provided list, fall back to staff.Role if none given
+            var distinctRoleNames = request.RoleNames.Distinct().ToList();
+            if (distinctRoleNames.Count == 0 && !string.IsNullOrWhiteSpace(staff.Role))
+                distinctRoleNames = [staff.Role];
 
-            var role = await _db.Roles
-                .FirstOrDefaultAsync(r => r.Name == roleName, cancellationToken);
-            if (role is null)
-                return Result.Failure<StaffResponse>(Error.CreateNotFoundError($"Role '{roleName}' not found."));
+            if (distinctRoleNames.Count == 0)
+                return Result.Failure<StaffResponse>(
+                    Error.BadRequest("At least one role is required. This staff member has no role assigned yet — provide roleNames in the request."));
+
+            var roles = await _db.Roles
+                .Where(r => distinctRoleNames.Contains(r.Name))
+                .ToListAsync(cancellationToken);
+
+            var notFound = distinctRoleNames.Except(roles.Select(r => r.Name)).ToList();
+            if (notFound.Count > 0)
+                return Result.Failure<StaffResponse>(
+                    Error.CreateNotFoundError($"Role(s) not found: {string.Join(", ", notFound)}."));
 
             var creatorId = _auth.GetUserId();
             var creatorGuid = creatorId is not null ? Guid.Parse(creatorId) : (Guid?)null;
 
-            staff.Role = role.Name;
             staff.EmploymentStatus = Enums.EmploymentStatus.Active;
             staff.UpdatedAt = DateTime.UtcNow;
 
             var plainPassword = await StaffAccessHelper.GrantAccessAsync(
-                _db, _email, _config, staff, [role], request.InitialPassword, creatorGuid, cancellationToken);
+                _db, _email, _config, staff, roles, request.InitialPassword, creatorGuid, cancellationToken);
 
-            var response = CreateStaff.Handler.ToResponse(staff, staff.Branch?.Name ?? string.Empty, true, [role.Name]);
+            var roleNames = roles.Select(r => r.Name).ToList();
+            var response = CreateStaff.Handler.ToResponse(staff, staff.Branch?.Name ?? string.Empty, true, roleNames);
             response.InitialPassword = plainPassword;
             return Result.Success(response);
         }
@@ -117,11 +122,10 @@ public class GrantStaffAccessEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Grant app access to an existing staff member")
         .WithDescription(
-            "Creates a login account for a staff member who was onboarded without app access. " +
-            "If the staff member already has a role assigned, it is used automatically — " +
-            "provide `role` to override or assign one for the first time. " +
-            "Provide `initialPassword` or leave it null to auto-derive it as `firstname + lastname`. " +
-            "Sends a welcome email and flips the employment status to Active.")
+            "Creates a login account and assigns the specified roles. " +
+            "If `roleNames` is omitted, falls back to the role already on the staff record. " +
+            "Provide `initialPassword` or leave null to auto-derive as `firstnamelastname`. " +
+            "Sends a welcome email and sets employment status to Active.")
         .Produces<StaffResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

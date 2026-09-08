@@ -224,12 +224,12 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "role": "Driver",
+  "roleNames": ["Driver", "FieldStaff"],
   "initialPassword": "mypassword123"
 }
 ```
 
-- `role` is optional if the staff member already has a role assigned — provide it to override
+- `roleNames` is optional if the staff member already has a role assigned — falls back to it automatically. Provide to override or assign multiple roles
 - `initialPassword` is optional — defaults to `firstnamelastname` if omitted
 - Returns `422` if staff member already has access
 - Returns `400` if staff member is `Offboarded`
