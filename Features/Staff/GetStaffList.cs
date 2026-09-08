@@ -41,8 +41,9 @@ public static class GetStaffList
             if (request.BranchId.HasValue)
                 query = query.Where(s => s.BranchId == request.BranchId.Value);
 
-            if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(s => s.EmploymentStatus.ToString().ToLower() == request.Status.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<prohpharmacy_trekking_app.Features.Staff.Enums.EmploymentStatus>(request.Status, true, out var parsedStatus))
+                query = query.Where(s => s.EmploymentStatus == parsedStatus);
 
             if (request.HasAppAccess.HasValue)
                 query = request.HasAppAccess.Value
