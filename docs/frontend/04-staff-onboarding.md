@@ -34,7 +34,7 @@ Supports pagination, search, and filters. Returns `PaginatedData<StaffResponse>`
 
 | Parameter | Type | Description |
 |---|---|---|
-| `search` | `string` | Search by first name, last name, or email |
+| `search` | `string` | Search by first name, last name, email, or employee number |
 | `sort` | `string` | e.g. `firstName_asc`, `joinedOn_desc` |
 | `pageNumber` | `int` | Default: 1 |
 | `pageSize` | `int` | Default: 20 |
