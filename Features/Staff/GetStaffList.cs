@@ -51,7 +51,8 @@ public static class GetStaffList
 
             var result = await new QueryBuilder<Entities.StaffMember>(query)
                 .WithSearch(request.Search, nameof(Entities.StaffMember.FirstName),
-                    nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress))
+                    nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress),
+                    nameof(Entities.StaffMember.EmployeeNumber))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(s =>
