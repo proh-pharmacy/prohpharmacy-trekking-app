@@ -2,7 +2,7 @@
 
 ## Overview
 
-The system uses role-based access control (RBAC). Roles are seeded by the backend. Admins assign roles to users, and the frontend uses the authenticated user's roles (from `GET /auth/me`) to show or hide UI elements and guard routes.
+The system uses permission-based access control. Roles are seeded by the backend — each role has a set of permissions. A user can have **multiple roles** and their effective permissions are the **union of all assigned roles' permissions**, deduplicated. Permissions come back directly in the login response so no extra call is needed.
 
 ---
 
@@ -10,8 +10,10 @@ The system uses role-based access control (RBAC). Roles are seeded by the backen
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `api/v1/roles` | List all available roles |
-| `GET` | `api/v1/users` | List all users with their roles |
+| `GET` | `api/v1/roles` | List all roles with their current permissions |
+| `GET` | `api/v1/roles/{id}/permissions` | All permissions grouped by module with enabled true/false |
+| `PUT` | `api/v1/roles/{id}/permissions` | Sync a role's permissions (send enabled list, backend diffs) |
+| `GET` | `api/v1/users` | List all users with their assigned roles |
 | `GET` | `api/v1/users/{id}` | Get a single user |
 | `POST` | `api/v1/users/{id}/roles` | Assign a role to a user |
 | `DELETE` | `api/v1/users/{id}/roles/{roleName}` | Remove a role from a user |
@@ -22,9 +24,38 @@ The system uses role-based access control (RBAC). Roles are seeded by the backen
 
 ---
 
-## 1. Listing Available Roles
+## Seeded Roles
 
-Roles are seeded by the backend and don't change often. Fetch once and cache.
+| Role | Access |
+|---|---|
+| `SuperAdmin` | Everything |
+| `OperationsManager` | All treks, fleet, customers, reports |
+| `BranchManager` | Staff, vehicles, treks, customers for their branch |
+| `FieldStaff` | Assigned treks, customer registration, visit capture |
+| `Driver` | Assigned treks only |
+| `CreditOfficer` | Customer KYC, credit assessment, ledger |
+| `Auditor` | Read-only reports and audit events |
+
+---
+
+## Available Permissions
+
+```
+Staff.View              Staff.Manage
+Roles.Manage            Branches.Manage
+Vehicles.Manage         TrackingDevices.Manage
+Treks.ViewAll           Treks.Create
+Treks.Assign            Treks.Start            Treks.Complete
+Customers.Register      Customers.Edit         Customers.Approve
+CustomerKyc.View        CustomerKyc.Manage
+CustomerCredit.View     CustomerCredit.Manage
+Visits.Record           Visits.Verify
+Tracking.ViewAll        Reports.Export         Audit.View
+```
+
+---
+
+## 1. List Roles
 
 ```http
 GET /api/v1/roles
@@ -34,29 +65,115 @@ Authorization: Bearer <token>
 Response:
 ```json
 [
-  { "name": "Admin" },
-  { "name": "Manager" },
-  { "name": "Staff" },
-  { "name": "Driver" }
+  {
+    "id": "...",
+    "name": "BranchManager",
+    "description": "Staff, vehicles, treks and customers for assigned branches.",
+    "permissions": ["Staff.View", "Staff.Manage", "Treks.Create", "..."],
+    "isSystem": true
+  }
 ]
 ```
 
-Use this to populate the role assignment dropdown.
-
 ---
 
-## 2. Listing Users
+## 2. Get Role Permissions (for toggle UI)
+
+Returns every available permission grouped by module with `enabled: true/false` for the current role.
 
 ```http
-GET /api/v1/users
+GET /api/v1/roles/{id}/permissions
 Authorization: Bearer <token>
 ```
 
-Supports pagination and search. Each user object includes their current roles.
+Response:
+```json
+{
+  "roleId": "...",
+  "roleName": "BranchManager",
+  "description": "Staff, vehicles, treks and customers for assigned branches.",
+  "groups": [
+    {
+      "module": "Customers",
+      "permissions": [
+        { "key": "Customers.Register", "enabled": true },
+        { "key": "Customers.Edit", "enabled": true },
+        { "key": "Customers.Approve", "enabled": false }
+      ]
+    },
+    {
+      "module": "Staff",
+      "permissions": [
+        { "key": "Staff.View", "enabled": true },
+        { "key": "Staff.Manage", "enabled": true }
+      ]
+    }
+  ]
+}
+```
+
+Use this to render a toggle UI — one switch per permission, pre-set to `enabled`.
 
 ---
 
-## 3. Assigning a Role
+## 3. Sync Role Permissions
+
+Send the full list of **enabled** permission keys. The backend diffs — adds new ones, removes unchecked ones.
+
+```http
+PUT /api/v1/roles/{id}/permissions
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "permissions": [
+    "Customers.Register",
+    "Customers.Edit",
+    "Staff.View",
+    "Treks.Create"
+  ]
+}
+```
+
+- `200` — returns updated role with final permissions list
+- `422` — one or more permission keys are invalid
+- `404` — role not found
+
+### Frontend pattern
+
+```ts
+// 1. Load the role's permissions on page open
+const { data } = await api.get(`/api/v1/roles/${roleId}/permissions`)
+
+// 2. Track enabled permissions in local state
+const [enabled, setEnabled] = useState<Set<string>>(
+  new Set(
+    data.groups.flatMap(g => g.permissions.filter(p => p.enabled).map(p => p.key))
+  )
+)
+
+// 3. Toggle a permission
+const toggle = (key: string) => {
+  setEnabled(prev => {
+    const next = new Set(prev)
+    next.has(key) ? next.delete(key) : next.add(key)
+    return next
+  })
+}
+
+// 4. Save — send the full enabled set
+const save = async () => {
+  await api.put(`/api/v1/roles/${roleId}/permissions`, {
+    permissions: [...enabled]
+  })
+}
+```
+
+---
+
+## 4. Assigning a Role to a User
+
+A user can hold multiple roles. Their effective permissions are the union of all assigned roles.
 
 ```http
 POST /api/v1/users/{id}/roles
@@ -64,16 +181,25 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "roleName": "Manager"
+  "roleName": "BranchManager"
+}
+```
+
+Response — returns the user's full roles list after assignment:
+```json
+{
+  "userId": "...",
+  "roles": ["BranchManager", "CreditOfficer"]
 }
 ```
 
 - `200` — role assigned
-- `422` — role already assigned or invalid role name
+- `422` — already has this role
+- `404` — user or role not found
 
 ---
 
-## 4. Removing a Role
+## 5. Removing a Role from a User
 
 ```http
 DELETE /api/v1/users/{id}/roles/{roleName}
@@ -85,27 +211,27 @@ Authorization: Bearer <token>
 
 ---
 
-## 5. User Status Management
+## 6. User Status Management
 
-### Suspend a user
+### Suspend
 ```http
 POST /api/v1/users/{id}/suspend
 Authorization: Bearer <token>
 ```
 
-### Activate a user
+### Activate
 ```http
 POST /api/v1/users/{id}/activate
 Authorization: Bearer <token>
 ```
 
-### Force logout (revoke all sessions)
+### Revoke all sessions (force logout)
 ```http
 POST /api/v1/users/{id}/revoke-sessions
 Authorization: Bearer <token>
 ```
 
-### Reset password (admin)
+### Reset password (admin-initiated)
 ```http
 POST /api/v1/users/{id}/reset-password
 Authorization: Bearer <token>
@@ -113,56 +239,50 @@ Authorization: Bearer <token>
 
 ---
 
-## 6. Frontend Permission Checks
+## 7. Frontend Permission Checks
 
-The authenticated user's roles come from `GET /auth/me`. Store them in your global auth store and use them to conditionally render UI.
+Permissions come back in the **login response** — store them in your global auth store. Guard by permission, not role, for finer control.
 
 ```ts
 // hooks/usePermissions.ts
 export function usePermissions() {
-  const { user } = useAuth()
+  const { user } = useAuth() // user.permissions: string[]
 
-  const hasRole = (role: string) =>
-    user?.roles?.includes(role) ?? false
+  const can = (permission: string) =>
+    user?.permissions?.includes(permission) ?? false
 
-  const isAdmin = hasRole('Admin')
-  const isManager = hasRole('Manager') || isAdmin
-  const isDriver = hasRole('Driver')
-
-  return { hasRole, isAdmin, isManager, isDriver }
+  return { can }
 }
 ```
 
-### Guarding routes
+### Guarding routes by permission
 
 ```tsx
-// Only admins can access /settings
 <Route
-  path="/settings"
+  path="/treks/create"
   element={
-    <RoleGuard roles={['Admin']}>
-      <SettingsPage />
-    </RoleGuard>
+    <PermissionGuard permission="Treks.Create">
+      <CreateTrekPage />
+    </PermissionGuard>
   }
 />
 ```
 
 ```tsx
-// components/RoleGuard.tsx
-export function RoleGuard({ roles, children }: { roles: string[], children: React.ReactNode }) {
-  const { hasRole } = usePermissions()
-  const allowed = roles.some(hasRole)
-  return allowed ? <>{children}</> : <Navigate to="/unauthorized" />
+// components/PermissionGuard.tsx
+export function PermissionGuard({ permission, children }: { permission: string, children: React.ReactNode }) {
+  const { can } = usePermissions()
+  return can(permission) ? <>{children}</> : <Navigate to="/unauthorized" />
 }
 ```
 
 ### Hiding UI elements
 
 ```tsx
-const { isAdmin } = usePermissions()
+const { can } = usePermissions()
 
-{isAdmin && (
-  <Button onClick={suspendUser}>Suspend User</Button>
+{can('Customers.Approve') && (
+  <Button onClick={approveCustomer}>Approve</Button>
 )}
 ```
 
@@ -171,25 +291,34 @@ const { isAdmin } = usePermissions()
 ## UI Flow
 
 ```
-Settings → Users & Roles
-  ├── Users list (name, email, roles, status)
-  │     ├── Assign / remove roles (multi-select dropdown)
+Settings → Roles
+  ├── Roles list (name, description, permission count)
+  └── Role detail → permission toggle page
+        ├── Grouped by module (Customers, Staff, Treks, ...)
+        ├── Toggle switch per permission (pre-loaded from GET)
+        └── Save button → PUT /roles/{id}/permissions
+
+Settings → Users
+  ├── Users list (name, email, roles badges, status)
+  │     ├── Assign role (select from roles list → POST)
+  │     ├── Remove role (× badge → DELETE)
   │     ├── Activate / Suspend toggle
-  │     ├── Revoke sessions button
-  │     └── Reset password button
-  └── Roles list (read-only — seeded by backend)
+  │     ├── Revoke sessions
+  │     └── Reset password
 ```
 
 ---
 
 ## Implementation Checklist
 
-- [ ] Fetch and cache roles list
-- [ ] Users list page (paginated, searchable)
-- [ ] Role assignment UI (add / remove roles per user)
-- [ ] Activate / Suspend user action with confirmation
-- [ ] Revoke sessions action with confirmation
+- [ ] Roles list page
+- [ ] Role permission toggle page (GET to load, local state for toggles, PUT to save)
+- [ ] Users list page (paginated, searchable, shows role badges)
+- [ ] Assign role to user (select dropdown → POST)
+- [ ] Remove role from user (× on badge → DELETE)
+- [ ] Activate / Suspend with confirmation
+- [ ] Revoke sessions with confirmation
 - [ ] Reset password action
-- [ ] `usePermissions` hook
-- [ ] `RoleGuard` component for route-level protection
-- [ ] Conditional UI rendering based on roles
+- [ ] `usePermissions` hook with `can(permission)` helper
+- [ ] `PermissionGuard` component for route-level protection
+- [ ] Conditional UI rendering using `can('Permission.Key')`
