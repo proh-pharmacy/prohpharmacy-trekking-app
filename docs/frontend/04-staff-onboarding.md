@@ -226,14 +226,17 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "staffMemberId": "<guid>"
+  "staffMemberId": "<guid>",
+  "roleNames": ["Driver", "FieldStaff"]
 }
 ```
 
+- `roleNames` is **required** — at least one role must be specified
 - Staff member must already exist and **not** have app access yet
 - Cannot invite an `Offboarded` staff member
-- If a valid pending invitation already exists, a fresh email is sent and the expiry is extended — no duplicate invitation is created
+- If a valid pending invitation already exists, a fresh email is sent, the expiry is extended, and the roles are updated — no duplicate invitation is created
 - Link expires in **48 hours**
+- The specified roles are assigned to the user account when they accept the invitation
 
 ### Response `200 OK`
 ```json
@@ -242,6 +245,7 @@ Content-Type: application/json
   "staffMemberId": "...",
   "staffFullName": "Kwame Asante",
   "staffEmail": "k.asante@prohpharmacy.com",
+  "roles": ["Driver", "FieldStaff"],
   "expiresAt": "2026-09-10T10:00:00Z",
   "message": "Invitation email sent to k.asante@prohpharmacy.com."
 }

@@ -12,6 +12,7 @@ public class StaffInvitation
     public DateTime? UsedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Guid? CreatedByUserId { get; set; }
+    public List<string> Roles { get; set; } = [];
 
     public StaffMember StaffMember { get; set; } = null!;
 

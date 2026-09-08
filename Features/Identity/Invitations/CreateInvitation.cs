@@ -17,6 +17,7 @@ public static class CreateInvitation
     public class Command : IRequest<Result<InvitationResponse>>
     {
         public Guid StaffMemberId { get; set; }
+        public List<string> RoleNames { get; set; } = [];
     }
 
     public class InvitationResponse
@@ -25,6 +26,7 @@ public static class CreateInvitation
         public Guid StaffMemberId { get; set; }
         public string StaffFullName { get; set; } = string.Empty;
         public string StaffEmail { get; set; } = string.Empty;
+        public List<string> Roles { get; set; } = [];
         public DateTime ExpiresAt { get; set; }
         public string Message { get; set; } = string.Empty;
     }
@@ -34,6 +36,8 @@ public static class CreateInvitation
         public Validator()
         {
             RuleFor(x => x.StaffMemberId).NotEmpty();
+            RuleFor(x => x.RoleNames).NotEmpty().WithMessage("At least one role is required.");
+            RuleForEach(x => x.RoleNames).NotEmpty().MaximumLength(60);
         }
     }
 
@@ -78,6 +82,20 @@ public static class CreateInvitation
                 return Result.Failure<InvitationResponse>(
                     Error.BadRequest("Cannot invite an offboarded staff member."));
 
+            var distinctRoleNames = request.RoleNames.Distinct().ToList();
+            var roles = await _db.Roles
+                .Where(r => distinctRoleNames.Contains(r.Name))
+                .ToListAsync(cancellationToken);
+
+            var notFound = distinctRoleNames.Except(roles.Select(r => r.Name)).ToList();
+            if (notFound.Count > 0)
+                return Result.Failure<InvitationResponse>(
+                    Error.CreateNotFoundError($"Role(s) not found: {string.Join(", ", notFound)}."));
+
+            var appName = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
+            var frontendUrl = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
+            var supportEmail = _config["EmailSettings:SupportEmail"] ?? string.Empty;
+
             var pendingInvitation = await _db.StaffInvitations
                 .FirstOrDefaultAsync(i => i.StaffMemberId == request.StaffMemberId && !i.IsUsed && i.ExpiresAt > DateTime.UtcNow,
                     cancellationToken);
@@ -85,19 +103,16 @@ public static class CreateInvitation
             if (pendingInvitation is not null)
             {
                 pendingInvitation.ExpiresAt = DateTime.UtcNow.AddHours(48);
+                pendingInvitation.Roles = distinctRoleNames;
                 await _db.SaveChangesAsync(cancellationToken);
-
-                var appNameResend = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
-                var frontendUrlResend = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
-                var supportEmailResend = _config["EmailSettings:SupportEmail"] ?? string.Empty;
 
                 _ = _email.SendStaffInvitationEmailAsync(staff.EmailAddress, new StaffInvitationEmailModel
                 {
                     StaffFullName = staff.FullName,
-                    InvitationLink = $"{frontendUrlResend}/accept-invitation?token={pendingInvitation.Token}",
+                    InvitationLink = $"{frontendUrl}/accept-invitation?token={pendingInvitation.Token}",
                     ExpiresAt = pendingInvitation.ExpiresAt.ToString("dd MMM yyyy, h:mm tt") + " UTC",
-                    AppName = appNameResend,
-                    SupportEmail = supportEmailResend
+                    AppName = appName,
+                    SupportEmail = supportEmail
                 });
 
                 return Result.Success(new InvitationResponse
@@ -106,6 +121,7 @@ public static class CreateInvitation
                     StaffMemberId = staff.Id,
                     StaffFullName = staff.FullName,
                     StaffEmail = staff.EmailAddress,
+                    Roles = distinctRoleNames,
                     ExpiresAt = pendingInvitation.ExpiresAt,
                     Message = "A new invitation email has been sent."
                 });
@@ -119,6 +135,7 @@ public static class CreateInvitation
             {
                 StaffMemberId = staff.Id,
                 Token = tokenValue,
+                Roles = distinctRoleNames,
                 ExpiresAt = DateTime.UtcNow.AddHours(48),
                 CreatedByUserId = creatorId is not null ? Guid.Parse(creatorId) : null
             };
@@ -126,15 +143,10 @@ public static class CreateInvitation
             _db.StaffInvitations.Add(invitation);
             await _db.SaveChangesAsync(cancellationToken);
 
-            var appName = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
-            var frontendUrl = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
-            var supportEmail = _config["EmailSettings:SupportEmail"] ?? string.Empty;
-            var invitationLink = $"{frontendUrl}/accept-invitation?token={invitation.Token}";
-
             _ = _email.SendStaffInvitationEmailAsync(staff.EmailAddress, new StaffInvitationEmailModel
             {
                 StaffFullName = staff.FullName,
-                InvitationLink = invitationLink,
+                InvitationLink = $"{frontendUrl}/accept-invitation?token={invitation.Token}",
                 ExpiresAt = invitation.ExpiresAt.ToString("dd MMM yyyy, h:mm tt") + " UTC",
                 AppName = appName,
                 SupportEmail = supportEmail
@@ -146,6 +158,7 @@ public static class CreateInvitation
                 StaffMemberId = staff.Id,
                 StaffFullName = staff.FullName,
                 StaffEmail = staff.EmailAddress,
+                Roles = distinctRoleNames,
                 ExpiresAt = invitation.ExpiresAt,
                 Message = $"Invitation email sent to {staff.EmailAddress}."
             });
@@ -167,7 +180,7 @@ public class CreateInvitationEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("Send an application-access invitation")
-        .WithDescription("Generates a 48-hour invitation token and emails it directly to the staff member's registered email address.")
+        .WithDescription("Generates a 48-hour invitation token and emails it to the staff member. The specified roles are assigned when the invitation is accepted.")
         .Produces<CreateInvitation.InvitationResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

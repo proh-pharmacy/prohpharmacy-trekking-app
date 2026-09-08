@@ -402,6 +402,7 @@ namespace prohpharmacy_trekking_app.Database
             {
                 entity.HasKey(i => i.Id);
                 entity.Property(i => i.Token).HasMaxLength(256).IsRequired();
+                entity.Property(i => i.Roles).HasColumnType("text[]").IsRequired();
                 entity.HasOne(i => i.StaffMember)
                     .WithMany(s => s.Invitations)
                     .HasForeignKey(i => i.StaffMemberId)

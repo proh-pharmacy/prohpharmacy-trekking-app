@@ -86,27 +86,31 @@ public static class AcceptInvitation
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            // Auto-assign the role stored on the staff record
-            var systemRole = await _db.Roles
+            var systemRoles = await _db.Roles
                 .Include(r => r.RolePermissions)
-                .FirstOrDefaultAsync(r => r.Name == staff.Role, cancellationToken);
+                .Where(r => invitation.Roles.Contains(r.Name))
+                .ToListAsync(cancellationToken);
 
             var roles = new List<string>();
             var permissions = new List<string>();
 
-            if (systemRole is not null)
+            if (systemRoles.Count > 0)
             {
-                _db.UserRoles.Add(new UserRole
+                _db.UserRoles.AddRange(systemRoles.Select(r => new UserRole
                 {
                     UserId = user.Id,
-                    RoleId = systemRole.Id,
+                    RoleId = r.Id,
                     AssignedAt = DateTime.UtcNow
-                });
+                }));
 
                 await _db.SaveChangesAsync(cancellationToken);
 
-                roles.Add(systemRole.Name);
-                permissions = systemRole.RolePermissions.Select(rp => rp.Permission).ToList();
+                roles = systemRoles.Select(r => r.Name).ToList();
+                permissions = systemRoles
+                    .SelectMany(r => r.RolePermissions)
+                    .Select(rp => rp.Permission)
+                    .Distinct()
+                    .ToList();
             }
 
             var claims = new List<Claim>
