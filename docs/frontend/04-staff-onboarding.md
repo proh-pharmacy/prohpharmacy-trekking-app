@@ -111,7 +111,9 @@ Content-Type: application/json
 ```
 
 ### Notes
-- `role` must match a seeded system role: `SuperAdmin`, `OperationsManager`, `BranchManager`, `FieldStaff`, `Driver`, `CreditOfficer`, `Auditor`
+- `role` is **optional** when `grantAppAccess: false` — you can set it later
+- `role` is **required** when `grantAppAccess: true` — the account must be assigned to a role at creation
+- `role` must match an existing role name: seeded roles are `SuperAdmin`, `OperationsManager`, `BranchManager`, `FieldStaff`, `Driver`, `CreditOfficer`, `Auditor` — or any custom role created via `POST /api/v1/roles`
 - `branchId` must be an active branch — inactive branch returns `400`
 - `emailAddress` must be unique — duplicate returns `422`
 - If `grantAppAccess: true`, the plain-text `initialPassword` is returned **once** in the response — store or display it to the admin immediately
