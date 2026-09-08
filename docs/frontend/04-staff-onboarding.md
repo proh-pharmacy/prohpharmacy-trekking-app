@@ -16,6 +16,7 @@ Staff are the people who work at branches — drivers, field staff, managers, et
 | `PATCH` | `api/v1/staff/{id}` | Update staff details |
 | `PATCH` | `api/v1/staff/{id}/status` | Change employment status |
 | `POST` | `api/v1/staff/{id}/grant-access` | Grant login access to an existing staff member |
+| `POST` | `api/v1/invitations` | Send an email invitation to an existing staff member |
 | `POST` | `api/v1/staff/{id}/photo` | Upload staff passport photo |
 
 ---
@@ -215,7 +216,47 @@ Content-Type: application/json
 
 ---
 
-## 7. Upload Passport Photo
+## 7. Send an Invitation
+
+An alternative to `grant-access` — sends an email to the staff member with a link for them to set their own password.
+
+```http
+POST /api/v1/invitations
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{
+  "staffMemberId": "<guid>"
+}
+```
+
+- Staff member must already exist and **not** have app access yet
+- Cannot invite an `Offboarded` staff member
+- If a valid pending invitation already exists, a fresh email is sent and the expiry is extended — no duplicate invitation is created
+- Link expires in **48 hours**
+
+### Response `200 OK`
+```json
+{
+  "invitationId": "...",
+  "staffMemberId": "...",
+  "staffFullName": "Kwame Asante",
+  "staffEmail": "k.asante@prohpharmacy.com",
+  "expiresAt": "2026-09-10T10:00:00Z",
+  "message": "Invitation email sent to k.asante@prohpharmacy.com."
+}
+```
+
+**grant-access vs invitation:**
+| | `grant-access` | `invitation` |
+|---|---|---|
+| Password set by | Admin | Staff member |
+| Immediate access | Yes | No — after they accept |
+| Returns password | Yes (once) | No |
+
+---
+
+## 8. Upload Passport Photo
 
 ```http
 POST /api/v1/staff/{id}/photo
@@ -279,4 +320,5 @@ Staff → Staff Detail Page
 - [ ] Change status with confirmation warning when suspending/offboarding
 - [ ] Grant access modal (for existing staff without access)
 - [ ] One-time initial password reveal after granting access
+- [ ] Send invitation (`POST /api/v1/invitations`) — alternative to grant-access, staff sets their own password
 - [ ] Upload passport photo (`POST /api/v1/staff/{id}/photo`) — file input accepting JPEG/PNG/WebP ≤ 5 MB
