@@ -45,6 +45,7 @@ public static class CreateStaff
         public DateOnly JoinedOn { get; set; }
         public bool HasAppAccess { get; set; }
         public List<string> SystemRoles { get; set; } = [];
+        public string? ProfilePhotoUrl { get; set; }
         public Guid? CurrentDeviceId { get; set; }
         public string? CurrentDeviceName { get; set; }
         public string? InitialPassword { get; set; }
@@ -185,6 +186,7 @@ public static class CreateStaff
             JoinedOn = s.JoinedOn,
             HasAppAccess = hasAppAccess,
             SystemRoles = systemRoles ?? [],
+            ProfilePhotoUrl = s.ProfilePhotoObjectKey,
             CurrentDeviceId = currentDeviceId,
             CurrentDeviceName = currentDeviceName,
             CreatedAt = s.CreatedAt,

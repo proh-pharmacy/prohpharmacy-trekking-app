@@ -16,6 +16,7 @@ Staff are the people who work at branches — drivers, field staff, managers, et
 | `PATCH` | `api/v1/staff/{id}` | Update staff details |
 | `PATCH` | `api/v1/staff/{id}/status` | Change employment status |
 | `POST` | `api/v1/staff/{id}/grant-access` | Grant login access to an existing staff member |
+| `POST` | `api/v1/staff/{id}/photo` | Upload staff passport photo |
 
 ---
 
@@ -212,6 +213,31 @@ Content-Type: application/json
 
 ---
 
+## 7. Upload Passport Photo
+
+```http
+POST /api/v1/staff/{id}/photo
+Authorization: Bearer <token>
+Content-Type: multipart/form-data
+
+file: <image file>
+```
+
+- Accepts **JPEG, PNG, or WebP** only
+- Maximum size: **5 MB**
+- Photo is stored on ImageKit and the URL is saved against the staff record
+- Returns `422` for unsupported file type or oversized file
+
+### Response `200 OK`
+```json
+{
+  "staffMemberId": "...",
+  "profilePhotoUrl": "https://ik.imagekit.io/..."
+}
+```
+
+---
+
 ## UI Flow
 
 ```
@@ -251,3 +277,4 @@ Staff → Staff Detail Page
 - [ ] Change status with confirmation warning when suspending/offboarding
 - [ ] Grant access modal (for existing staff without access)
 - [ ] One-time initial password reveal after granting access
+- [ ] Upload passport photo (`POST /api/v1/staff/{id}/photo`) — file input accepting JPEG/PNG/WebP ≤ 5 MB
