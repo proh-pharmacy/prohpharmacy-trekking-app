@@ -239,7 +239,49 @@ Authorization: Bearer <token>
 
 ---
 
-## 7. Frontend Permission Checks
+## 7. Get a User by ID
+
+Returns the full combined profile — all staff details plus identity fields.
+
+```http
+GET /api/v1/users/{id}
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+{
+  "userId": "...",
+  "staffMemberId": "...",
+  "employeeNumber": "EMP-2026-001",
+  "firstName": "Kwame",
+  "lastName": "Asante",
+  "fullName": "Kwame Asante",
+  "emailAddress": "k.asante@prohpharmacy.com",
+  "phoneNumber": "+233201234567",
+  "role": "Driver",
+  "branchId": "...",
+  "branchName": "Tema Branch",
+  "employmentStatus": "Active",
+  "joinedOn": "2026-09-08",
+  "hasAppAccess": true,
+  "isActive": true,
+  "systemRoles": ["Driver"],
+  "permissions": ["Treks.ViewAll", "Treks.Start", "Treks.Complete"],
+  "profilePhotoUrl": "https://ik.imagekit.io/...",
+  "currentDeviceId": "...",
+  "currentDeviceName": "Device 001",
+  "lastLoginAt": "2026-09-08T10:00:00Z",
+  "createdAt": "2026-09-08T10:00:00Z",
+  "updatedAt": null
+}
+```
+
+> Note: `id` here is the **userId** (ApplicationUser ID), not the staffMemberId.
+
+---
+
+## 9. Frontend Permission Checks
 
 Permissions come back in the **login response** — store them in your global auth store. Guard by permission, not role, for finer control.
 
@@ -288,7 +330,7 @@ const { can } = usePermissions()
 
 ---
 
-## UI Flow
+## 10. UI Flow
 
 ```
 Settings → Roles

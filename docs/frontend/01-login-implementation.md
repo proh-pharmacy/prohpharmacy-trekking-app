@@ -12,7 +12,7 @@ Covers authentication flow end-to-end: login, token storage, silent refresh, pro
 |---|---|---|---|
 | `POST` | `api/v1/auth/login` | Anonymous | Exchange credentials for tokens |
 | `POST` | `api/v1/auth/refresh` | Anonymous | Get a new access token using refresh token |
-| `GET` | `api/v1/auth/me` | Required | Load the authenticated user's profile |
+| `GET` | `api/v1/auth/me` | Required | Load the authenticated user's full profile |
 | `POST` | `api/v1/auth/logout` | Required | Invalidate the current session |
 | `POST` | `api/v1/auth/change-password` | Required | Change authenticated user's password |
 
@@ -31,23 +31,37 @@ Content-Type: application/json
 }
 ```
 
-### Response
+### Response `200 OK`
 ```json
 {
   "accessToken": "eyJ...",
   "refreshToken": "eyJ...",
-  "expiresIn": 3200
+  "accessTokenExpiresAt": "2026-09-08T10:15:00Z",
+  "refreshTokenExpiresAt": "2026-09-15T10:00:00Z",
+  "user": {
+    "userId": "...",
+    "staffMemberId": "...",
+    "email": "admin@prohpharmacy.com",
+    "fullName": "Kwame Asante",
+    "roles": ["BranchManager"],
+    "permissions": ["Staff.View", "Staff.Manage", "Treks.Create"]
+  }
 }
 ```
 
+- Access token expires in **15 minutes** — use `accessTokenExpiresAt` to schedule a proactive refresh
+- Refresh token expires in **7 days** — rotating (a new one is issued on every refresh)
+- `permissions` is the union of all assigned roles — use this for UI guards immediately after login (no extra call needed)
+
 ### What to do on success
 1. Store `accessToken` in memory (a module-level variable or Zustand/Redux store — **not** localStorage).
-2. Store `refreshToken` in an `httpOnly` cookie **or** localStorage (less secure but simpler). Choose based on your security requirements.
-3. Call `GET /api/v1/auth/me` to load the user profile and store it globally.
-4. Redirect to the dashboard.
+2. Store `refreshToken` in an `httpOnly` cookie **or** localStorage (less secure but simpler).
+3. Store `user` (including `permissions`) in the global auth store.
+4. Call `GET /api/v1/auth/me` on app boot to get the full profile (photo, branch, device, etc.) — the login response only gives you the lightweight `user` summary.
+5. Redirect to the dashboard.
 
 ### What to do on failure
-- `401` / `422` — show "Invalid email or password."
+- `422` — show "Invalid email or password."
 - Do not reveal which field was wrong.
 
 ---
@@ -89,7 +103,7 @@ export default api
 
 ## 4. Silent Token Refresh
 
-The access token expires in `expiresIn` seconds (currently `3200` — ~53 min). Set up a response interceptor to automatically refresh it when a `401` is returned.
+The access token expires in **15 minutes**. Set up a response interceptor to automatically refresh it when a `401` is returned.
 
 ```ts
 // lib/api.ts (continued)
@@ -128,14 +142,14 @@ api.interceptors.response.use(
         const { data } = await axios.post(`${process.env.NEXT_PUBLIC_API_URL}/api/v1/auth/refresh`, {
           refreshToken,
         })
-        setAccessToken(data.accessToken)   // update in-memory store
-        setRefreshToken(data.refreshToken) // update storage
+        setAccessToken(data.accessToken)
+        setRefreshToken(data.refreshToken)
         original.headers.Authorization = `Bearer ${data.accessToken}`
         processQueue(null, data.accessToken)
         return api(original)
       } catch (err) {
         processQueue(err, null)
-        clearAuth()     // wipe tokens
+        clearAuth()
         redirectToLogin()
         return Promise.reject(err)
       } finally {
@@ -158,20 +172,49 @@ Content-Type: application/json
 }
 ```
 
-Response is the same shape as login — new `accessToken` and `refreshToken`.
+Response is the same shape as login — new `accessToken`, `refreshToken`, and expiry timestamps.
 
 ---
 
-## 5. Loading the Current User
+## 5. Loading the Current User (`GET /auth/me`)
 
-After login (or on app boot if a refresh token exists), load the authenticated user:
+After login (or on app boot if a refresh token exists), load the full authenticated user profile:
 
 ```http
 GET /api/v1/auth/me
 Authorization: Bearer <accessToken>
 ```
 
-Store the response globally (Zustand, Redux, Context). This gives you the user's roles, branch, and staff details needed for permission checks throughout the app.
+### Response `200 OK`
+```json
+{
+  "userId": "...",
+  "staffMemberId": "...",
+  "employeeNumber": "EMP-2026-001",
+  "firstName": "Kwame",
+  "lastName": "Asante",
+  "fullName": "Kwame Asante",
+  "emailAddress": "k.asante@prohpharmacy.com",
+  "phoneNumber": "+233201234567",
+  "role": "Driver",
+  "branchId": "...",
+  "branchName": "Tema Branch",
+  "employmentStatus": "Active",
+  "joinedOn": "2026-09-08",
+  "hasAppAccess": true,
+  "isActive": true,
+  "systemRoles": ["Driver"],
+  "permissions": ["Treks.ViewAll", "Treks.Start", "Treks.Complete"],
+  "profilePhotoUrl": "https://ik.imagekit.io/...",
+  "currentDeviceId": "...",
+  "currentDeviceName": "Device 001",
+  "lastLoginAt": "2026-09-08T10:00:00Z",
+  "createdAt": "2026-09-08T10:00:00Z",
+  "updatedAt": null
+}
+```
+
+Store this in the global auth store. Use `permissions` for UI guards throughout the app (see `03-roles-and-permissions.md`).
 
 ---
 
@@ -226,7 +269,7 @@ Content-Type: application/json
 }
 ```
 
-- `422` — validation error (e.g. current password wrong, new password too weak)
+- `422` — current password wrong or new password too short
 - `200` — success, optionally force re-login
 
 ---
@@ -237,7 +280,7 @@ Content-Type: application/json
 - [ ] Token storage (access token in memory, refresh token in storage)
 - [ ] Axios/fetch client with `Authorization` header interceptor
 - [ ] Silent refresh interceptor with queuing
-- [ ] `GET /auth/me` call on boot + after login
+- [ ] `GET /auth/me` call on boot + after login — store full profile globally
 - [ ] Global auth store (user, tokens, isLoading)
 - [ ] Protected route wrapper
 - [ ] Logout action (clear store + redirect)
