@@ -18,16 +18,24 @@ public static class GetUser
     {
         public Guid UserId { get; set; }
         public Guid StaffMemberId { get; set; }
-        public string Email { get; set; } = string.Empty;
-        public string FullName { get; set; } = string.Empty;
         public string? EmployeeNumber { get; set; }
+        public string FirstName { get; set; } = string.Empty;
+        public string LastName { get; set; } = string.Empty;
+        public string FullName { get; set; } = string.Empty;
+        public string EmailAddress { get; set; } = string.Empty;
+        public string PhoneNumber { get; set; } = string.Empty;
         public string? Role { get; set; }
         public Guid BranchId { get; set; }
         public string BranchName { get; set; } = string.Empty;
         public string EmploymentStatus { get; set; } = string.Empty;
-        public List<string> Roles { get; set; } = [];
-        public List<string> Permissions { get; set; } = [];
+        public DateOnly JoinedOn { get; set; }
+        public bool HasAppAccess { get; set; }
         public bool IsActive { get; set; }
+        public List<string> SystemRoles { get; set; } = [];
+        public List<string> Permissions { get; set; } = [];
+        public string? ProfilePhotoUrl { get; set; }
+        public Guid? CurrentDeviceId { get; set; }
+        public string? CurrentDeviceName { get; set; }
         public DateTime? LastLoginAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -42,8 +50,14 @@ public static class GetUser
         public async Task<Result<UserDetailResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var user = await _db.ApplicationUsers
-                .Include(u => u.StaffMember).ThenInclude(s => s.Branch)
-                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions)
+                .Include(u => u.StaffMember)
+                    .ThenInclude(s => s.Branch)
+                .Include(u => u.StaffMember)
+                    .ThenInclude(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.Device)
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                    .ThenInclude(r => r.RolePermissions)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == request.UserId, cancellationToken);
 
@@ -57,20 +71,30 @@ public static class GetUser
                 .Distinct()
                 .ToList();
 
+            var activeDevice = user.StaffMember.DeviceAssignments.FirstOrDefault();
+
             return Result.Success(new UserDetailResponse
             {
                 UserId = user.Id,
                 StaffMemberId = user.StaffMemberId,
-                Email = user.Email,
-                FullName = user.StaffMember.FullName,
                 EmployeeNumber = user.StaffMember.EmployeeNumber,
+                FirstName = user.StaffMember.FirstName,
+                LastName = user.StaffMember.LastName,
+                FullName = user.StaffMember.FullName,
+                EmailAddress = user.StaffMember.EmailAddress,
+                PhoneNumber = user.StaffMember.PhoneNumber,
                 Role = user.StaffMember.Role,
                 BranchId = user.StaffMember.BranchId,
                 BranchName = user.StaffMember.Branch?.Name ?? string.Empty,
                 EmploymentStatus = user.StaffMember.EmploymentStatus.ToString(),
-                Roles = roles,
-                Permissions = permissions,
+                JoinedOn = user.StaffMember.JoinedOn,
+                HasAppAccess = true,
                 IsActive = user.IsActive,
+                SystemRoles = roles,
+                Permissions = permissions,
+                ProfilePhotoUrl = user.StaffMember.ProfilePhotoObjectKey,
+                CurrentDeviceId = activeDevice?.DeviceId,
+                CurrentDeviceName = activeDevice?.Device?.Name,
                 LastLoginAt = user.LastLoginAt,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt

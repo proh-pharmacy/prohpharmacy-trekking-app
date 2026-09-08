@@ -31,8 +31,14 @@ public static class GetMe
                 return Result.Failure<UserDetailResponse>(Error.Forbidden("Not authenticated."));
 
             var user = await _db.ApplicationUsers
-                .Include(u => u.StaffMember).ThenInclude(s => s.Branch)
-                .Include(u => u.UserRoles).ThenInclude(ur => ur.Role).ThenInclude(r => r.RolePermissions)
+                .Include(u => u.StaffMember)
+                    .ThenInclude(s => s.Branch)
+                .Include(u => u.StaffMember)
+                    .ThenInclude(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.Device)
+                .Include(u => u.UserRoles)
+                    .ThenInclude(ur => ur.Role)
+                    .ThenInclude(r => r.RolePermissions)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(u => u.Id == userId, cancellationToken);
 
@@ -46,20 +52,30 @@ public static class GetMe
                 .Distinct()
                 .ToList();
 
+            var activeDevice = user.StaffMember.DeviceAssignments.FirstOrDefault();
+
             return Result.Success(new UserDetailResponse
             {
                 UserId = user.Id,
                 StaffMemberId = user.StaffMemberId,
-                Email = user.Email,
-                FullName = user.StaffMember.FullName,
                 EmployeeNumber = user.StaffMember.EmployeeNumber,
+                FirstName = user.StaffMember.FirstName,
+                LastName = user.StaffMember.LastName,
+                FullName = user.StaffMember.FullName,
+                EmailAddress = user.StaffMember.EmailAddress,
+                PhoneNumber = user.StaffMember.PhoneNumber,
                 Role = user.StaffMember.Role,
                 BranchId = user.StaffMember.BranchId,
                 BranchName = user.StaffMember.Branch?.Name ?? string.Empty,
                 EmploymentStatus = user.StaffMember.EmploymentStatus.ToString(),
-                Roles = roles,
-                Permissions = permissions,
+                JoinedOn = user.StaffMember.JoinedOn,
+                HasAppAccess = true,
                 IsActive = user.IsActive,
+                SystemRoles = roles,
+                Permissions = permissions,
+                ProfilePhotoUrl = user.StaffMember.ProfilePhotoObjectKey,
+                CurrentDeviceId = activeDevice?.DeviceId,
+                CurrentDeviceName = activeDevice?.Device?.Name,
                 LastLoginAt = user.LastLoginAt,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt
