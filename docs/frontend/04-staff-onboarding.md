@@ -28,7 +28,29 @@ GET /api/v1/staff
 Authorization: Bearer <token>
 ```
 
-Supports pagination and filters. Returns `PaginatedData<StaffResponse>`.
+Supports pagination, search, and filters. Returns `PaginatedData<StaffResponse>`.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | `string` | Search by first name, last name, or email |
+| `sort` | `string` | e.g. `firstName_asc`, `joinedOn_desc` |
+| `pageNumber` | `int` | Default: 1 |
+| `pageSize` | `int` | Default: 20 |
+| `branchId` | `guid` | Filter by branch |
+| `status` | `string` | `Pending` / `Active` / `Suspended` / `Offboarded` |
+| `hasAppAccess` | `bool` | `true` — staff who have a login account; `false` — staff with no login account yet |
+
+### Examples
+
+```http
+# Staff who are NOT yet on the platform (no login account)
+GET /api/v1/staff?hasAppAccess=false
+
+# Active staff on the platform in a specific branch
+GET /api/v1/staff?hasAppAccess=true&status=Active&branchId=<guid>
+```
 
 ---
 

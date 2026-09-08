@@ -16,6 +16,7 @@ public static class GetStaffList
     {
         public Guid? BranchId { get; set; }
         public string? Status { get; set; }
+        public bool? HasAppAccess { get; set; }
         public string? Search { get; set; }
         public string? Sort { get; set; }
         public int? PageNumber { get; set; }
@@ -43,6 +44,11 @@ public static class GetStaffList
             if (!string.IsNullOrWhiteSpace(request.Status))
                 query = query.Where(s => s.EmploymentStatus.ToString().ToLower() == request.Status.ToLower());
 
+            if (request.HasAppAccess.HasValue)
+                query = request.HasAppAccess.Value
+                    ? query.Where(s => s.ApplicationUser != null)
+                    : query.Where(s => s.ApplicationUser == null);
+
             var result = await new QueryBuilder<Entities.StaffMember>(query)
                 .WithSearch(request.Search, nameof(Entities.StaffMember.FirstName),
                     nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress))
@@ -59,7 +65,6 @@ public static class GetStaffList
 
             return Result.Success(result);
         }
-
     }
 }
 
@@ -71,6 +76,7 @@ public class GetStaffListEndpoint : ICarterModule
             ISender sender,
             [FromQuery] Guid? branchId,
             [FromQuery] string? status,
+            [FromQuery] bool? hasAppAccess,
             [FromQuery] string? search,
             [FromQuery] string? sort,
             [FromQuery] int? pageNumber,
@@ -80,6 +86,7 @@ public class GetStaffListEndpoint : ICarterModule
             {
                 BranchId = branchId,
                 Status = status,
+                HasAppAccess = hasAppAccess,
                 Search = search,
                 Sort = sort,
                 PageNumber = pageNumber,
@@ -93,7 +100,7 @@ public class GetStaffListEndpoint : ICarterModule
         .WithTags("Staff")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("List / search staff members")
-        .WithDescription("Filter by branchId or status (Pending | Active | Suspended | Offboarded).")
+        .WithDescription("Filter by branchId, status (Pending | Active | Suspended | Offboarded), or hasAppAccess (true = on the platform, false = no login account yet).")
         .Produces<Paginator.PaginatedData<StaffResponse>>(200)
         .RequireAuthorization();
     }
