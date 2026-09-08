@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 
@@ -17,6 +18,7 @@ public static class GetUserList
         public string? Role { get; set; }
         public bool? IsActive { get; set; }
         public string? Search { get; set; }
+        public string? Sort { get; set; }
         public int? PageNumber { get; set; }
         public int? PageSize { get; set; }
     }
@@ -70,22 +72,10 @@ public static class GetUserList
                      u.StaffMember.EmployeeNumber.ToLower().Contains(search)));
             }
 
-            var paginated = await Paginator.PaginateAsync(
-                query.OrderByDescending(u => u.CreatedAt),
-                request.PageNumber ?? 1,
-                request.PageSize ?? 20);
-
-            var result = new Paginator.PaginatedData<UserSummaryResponse>
-            {
-                TotalCount = paginated.TotalCount,
-                TotalPages = paginated.TotalPages,
-                CurrentPage = paginated.CurrentPage,
-                PageSize = paginated.PageSize,
-                NextPageUrl = paginated.NextPageUrl,
-                PreviousPageUrl = paginated.PreviousPageUrl,
-                Path = paginated.Path,
-                Links = paginated.Links,
-                Data = paginated.Data.Select(u => new UserSummaryResponse
+            var result = await new QueryBuilder<ApplicationUser>(query)
+                .WithSort(request.Sort)
+                .Paginate(request.PageNumber, request.PageSize)
+                .BuildAsync(u => (object)new UserSummaryResponse
                 {
                     UserId = u.Id,
                     StaffMemberId = u.StaffMemberId,
@@ -99,10 +89,9 @@ public static class GetUserList
                     IsActive = u.IsActive,
                     LastLoginAt = u.LastLoginAt,
                     CreatedAt = u.CreatedAt
-                }).ToList()
-            };
+                });
 
-            return Result.Success<object>(result);
+            return Result.Success(result);
         }
     }
 }
@@ -117,6 +106,7 @@ public class GetUserListEndpoint : ICarterModule
             [FromQuery] string? role,
             [FromQuery] bool? isActive,
             [FromQuery] string? search,
+            [FromQuery] string? sort,
             [FromQuery] int? pageNumber,
             [FromQuery] int? pageSize) =>
         {
@@ -126,6 +116,7 @@ public class GetUserListEndpoint : ICarterModule
                 Role = role,
                 IsActive = isActive,
                 Search = search,
+                Sort = sort,
                 PageNumber = pageNumber,
                 PageSize = pageSize
             });
@@ -137,7 +128,7 @@ public class GetUserListEndpoint : ICarterModule
         .WithTags("Auth")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Auth)
         .WithSummary("List application users")
-        .WithDescription("Filter by branchId, role name, isActive, or search by name / email / employee number.")
+        .WithDescription("Filter by branchId, role name, isActive, or search by name / email / employee number. Sort by any user field e.g. createdAt_desc, lastLoginAt_asc.")
         .Produces<Paginator.PaginatedData<GetUserList.UserSummaryResponse>>(200)
         .RequireAuthorization();
     }
