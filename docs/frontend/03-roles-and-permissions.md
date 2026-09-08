@@ -10,9 +10,10 @@ The system uses permission-based access control. Roles are seeded by the backend
 
 | Method | Endpoint | Purpose |
 |---|---|---|
+| `GET` | `api/v1/permissions` | All available permissions grouped by module (no role context) |
 | `GET` | `api/v1/roles` | List all roles with their current permissions |
 | `POST` | `api/v1/roles` | Create a new custom role |
-| `GET` | `api/v1/roles/{id}/permissions` | All permissions grouped by module with enabled true/false |
+| `GET` | `api/v1/roles/{id}/permissions` | All permissions grouped by module with enabled true/false for a specific role |
 | `PUT` | `api/v1/roles/{id}/permissions` | Sync a role's permissions (send enabled list, backend diffs) |
 | `GET` | `api/v1/users` | List all users with their assigned roles |
 | `GET` | `api/v1/users/{id}` | Get a single user |
@@ -56,7 +57,43 @@ Tracking.ViewAll        Reports.Export         Audit.View
 
 ---
 
-## 1. Create a Role
+## 1. Get All Permissions
+
+Use this to populate a permission picker when creating a new role or to compare against an existing role's permissions.
+
+```http
+GET /api/v1/permissions
+Authorization: Bearer <token>
+```
+
+Response:
+```json
+[
+  {
+    "module": "Customers",
+    "permissions": ["Customers.Approve", "Customers.Edit", "Customers.Register"]
+  },
+  {
+    "module": "Staff",
+    "permissions": ["Staff.Manage", "Staff.View"]
+  },
+  {
+    "module": "Treks",
+    "permissions": ["Treks.Assign", "Treks.Complete", "Treks.Create", "Treks.Start", "Treks.ViewAll"]
+  }
+]
+```
+
+**Typical flow for a permissions editor:**
+1. Call `GET /api/v1/permissions` to get the full list — use this as the master checkbox list
+2. Call `GET /api/v1/roles/{id}/permissions` to get the role's current enabled set
+3. Cross-reference: a permission is checked if its `key` appears in the role's `enabled: true` items
+4. On save, call `PUT /api/v1/roles/{id}/permissions` with the full list of checked keys
+
+---
+
+## 2. Create a Role
+
 
 ```http
 POST /api/v1/roles
@@ -89,7 +126,7 @@ Content-Type: application/json
 
 ---
 
-## 2. List Roles
+## 3. List Roles
 
 ```http
 GET /api/v1/roles
@@ -111,7 +148,7 @@ Response:
 
 ---
 
-## 3. Get Role Permissions (for toggle UI)
+## 4. Get Role Permissions (for toggle UI)
 
 Returns every available permission grouped by module with `enabled: true/false` for the current role.
 
@@ -150,7 +187,7 @@ Use this to render a toggle UI — one switch per permission, pre-set to `enable
 
 ---
 
-## 4. Sync Role Permissions
+## 5. Sync Role Permissions
 
 Send the full list of **enabled** permission keys. The backend diffs — adds new ones, removes unchecked ones.
 
@@ -205,7 +242,7 @@ const save = async () => {
 
 ---
 
-## 5. Assigning Roles to a User
+## 6. Assigning Roles to a User
 
 A user can hold multiple roles. Their effective permissions are the union of all assigned roles. Send multiple roles in a single request.
 
@@ -233,7 +270,7 @@ Response — returns the user's full roles list after assignment:
 
 ---
 
-## 6. Removing a Role from a User
+## 7. Removing a Role from a User
 
 ```http
 DELETE /api/v1/users/{id}/roles/{roleName}
@@ -245,7 +282,7 @@ Authorization: Bearer <token>
 
 ---
 
-## 7. User Status Management
+## 8. User Status Management
 
 ### Suspend
 ```http
@@ -295,7 +332,7 @@ Response:
 
 ---
 
-## 8. Get a User by ID
+## 9. Get a User by ID
 
 Returns the full combined profile — all staff details plus identity fields.
 
@@ -337,7 +374,7 @@ Response:
 
 ---
 
-## 9. Frontend Permission Checks
+## 10. Frontend Permission Checks
 
 
 
@@ -388,7 +425,7 @@ const { can } = usePermissions()
 
 ---
 
-## 10. UI Flow
+## 11. UI Flow
 
 ```
 Settings → Roles
