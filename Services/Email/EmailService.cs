@@ -26,7 +26,7 @@ public class EmailService : IEmailService
                 .To(to)
                 .Subject($"You're invited to join {model.AppName}")
                 .UsingTemplateFromFile(templatePath, model)
-                .SendAsync();
+                .SendAsync(CancellationToken.None);
 
             if (!response.Successful)
                 _logger.LogWarning("Failed to send invitation email to {Email}: {Errors}",
@@ -54,7 +54,7 @@ public class EmailService : IEmailService
                     Data = new MemoryStream(pdfBytes),
                     ContentType = "application/pdf"
                 })
-                .SendAsync();
+                .SendAsync(CancellationToken.None);
 
             if (!response.Successful)
                 _logger.LogWarning("Failed to send trek assignment email to {Email}: {Errors}",
@@ -76,7 +76,7 @@ public class EmailService : IEmailService
                 .To(to)
                 .Subject($"Welcome to {model.AppName} — Your account is ready")
                 .UsingTemplateFromFile(templatePath, model)
-                .SendAsync();
+                .SendAsync(CancellationToken.None);
 
             if (!response.Successful)
                 _logger.LogWarning("Failed to send welcome email to {Email}: {Errors}",
