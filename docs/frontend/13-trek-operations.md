@@ -355,7 +355,14 @@ Fetches the full trek for the driver view.
       "customerName": "Tema Central Pharmacy",
       "customerCode": "GAR-00001",
       "primaryPhoneNumber": "+233244123456",
-      "location": "Opposite the blue mosque, Community 5, Tema",
+      "customerType": "Retail",
+      "regionName": "Greater Accra",
+      "districtName": "Tema Municipal",
+      "primaryLocationLandmark": "Opposite the blue mosque",
+      "primaryLocationStreet": "Community 5, Tema",
+      "primaryContactName": "Ama Owusu",
+      "primaryContactPhone": "+233244987654",
+      "notes": null,
       "products": [
         {
           "stopProductId": "...",

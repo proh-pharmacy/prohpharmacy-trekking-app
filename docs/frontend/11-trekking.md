@@ -345,7 +345,14 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
       "customerName": "Accra Pharmacy Ltd",
       "customerCode": "GAR-00001",
       "primaryPhoneNumber": "+233201234567",
-      "location": "Next to Accra Mall, ground floor — 12 Liberation Road, Accra",
+      "customerType": "Retail",
+      "regionName": "Greater Accra",
+      "districtName": "Accra Metropolitan",
+      "primaryLocationLandmark": "Next to Accra Mall, ground floor",
+      "primaryLocationStreet": "12 Liberation Road, Accra",
+      "primaryContactName": "Kofi Mensah",
+      "primaryContactPhone": "+233241234567",
+      "notes": null,
       "products": [
         {
           "stopProductId": "...",
