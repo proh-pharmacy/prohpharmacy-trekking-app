@@ -41,53 +41,32 @@ public static class GetFleetPositions
         {
             var devicesQuery = _db.TrackingDevices
                 .Where(d => d.LastLatitude != null && d.LastLongitude != null && d.LastReportedAt != null)
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
-                        .ThenInclude(s => s.Branch)
+                .Include(d => d.StaffMember)
+                    .ThenInclude(s => s!.Branch)
+                .Include(d => d.Vehicle)
                 .AsNoTracking();
+
+            if (request.BranchId.HasValue)
+                devicesQuery = devicesQuery.Where(d => d.StaffMember != null && d.StaffMember.BranchId == request.BranchId.Value);
 
             var devices = await devicesQuery.ToListAsync(cancellationToken);
 
-            var staffIds = devices
-                .Select(d => d.Assignments.FirstOrDefault()?.StaffMemberId)
-                .Where(id => id.HasValue)
-                .Select(id => id!.Value)
-                .ToHashSet();
-
-            var vehicleAssignments = await _db.VehicleStaffAssignments
-                .Where(a => a.UnassignedAt == null && staffIds.Contains(a.StaffMemberId))
-                .Include(a => a.Vehicle)
-                .AsNoTracking()
-                .ToDictionaryAsync(a => a.StaffMemberId, cancellationToken);
-
-            var result = new List<FleetPositionResponse>();
-
-            foreach (var device in devices)
+            var result = devices.Select(d => new FleetPositionResponse
             {
-                var staff = device.Assignments.FirstOrDefault()?.StaffMember;
-
-                if (request.BranchId.HasValue && staff?.BranchId != request.BranchId)
-                    continue;
-
-                vehicleAssignments.TryGetValue(staff?.Id ?? Guid.Empty, out var vehicleAssignment);
-
-                result.Add(new FleetPositionResponse
-                {
-                    DeviceId = device.Id,
-                    DeviceName = device.Name,
-                    StaffMemberId = staff?.Id,
-                    StaffName = staff?.FullName,
-                    VehicleId = vehicleAssignment?.VehicleId,
-                    VehicleRegistration = vehicleAssignment?.Vehicle?.RegistrationNumber,
-                    VehicleDisplayName = vehicleAssignment?.Vehicle?.DisplayName,
-                    BranchId = staff?.BranchId,
-                    BranchName = staff?.Branch?.Name,
-                    Latitude = (double)device.LastLatitude!,
-                    Longitude = (double)device.LastLongitude!,
-                    LastAddress = device.LastAddress,
-                    LastReportedAt = device.LastReportedAt!.Value
-                });
-            }
+                DeviceId = d.Id,
+                DeviceName = d.Name,
+                StaffMemberId = d.StaffMemberId,
+                StaffName = d.StaffMember?.FullName,
+                VehicleId = d.VehicleId,
+                VehicleRegistration = d.Vehicle?.RegistrationNumber,
+                VehicleDisplayName = d.Vehicle?.DisplayName,
+                BranchId = d.StaffMember?.BranchId,
+                BranchName = d.StaffMember?.Branch?.Name,
+                Latitude = (double)d.LastLatitude!,
+                Longitude = (double)d.LastLongitude!,
+                LastAddress = d.LastAddress,
+                LastReportedAt = d.LastReportedAt!.Value
+            }).ToList();
 
             return Result.Success(result);
         }

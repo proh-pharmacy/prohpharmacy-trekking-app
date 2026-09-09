@@ -18,4 +18,9 @@ public interface ITraccarService
 
     Task<bool> LinkDriverToDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default);
     Task<bool> UnlinkDriverFromDeviceAsync(int traccarDeviceId, int traccarDriverId, CancellationToken ct = default);
+
+    Task<List<TraccarUser>> GetAllUsersAsync(CancellationToken ct = default);
+    Task<TraccarUser?> CreateUserAsync(string name, string email, string password, bool administrator = false, CancellationToken ct = default);
+    Task<TraccarUser?> UpdateUserAsync(int traccarUserId, string name, string email, string? password, bool administrator, bool disabled, CancellationToken ct = default);
+    Task<bool> DeleteUserAsync(int traccarUserId, CancellationToken ct = default);
 }

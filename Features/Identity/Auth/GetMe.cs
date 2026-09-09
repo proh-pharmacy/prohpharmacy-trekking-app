@@ -33,9 +33,6 @@ public static class GetMe
             var user = await _db.ApplicationUsers
                 .Include(u => u.StaffMember)
                     .ThenInclude(s => s.Branch)
-                .Include(u => u.StaffMember)
-                    .ThenInclude(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.Device)
                 .Include(u => u.UserRoles)
                     .ThenInclude(ur => ur.Role)
                     .ThenInclude(r => r.RolePermissions)
@@ -52,7 +49,9 @@ public static class GetMe
                 .Distinct()
                 .ToList();
 
-            var activeDevice = user.StaffMember.DeviceAssignments.FirstOrDefault();
+            var device = await _db.TrackingDevices
+                .AsNoTracking()
+                .FirstOrDefaultAsync(d => d.StaffMemberId == user.StaffMemberId, cancellationToken);
 
             return Result.Success(new UserDetailResponse
             {
@@ -74,8 +73,8 @@ public static class GetMe
                 SystemRoles = roles,
                 Permissions = permissions,
                 ProfilePhotoUrl = user.StaffMember.ProfilePhotoObjectKey,
-                CurrentDeviceId = activeDevice?.DeviceId,
-                CurrentDeviceName = activeDevice?.Device?.Name,
+                CurrentDeviceId = device?.Id,
+                CurrentDeviceName = device?.Name,
                 LastLoginAt = user.LastLoginAt,
                 CreatedAt = user.CreatedAt,
                 UpdatedAt = user.UpdatedAt

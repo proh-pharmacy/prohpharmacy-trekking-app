@@ -20,7 +20,7 @@ public static class CreateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
-        public Guid BranchId { get; set; }
+        public Guid? BranchId { get; set; }
     }
 
     public class VehicleResponse
@@ -32,7 +32,7 @@ public static class CreateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
-        public Guid BranchId { get; set; }
+        public Guid? BranchId { get; set; }
         public string? BranchName { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
         public Guid? CurrentStaffId { get; set; }
@@ -52,7 +52,6 @@ public static class CreateVehicle
             RuleFor(x => x.Year).InclusiveBetween(1990, DateTime.UtcNow.Year + 1)
                 .WithMessage($"Year must be between 1990 and {DateTime.UtcNow.Year + 1}.");
             RuleFor(x => x.Colour).NotEmpty().MaximumLength(50);
-            RuleFor(x => x.BranchId).NotEmpty();
         }
     }
 
@@ -73,12 +72,16 @@ public static class CreateVehicle
             if (!validation.IsValid)
                 return Result.Failure<VehicleResponse>(Error.ValidationError(validation));
 
-            var branch = await _db.Branches.FindAsync([request.BranchId], cancellationToken);
-            if (branch is null)
-                return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Branch not found."));
-
-            if (!branch.IsActive)
-                return Result.Failure<VehicleResponse>(Error.BadRequest("Cannot assign vehicle to an inactive branch."));
+            string? branchName = null;
+            if (request.BranchId.HasValue)
+            {
+                var branch = await _db.Branches.FindAsync([request.BranchId.Value], cancellationToken);
+                if (branch is null)
+                    return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Branch not found."));
+                if (!branch.IsActive)
+                    return Result.Failure<VehicleResponse>(Error.BadRequest("Cannot assign vehicle to an inactive branch."));
+                branchName = branch.Name;
+            }
 
             var regTaken = await _db.Vehicles
                 .AnyAsync(v => v.RegistrationNumber == request.RegistrationNumber.Trim().ToUpper(), cancellationToken);
@@ -101,7 +104,7 @@ public static class CreateVehicle
             _db.Vehicles.Add(vehicle);
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(ToResponse(vehicle, branch.Name, null, null));
+            return Result.Success(ToResponse(vehicle, branchName, null, null));
         }
 
         internal static VehicleResponse ToResponse(

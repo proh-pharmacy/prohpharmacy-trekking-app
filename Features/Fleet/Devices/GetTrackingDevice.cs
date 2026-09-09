@@ -15,29 +15,23 @@ public static class GetTrackingDevice
         public Guid Id { get; set; }
     }
 
-    internal sealed class Handler : IRequestHandler<Query, Result<DeviceResponse>>
+    internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<DeviceResponse>>
     {
-        private readonly AppDbContext _db;
-
-        public Handler(AppDbContext db) => _db = db;
-
         public async Task<Result<DeviceResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var device = await _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
+            var device = await db.TrackingDevices
+                .Include(d => d.Vehicle)
+                .Include(d => d.StaffMember)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == request.Id, cancellationToken);
 
             if (device is null)
                 return Result.Failure<DeviceResponse>(Error.CreateNotFoundError("Tracking device not found."));
 
-            var active = device.Assignments.FirstOrDefault();
-
             return Result.Success(CreateTrackingDevice.Handler.ToResponse(
                 device,
-                active?.StaffMemberId,
-                active?.StaffMember?.FullName));
+                device.Vehicle?.RegistrationNumber,
+                device.StaffMember?.FullName));
         }
     }
 }

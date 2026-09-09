@@ -85,4 +85,28 @@ public class NullTraccarService(ILogger<NullTraccarService> logger) : ITraccarSe
         logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping driver-device unlink.");
         return Task.FromResult(false);
     }
+
+    public Task<List<TraccarUser>> GetAllUsersAsync(CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Returning empty user list.");
+        return Task.FromResult(new List<TraccarUser>());
+    }
+
+    public Task<TraccarUser?> CreateUserAsync(string name, string email, string password, bool administrator = false, CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping user creation.");
+        return Task.FromResult<TraccarUser?>(null);
+    }
+
+    public Task<TraccarUser?> UpdateUserAsync(int traccarUserId, string name, string email, string? password, bool administrator, bool disabled, CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping user update.");
+        return Task.FromResult<TraccarUser?>(null);
+    }
+
+    public Task<bool> DeleteUserAsync(int traccarUserId, CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping user deletion.");
+        return Task.FromResult(false);
+    }
 }

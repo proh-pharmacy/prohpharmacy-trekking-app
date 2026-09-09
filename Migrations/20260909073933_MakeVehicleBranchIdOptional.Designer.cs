@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -12,9 +13,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260909073933_MakeVehicleBranchIdOptional")]
+    partial class MakeVehicleBranchIdOptional
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -254,34 +257,35 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("CustomerPersons");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.FleetDriver", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.StaffDeviceAssignment", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<DateTime>("CreatedAt")
+                    b.Property<DateTime>("AssignedAt")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("DeviceId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
 
                     b.Property<Guid>("StaffMemberId")
                         .HasColumnType("uuid");
 
-                    b.Property<int?>("TraccarDriverId")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("TraccarUniqueId")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)");
-
-                    b.Property<DateTime?>("UpdatedAt")
+                    b.Property<DateTime?>("UnassignedAt")
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("StaffMemberId")
-                        .IsUnique();
+                    b.HasIndex("DeviceId", "UnassignedAt");
 
-                    b.ToTable("FleetDrivers");
+                    b.HasIndex("StaffMemberId", "UnassignedAt");
+
+                    b.ToTable("StaffDeviceAssignments");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", b =>
@@ -316,9 +320,6 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<Guid?>("StaffMemberId")
-                        .HasColumnType("uuid");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .HasMaxLength(20)
@@ -335,19 +336,10 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
-                    b.Property<Guid?>("VehicleId")
-                        .HasColumnType("uuid");
-
                     b.HasKey("Id");
-
-                    b.HasIndex("StaffMemberId");
 
                     b.HasIndex("TraccarUniqueId")
                         .IsUnique();
-
-                    b.HasIndex("VehicleId")
-                        .IsUnique()
-                        .HasFilter("\"VehicleId\" IS NOT NULL");
 
                     b.ToTable("TrackingDevices");
                 });
@@ -924,6 +916,9 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Property<long>("RowVersion")
                         .HasColumnType("bigint");
 
+                    b.Property<int?>("TraccarDriverId")
+                        .HasColumnType("integer");
+
                     b.Property<DateTime?>("UpdatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1187,32 +1182,23 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("CustomerAccount");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.FleetDriver", b =>
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.StaffDeviceAssignment", b =>
                 {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "StaffMember")
-                        .WithMany()
-                        .HasForeignKey("StaffMemberId")
-                        .OnDelete(DeleteBehavior.Cascade)
+                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", "Device")
+                        .WithMany("Assignments")
+                        .HasForeignKey("DeviceId")
+                        .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
 
-                    b.Navigation("StaffMember");
-                });
-
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", b =>
-                {
                     b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "StaffMember")
-                        .WithMany()
+                        .WithMany("DeviceAssignments")
                         .HasForeignKey("StaffMemberId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
-                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", "Vehicle")
-                        .WithMany()
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.SetNull);
+                    b.Navigation("Device");
 
                     b.Navigation("StaffMember");
-
-                    b.Navigation("Vehicle");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", b =>
@@ -1453,6 +1439,11 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("People");
                 });
 
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.TrackingDevice", b =>
+                {
+                    b.Navigation("Assignments");
+                });
+
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", b =>
                 {
                     b.Navigation("StaffAssignments");
@@ -1487,6 +1478,8 @@ namespace prohpharmacy_trekking_app.Migrations
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", b =>
                 {
                     b.Navigation("ApplicationUser");
+
+                    b.Navigation("DeviceAssignments");
 
                     b.Navigation("Invitations");
                 });

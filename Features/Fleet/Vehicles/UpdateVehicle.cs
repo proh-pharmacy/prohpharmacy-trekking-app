@@ -19,7 +19,7 @@ public static class UpdateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
-        public Guid BranchId { get; set; }
+        public Guid? BranchId { get; set; }
     }
 
     public class Validator : AbstractValidator<Command>
@@ -32,7 +32,6 @@ public static class UpdateVehicle
             RuleFor(x => x.Year).InclusiveBetween(1990, DateTime.UtcNow.Year + 1)
                 .WithMessage($"Year must be between 1990 and {DateTime.UtcNow.Year + 1}.");
             RuleFor(x => x.Colour).NotEmpty().MaximumLength(50);
-            RuleFor(x => x.BranchId).NotEmpty();
         }
     }
 
@@ -54,6 +53,7 @@ public static class UpdateVehicle
                 return Result.Failure<VehicleResponse>(Error.ValidationError(validation));
 
             var vehicle = await _db.Vehicles
+                .Include(v => v.Branch)
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
                     .ThenInclude(a => a.StaffMember)
                 .FirstOrDefaultAsync(v => v.Id == request.Id, cancellationToken);
@@ -61,19 +61,28 @@ public static class UpdateVehicle
             if (vehicle is null)
                 return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Vehicle not found."));
 
-            var branch = await _db.Branches.FindAsync([request.BranchId], cancellationToken);
-            if (branch is null)
-                return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Branch not found."));
-
-            if (!branch.IsActive)
-                return Result.Failure<VehicleResponse>(Error.BadRequest("Cannot assign vehicle to an inactive branch."));
+            string? branchName = vehicle.Branch?.Name;
+            if (request.BranchId.HasValue)
+            {
+                var branch = await _db.Branches.FindAsync([request.BranchId.Value], cancellationToken);
+                if (branch is null)
+                    return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Branch not found."));
+                if (!branch.IsActive)
+                    return Result.Failure<VehicleResponse>(Error.BadRequest("Cannot assign vehicle to an inactive branch."));
+                vehicle.BranchId = request.BranchId.Value;
+                branchName = branch.Name;
+            }
+            else
+            {
+                vehicle.BranchId = null;
+                branchName = null;
+            }
 
             vehicle.DisplayName = request.DisplayName.Trim();
             vehicle.Make = request.Make.Trim();
             vehicle.Model = request.Model.Trim();
             vehicle.Year = request.Year;
             vehicle.Colour = request.Colour.Trim();
-            vehicle.BranchId = request.BranchId;
             vehicle.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync(cancellationToken);
@@ -82,7 +91,7 @@ public static class UpdateVehicle
 
             return Result.Success(CreateVehicle.Handler.ToResponse(
                 vehicle,
-                branch.Name,
+                branchName,
                 activeStaff?.StaffMemberId,
                 activeStaff?.StaffMember?.FullName));
         }

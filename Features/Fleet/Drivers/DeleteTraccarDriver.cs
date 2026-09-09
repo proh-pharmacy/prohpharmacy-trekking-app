@@ -15,33 +15,26 @@ public static class DeleteTraccarDriver
         public Guid StaffMemberId { get; set; }
     }
 
-    internal sealed class Handler : IRequestHandler<Command, Result>
+    internal sealed class Handler(AppDbContext db, ITraccarService traccar, ILogger<Handler> logger)
+        : IRequestHandler<Command, Result>
     {
-        private readonly AppDbContext _db;
-        private readonly ITraccarService _traccar;
-
-        public Handler(AppDbContext db, ITraccarService traccar)
-        {
-            _db = db;
-            _traccar = traccar;
-        }
-
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
-            var staff = await _db.StaffMembers
-                .FirstOrDefaultAsync(s => s.Id == request.StaffMemberId, cancellationToken);
+            var driver = await db.FleetDrivers
+                .FirstOrDefaultAsync(d => d.StaffMemberId == request.StaffMemberId, cancellationToken);
 
-            if (staff is null)
-                return Result.Failure(Error.CreateNotFoundError("Staff member not found."));
+            if (driver is null)
+                return Result.Failure(Error.CreateNotFoundError("Fleet driver not found."));
 
-            if (staff.TraccarDriverId is null)
-                return Result.Failure(Error.CreateNotFoundError("Staff member has no Traccar driver registered."));
+            if (driver.TraccarDriverId.HasValue)
+            {
+                var deleted = await traccar.DeleteDriverAsync(driver.TraccarDriverId.Value, cancellationToken);
+                if (!deleted)
+                    logger.LogWarning("Failed to delete Traccar driver #{TraccarId} — removing locally anyway", driver.TraccarDriverId.Value);
+            }
 
-            await _traccar.DeleteDriverAsync(staff.TraccarDriverId.Value, cancellationToken);
-
-            staff.TraccarDriverId = null;
-            staff.UpdatedAt = DateTime.UtcNow;
-            await _db.SaveChangesAsync(cancellationToken);
+            db.FleetDrivers.Remove(driver);
+            await db.SaveChangesAsync(cancellationToken);
 
             return Result.Success();
         }
@@ -61,11 +54,10 @@ public class DeleteTraccarDriverEndpoint : ICarterModule
         })
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
-        .WithSummary("Remove a staff member's Traccar driver registration")
-        .WithDescription("Deletes the driver from Traccar and clears the Traccar driver ID from the staff member record.")
+        .WithSummary("Remove a fleet driver")
+        .WithDescription("Removes the driver from the local fleet list and deletes from Traccar if already synced.")
         .Produces(204)
         .Produces<Error>(404)
-        .Produces<Error>(422)
         .RequireAuthorization();
     }
 }

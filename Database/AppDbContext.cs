@@ -24,10 +24,9 @@ namespace prohpharmacy_trekking_app.Database
 
         // Fleet
         public DbSet<Vehicle> Vehicles => Set<Vehicle>();
-
         public DbSet<TrackingDevice> TrackingDevices => Set<TrackingDevice>();
         public DbSet<VehicleStaffAssignment> VehicleStaffAssignments => Set<VehicleStaffAssignment>();
-        public DbSet<StaffDeviceAssignment> StaffDeviceAssignments => Set<StaffDeviceAssignment>();
+        public DbSet<FleetDriver> FleetDrivers => Set<FleetDriver>();
 
         // Customers
         public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
@@ -128,23 +127,28 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(d => d.Status).HasConversion<string>().HasMaxLength(20).IsRequired();
                 entity.Property(d => d.LastLatitude).HasPrecision(9, 6);
                 entity.Property(d => d.LastLongitude).HasPrecision(9, 6);
+                entity.HasOne(d => d.Vehicle)
+                    .WithMany()
+                    .HasForeignKey(d => d.VehicleId)
+                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasOne(d => d.StaffMember)
+                    .WithMany()
+                    .HasForeignKey(d => d.StaffMemberId)
+                    .OnDelete(DeleteBehavior.SetNull);
                 entity.HasIndex(d => d.TraccarUniqueId).IsUnique();
+                entity.HasIndex(d => d.VehicleId).IsUnique()
+                    .HasFilter("\"VehicleId\" IS NOT NULL");
             });
 
-            modelBuilder.Entity<StaffDeviceAssignment>(entity =>
+            modelBuilder.Entity<FleetDriver>(entity =>
             {
-                entity.HasKey(a => a.Id);
-                entity.Property(a => a.Notes).HasMaxLength(500);
-                entity.HasOne(a => a.StaffMember)
-                    .WithMany(s => s.DeviceAssignments)
-                    .HasForeignKey(a => a.StaffMemberId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(a => a.Device)
-                    .WithMany(d => d.Assignments)
-                    .HasForeignKey(a => a.DeviceId)
-                    .OnDelete(DeleteBehavior.Restrict);
-                entity.HasIndex(a => new { a.DeviceId, a.UnassignedAt });
-                entity.HasIndex(a => new { a.StaffMemberId, a.UnassignedAt });
+                entity.HasKey(d => d.Id);
+                entity.Property(d => d.TraccarUniqueId).HasMaxLength(100);
+                entity.HasOne(d => d.StaffMember)
+                    .WithMany()
+                    .HasForeignKey(d => d.StaffMemberId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => d.StaffMemberId).IsUnique();
             });
 
             modelBuilder.Entity<VehicleStaffAssignment>(entity =>

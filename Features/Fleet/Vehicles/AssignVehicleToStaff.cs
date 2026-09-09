@@ -5,7 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
-using prohpharmacy_trekking_app.Features.Staff.Enums;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Fleet.Vehicles;
@@ -43,11 +43,13 @@ public static class AssignVehicleToStaff
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly ITraccarService _traccar;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
         {
             _db = db;
             _validator = validator;
+            _traccar = traccar;
         }
 
         public async Task<Result<AssignmentResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -77,10 +79,6 @@ public static class AssignVehicleToStaff
             if (staff is null)
                 return Result.Failure<AssignmentResponse>(Error.CreateNotFoundError("Staff member not found."));
 
-            if (staff.EmploymentStatus != EmploymentStatus.Active)
-                return Result.Failure<AssignmentResponse>(
-                    Error.BadRequest("Can only assign an Active staff member to a vehicle."));
-
             var assignment = new VehicleStaffAssignment
             {
                 VehicleId = vehicle.Id,
@@ -90,7 +88,29 @@ public static class AssignVehicleToStaff
             };
 
             _db.VehicleStaffAssignments.Add(assignment);
+
+            var device = await _db.TrackingDevices
+                .FirstOrDefaultAsync(d => d.VehicleId == vehicle.Id, cancellationToken);
+
+            if (device is not null)
+            {
+                device.StaffMemberId = staff.Id;
+                device.Name = $"{staff.FullName} - {vehicle.RegistrationNumber}";
+                device.UpdatedAt = DateTime.UtcNow;
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (device?.TraccarDeviceId is not null)
+            {
+                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
+
+                var fleetDriver = await _db.FleetDrivers
+                    .FirstOrDefaultAsync(d => d.StaffMemberId == staff.Id, cancellationToken);
+
+                if (fleetDriver?.TraccarDriverId is not null)
+                    _ = _traccar.LinkDriverToDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
+            }
 
             return Result.Success(new AssignmentResponse
             {
@@ -123,9 +143,9 @@ public class AssignVehicleToStaffEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Assign a staff member to a vehicle")
         .WithDescription(
-            "Links an Active staff member to an Active vehicle. " +
+            "Links a staff member to an Active vehicle. " +
             "A vehicle can only have one active staff assignment at a time. " +
-            "Unassign the current staff member first if one is already assigned.")
+            "If the vehicle has a registered tracking device, its name and Traccar driver link are updated automatically.")
         .Produces<AssignVehicleToStaff.AssignmentResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

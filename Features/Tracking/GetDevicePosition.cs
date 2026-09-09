@@ -49,8 +49,8 @@ public static class GetDevicePosition
         public async Task<Result<PositionResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var device = await _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
+                .Include(d => d.StaffMember)
+                .Include(d => d.Vehicle)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(d => d.Id == request.DeviceId, cancellationToken);
 
@@ -64,30 +64,14 @@ public static class GetDevicePosition
             if (position is null)
                 return Result.Failure<PositionResponse>(Error.CreateNotFoundError("No position data available for this device yet."));
 
-            var staff = device.Assignments.FirstOrDefault()?.StaffMember;
-
-            Guid? vehicleId = null;
-            string? vehicleRegistration = null;
-
-            if (staff is not null)
-            {
-                var vehicleAssignment = await _db.VehicleStaffAssignments
-                    .Include(a => a.Vehicle)
-                    .AsNoTracking()
-                    .FirstOrDefaultAsync(a => a.StaffMemberId == staff.Id && a.UnassignedAt == null, cancellationToken);
-
-                vehicleId = vehicleAssignment?.VehicleId;
-                vehicleRegistration = vehicleAssignment?.Vehicle?.RegistrationNumber;
-            }
-
             return Result.Success(new PositionResponse
             {
                 DeviceId = device.Id,
                 DeviceName = device.Name,
-                StaffMemberId = staff?.Id,
-                StaffName = staff?.FullName,
-                VehicleId = vehicleId,
-                VehicleRegistration = vehicleRegistration,
+                StaffMemberId = device.StaffMemberId,
+                StaffName = device.StaffMember?.FullName,
+                VehicleId = device.VehicleId,
+                VehicleRegistration = device.Vehicle?.RegistrationNumber,
                 Latitude = position.Latitude,
                 Longitude = position.Longitude,
                 Speed = position.Speed,

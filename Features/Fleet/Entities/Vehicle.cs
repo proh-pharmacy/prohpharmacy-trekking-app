@@ -12,11 +12,11 @@ public class Vehicle
     public string Model { get; set; } = string.Empty;
     public int Year { get; set; }
     public string Colour { get; set; } = string.Empty;
-    public Guid BranchId { get; set; }
+    public Guid? BranchId { get; set; }
     public VehicleOperationalStatus OperationalStatus { get; set; } = VehicleOperationalStatus.Active;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    public Branch Branch { get; set; } = null!;
+    public Branch? Branch { get; set; }
     public ICollection<VehicleStaffAssignment> StaffAssignments { get; set; } = [];
 }

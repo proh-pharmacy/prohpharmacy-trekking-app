@@ -53,6 +53,17 @@ public class TraccarDriver
     public Dictionary<string, string> Attributes { get; set; } = [];
 }
 
+public class TraccarUser
+{
+    public int Id { get; set; }
+    public string Name { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public bool Administrator { get; set; }
+    public bool Disabled { get; set; }
+    public int DeviceLimit { get; set; }
+    public DateTime? ExpirationTime { get; set; }
+}
+
 public class TraccarWebhookPayload
 {
     [JsonPropertyName("event")]

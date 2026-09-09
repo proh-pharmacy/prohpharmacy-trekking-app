@@ -29,28 +29,18 @@ public static class UpdateTrackingDevice
         }
     }
 
-    internal sealed class Handler : IRequestHandler<Command, Result<DeviceResponse>>
+    internal sealed class Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
+        : IRequestHandler<Command, Result<DeviceResponse>>
     {
-        private readonly AppDbContext _db;
-        private readonly IValidator<Command> _validator;
-        private readonly ITraccarService _traccar;
-
-        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
-        {
-            _db = db;
-            _validator = validator;
-            _traccar = traccar;
-        }
-
         public async Task<Result<DeviceResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
-            var validation = await _validator.ValidateAsync(request, cancellationToken);
+            var validation = await validator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
                 return Result.Failure<DeviceResponse>(Error.ValidationError(validation));
 
-            var device = await _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
+            var device = await db.TrackingDevices
+                .Include(d => d.Vehicle)
+                .Include(d => d.StaffMember)
                 .FirstOrDefaultAsync(d => d.Id == request.Id, cancellationToken);
 
             if (device is null)
@@ -61,17 +51,15 @@ public static class UpdateTrackingDevice
             device.TraccarDeviceId = request.TraccarDeviceId;
             device.UpdatedAt = DateTime.UtcNow;
 
-            await _db.SaveChangesAsync(cancellationToken);
+            await db.SaveChangesAsync(cancellationToken);
 
             if (device.TraccarDeviceId is not null)
-                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
-
-            var active = device.Assignments.FirstOrDefault();
+                _ = traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
 
             return Result.Success(CreateTrackingDevice.Handler.ToResponse(
                 device,
-                active?.StaffMemberId,
-                active?.StaffMember?.FullName));
+                device.Vehicle?.RegistrationNumber,
+                device.StaffMember?.FullName));
         }
     }
 }

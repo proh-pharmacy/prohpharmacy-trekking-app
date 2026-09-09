@@ -31,16 +31,10 @@ public static class DeleteTrackingDevice
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
             var device = await _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
                 .FirstOrDefaultAsync(d => d.Id == request.Id, cancellationToken);
 
             if (device is null)
                 return Result.Failure(Error.CreateNotFoundError("Tracking device not found."));
-
-            if (device.Assignments.Any())
-                return Result.Failure(Error.BadRequest(
-                    $"Device is currently assigned to '{device.Assignments.First().StaffMember?.FullName}'. Unassign it before deleting."));
 
             if (device.TraccarDeviceId is not null)
             {
@@ -75,9 +69,7 @@ public class DeleteTrackingDeviceEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Delete a tracking device")
-        .WithDescription(
-            "Removes the device from Traccar and deletes it from the local database. " +
-            "The device must be unassigned before it can be deleted.")
+        .WithDescription("Removes the device from Traccar and deletes it from the local database.")
         .Produces(204)
         .Produces<Error>(404)
         .Produces<Error>(422)

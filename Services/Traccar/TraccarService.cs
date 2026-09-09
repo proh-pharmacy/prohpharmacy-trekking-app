@@ -219,4 +219,63 @@ public class TraccarService(HttpClient http, ILogger<TraccarService> logger) : I
             return false;
         }
     }
+
+    public async Task<List<TraccarUser>> GetAllUsersAsync(CancellationToken ct = default)
+    {
+        try
+        {
+            return await http.GetFromJsonAsync<List<TraccarUser>>("api/users", ct) ?? [];
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Traccar: failed to fetch users");
+            return [];
+        }
+    }
+
+    public async Task<TraccarUser?> CreateUserAsync(string name, string email, string password, bool administrator = false, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await http.PostAsJsonAsync("api/users",
+                new { name, email, password, administrator }, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            return await response.Content.ReadFromJsonAsync<TraccarUser>(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Traccar: failed to create user '{Email}'", email);
+            return null;
+        }
+    }
+
+    public async Task<TraccarUser?> UpdateUserAsync(int traccarUserId, string name, string email, string? password, bool administrator, bool disabled, CancellationToken ct = default)
+    {
+        try
+        {
+            var body = new { id = traccarUserId, name, email, password, administrator, disabled };
+            var response = await http.PutAsJsonAsync($"api/users/{traccarUserId}", body, ct);
+            if (!response.IsSuccessStatusCode) return null;
+            return await response.Content.ReadFromJsonAsync<TraccarUser>(cancellationToken: ct);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Traccar: failed to update user #{UserId}", traccarUserId);
+            return null;
+        }
+    }
+
+    public async Task<bool> DeleteUserAsync(int traccarUserId, CancellationToken ct = default)
+    {
+        try
+        {
+            var response = await http.DeleteAsync($"api/users/{traccarUserId}", ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Traccar: failed to delete user #{UserId}", traccarUserId);
+            return false;
+        }
+    }
 }

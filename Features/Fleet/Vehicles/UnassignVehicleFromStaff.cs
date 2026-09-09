@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Fleet.Vehicles;
@@ -17,8 +18,13 @@ public static class UnassignVehicleFromStaff
     internal sealed class Handler : IRequestHandler<Command, Result>
     {
         private readonly AppDbContext _db;
+        private readonly ITraccarService _traccar;
 
-        public Handler(AppDbContext db) => _db = db;
+        public Handler(AppDbContext db, ITraccarService traccar)
+        {
+            _db = db;
+            _traccar = traccar;
+        }
 
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
@@ -33,8 +39,31 @@ public static class UnassignVehicleFromStaff
             if (active is null)
                 return Result.Failure(Error.BadRequest("Vehicle has no active staff assignment."));
 
+            var previousStaffId = active.StaffMemberId;
             active.UnassignedAt = DateTime.UtcNow;
+
+            var device = await _db.TrackingDevices
+                .FirstOrDefaultAsync(d => d.VehicleId == vehicle.Id, cancellationToken);
+
+            if (device is not null)
+            {
+                device.StaffMemberId = null;
+                device.Name = vehicle.RegistrationNumber;
+                device.UpdatedAt = DateTime.UtcNow;
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (device?.TraccarDeviceId is not null)
+            {
+                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
+
+                var fleetDriver = await _db.FleetDrivers
+                    .FirstOrDefaultAsync(d => d.StaffMemberId == previousStaffId, cancellationToken);
+
+                if (fleetDriver?.TraccarDriverId is not null)
+                    _ = _traccar.UnlinkDriverFromDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
+            }
 
             return Result.Success();
         }
@@ -56,6 +85,9 @@ public class UnassignVehicleFromStaffEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Unassign the current staff member from a vehicle")
+        .WithDescription(
+            "Ends the active vehicle assignment. " +
+            "If the vehicle has a registered tracking device, its name reverts to the registration number and the Traccar driver link is removed.")
         .Produces(204)
         .Produces<Error>(404)
         .Produces<Error>(422)

@@ -37,9 +37,9 @@ public static class HandleTraccarWebhook
             var traccarDeviceId = position.DeviceId;
 
             var device = await _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
-                        .ThenInclude(s => s.Branch)
+                .Include(d => d.StaffMember)
+                    .ThenInclude(s => s!.Branch)
+                .Include(d => d.Vehicle)
                 .FirstOrDefaultAsync(d => d.TraccarDeviceId == traccarDeviceId, cancellationToken);
 
             if (device is null)
@@ -52,30 +52,16 @@ public static class HandleTraccarWebhook
                 device.LastAddress = position.Address;
             await _db.SaveChangesAsync(cancellationToken);
 
-            var staffAssignment = device.Assignments.FirstOrDefault();
-            var staff = staffAssignment?.StaffMember;
-
-            Guid? vehicleId = null;
-            string? vehicleRegistration = null;
-
-            if (staff is not null)
-            {
-                var vehicleAssignment = await _db.VehicleStaffAssignments
-                    .Include(a => a.Vehicle)
-                    .FirstOrDefaultAsync(a => a.StaffMemberId == staff.Id && a.UnassignedAt == null, cancellationToken);
-
-                vehicleId = vehicleAssignment?.VehicleId;
-                vehicleRegistration = vehicleAssignment?.Vehicle?.RegistrationNumber;
-            }
+            var staff = device.StaffMember;
 
             var broadcast = new PositionBroadcast
             {
                 DeviceId = device.Id,
                 TraccarDeviceId = traccarDeviceId,
-                StaffMemberId = staff?.Id,
+                StaffMemberId = device.StaffMemberId,
                 StaffName = staff?.FullName,
-                VehicleId = vehicleId,
-                VehicleRegistration = vehicleRegistration,
+                VehicleId = device.VehicleId,
+                VehicleRegistration = device.Vehicle?.RegistrationNumber,
                 BranchId = staff?.BranchId,
                 BranchName = staff?.Branch?.Name,
                 Latitude = position.Latitude,

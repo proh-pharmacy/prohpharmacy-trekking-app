@@ -22,17 +22,13 @@ public static class GetTrackingDeviceList
         public int? PageSize { get; set; }
     }
 
-    internal sealed class Handler : IRequestHandler<Query, Result<object>>
+    internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<object>>
     {
-        private readonly AppDbContext _db;
-
-        public Handler(AppDbContext db) => _db = db;
-
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var query = _db.TrackingDevices
-                .Include(d => d.Assignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.StaffMember)
+            var query = db.TrackingDevices
+                .Include(d => d.Vehicle)
+                .Include(d => d.StaffMember)
                 .AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(request.Status))
@@ -45,14 +41,10 @@ public static class GetTrackingDeviceList
                     nameof(TrackingDevice.PhoneNumber))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(d =>
-                {
-                    var active = d.Assignments.FirstOrDefault();
-                    return (object)CreateTrackingDevice.Handler.ToResponse(
-                        d,
-                        active?.StaffMemberId,
-                        active?.StaffMember?.FullName);
-                });
+                .BuildAsync(d => (object)CreateTrackingDevice.Handler.ToResponse(
+                    d,
+                    d.Vehicle?.RegistrationNumber,
+                    d.StaffMember?.FullName));
 
             return Result.Success(result);
         }

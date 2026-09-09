@@ -1,4 +1,3 @@
-using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Enums;
@@ -18,7 +17,6 @@ public class StaffMember
     public EmploymentStatus EmploymentStatus { get; set; } = EmploymentStatus.Pending;
     public DateOnly JoinedOn { get; set; }
     public string? ProfilePhotoObjectKey { get; set; }
-    public int? TraccarDriverId { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public Guid? CreatedBy { get; set; }
     public DateTime? UpdatedAt { get; set; }
@@ -27,7 +25,6 @@ public class StaffMember
     public Branch Branch { get; set; } = null!;
     public ApplicationUser? ApplicationUser { get; set; }
     public ICollection<StaffInvitation> Invitations { get; set; } = [];
-    public ICollection<StaffDeviceAssignment> DeviceAssignments { get; set; } = [];
 
     public string FullName => $"{FirstName} {LastName}";
 }

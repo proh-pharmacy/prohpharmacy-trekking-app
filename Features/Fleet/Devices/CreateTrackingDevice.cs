@@ -6,7 +6,6 @@ using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Fleet.Enums;
-using prohpharmacy_trekking_app.Features.Staff.Enums;
 using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 
@@ -16,7 +15,7 @@ public static class CreateTrackingDevice
 {
     public class Command : IRequest<Result<DeviceResponse>>
     {
-        public Guid StaffMemberId { get; set; }
+        public Guid VehicleId { get; set; }
         public string? UniqueId { get; set; }
         public string? PhoneNumber { get; set; }
     }
@@ -29,12 +28,14 @@ public static class CreateTrackingDevice
         public string Name { get; set; } = string.Empty;
         public string? PhoneNumber { get; set; }
         public string Status { get; set; } = string.Empty;
+        public Guid? VehicleId { get; set; }
+        public string? VehicleRegistration { get; set; }
+        public Guid? StaffMemberId { get; set; }
+        public string? StaffName { get; set; }
         public DateTime? LastReportedAt { get; set; }
         public decimal? LastLatitude { get; set; }
         public decimal? LastLongitude { get; set; }
         public string? LastAddress { get; set; }
-        public Guid? CurrentStaffId { get; set; }
-        public string? CurrentStaffName { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
     }
@@ -43,7 +44,7 @@ public static class CreateTrackingDevice
     {
         public Validator()
         {
-            RuleFor(x => x.StaffMemberId).NotEmpty();
+            RuleFor(x => x.VehicleId).NotEmpty();
             RuleFor(x => x.UniqueId).MaximumLength(50).When(x => x.UniqueId is not null);
             RuleFor(x => x.PhoneNumber).MaximumLength(30).When(x => x.PhoneNumber is not null);
         }
@@ -70,27 +71,35 @@ public static class CreateTrackingDevice
             if (!validation.IsValid)
                 return Result.Failure<DeviceResponse>(Error.ValidationError(validation));
 
-            var staff = await _db.StaffMembers
-                .Include(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
-                .FirstOrDefaultAsync(s => s.Id == request.StaffMemberId, cancellationToken);
+            var vehicle = await _db.Vehicles
+                .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.StaffMember)
+                .FirstOrDefaultAsync(v => v.Id == request.VehicleId, cancellationToken);
 
-            if (staff is null)
-                return Result.Failure<DeviceResponse>(Error.CreateNotFoundError("Staff member not found."));
+            if (vehicle is null)
+                return Result.Failure<DeviceResponse>(Error.CreateNotFoundError("Vehicle not found."));
 
-            if (staff.EmploymentStatus != EmploymentStatus.Active)
-                return Result.Failure<DeviceResponse>(
-                    Error.BadRequest("Can only register a device for an Active staff member."));
+            var alreadyHasDevice = await _db.TrackingDevices
+                .AnyAsync(d => d.VehicleId == request.VehicleId, cancellationToken);
 
-            if (staff.DeviceAssignments.Any())
-                return Result.Failure<DeviceResponse>(
-                    Error.Conflict("Staff member already has a device assigned. Unassign it first."));
+            if (alreadyHasDevice)
+                return Result.Failure<DeviceResponse>(Error.Conflict("This vehicle already has a tracking device registered."));
+
+            var activeAssignment = vehicle.StaffAssignments.FirstOrDefault();
+            var staff = activeAssignment?.StaffMember;
+
+            var deviceName = staff is not null
+                ? $"{staff.FullName} - {vehicle.RegistrationNumber}"
+                : vehicle.RegistrationNumber;
 
             var device = new TrackingDevice
             {
                 TraccarUniqueId = request.UniqueId?.Trim() ?? Guid.NewGuid().ToString("N"),
-                Name = staff.FullName,
+                Name = deviceName,
                 PhoneNumber = request.PhoneNumber?.Trim(),
                 Status = TrackingDeviceStatus.Active,
+                VehicleId = vehicle.Id,
+                StaffMemberId = staff?.Id,
                 CreatedAt = DateTime.UtcNow
             };
 
@@ -108,21 +117,12 @@ public static class CreateTrackingDevice
             }
 
             _db.TrackingDevices.Add(device);
-
-            _db.StaffDeviceAssignments.Add(new StaffDeviceAssignment
-            {
-                StaffMemberId = staff.Id,
-                DeviceId = device.Id,
-                AssignedAt = DateTime.UtcNow
-            });
-
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(ToResponse(device, staff.Id, staff.FullName));
+            return Result.Success(ToResponse(device, vehicle.RegistrationNumber, staff?.FullName));
         }
 
-        internal static DeviceResponse ToResponse(
-            TrackingDevice d, Guid? currentStaffId, string? currentStaffName) => new()
+        internal static DeviceResponse ToResponse(TrackingDevice d, string? vehicleRegistration, string? staffName) => new()
         {
             Id = d.Id,
             TraccarDeviceId = d.TraccarDeviceId,
@@ -130,12 +130,14 @@ public static class CreateTrackingDevice
             Name = d.Name,
             PhoneNumber = d.PhoneNumber,
             Status = d.Status.ToString(),
+            VehicleId = d.VehicleId,
+            VehicleRegistration = vehicleRegistration ?? d.Vehicle?.RegistrationNumber,
+            StaffMemberId = d.StaffMemberId,
+            StaffName = staffName ?? d.StaffMember?.FullName,
             LastReportedAt = d.LastReportedAt,
             LastLatitude = d.LastLatitude,
             LastLongitude = d.LastLongitude,
             LastAddress = d.LastAddress,
-            CurrentStaffId = currentStaffId,
-            CurrentStaffName = currentStaffName,
             CreatedAt = d.CreatedAt,
             UpdatedAt = d.UpdatedAt
         };
@@ -155,11 +157,12 @@ public class CreateTrackingDeviceEndpoint : ICarterModule
         })
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
-        .WithSummary("Register a tracking device for a staff member")
+        .WithSummary("Register a tracking device for a vehicle")
         .WithDescription(
-            "Registers a GPS tracking device and immediately assigns it to the given staff member. " +
-            "**Smartphone:** omit `uniqueId` — a UUID is auto-generated and returned as `traccarUniqueId`. The staff member pastes this into the Device Identifier field in the Traccar Client app. " +
-            "**Hardware GPS tracker:** supply the device IMEI as `uniqueId` and configure the tracker to send to `tracking.prohpharmacy.com` on the correct protocol port.")
+            "Registers a GPS tracking device for a vehicle and immediately syncs to Traccar. " +
+            "Device name is auto-set to '{StaffName} - {RegistrationNumber}' if the vehicle has a driver assigned, otherwise just the registration number. " +
+            "**Smartphone:** omit `uniqueId` — a UUID is auto-generated. " +
+            "**Hardware GPS tracker:** supply the IMEI as `uniqueId`.")
         .Produces<CreateTrackingDevice.DeviceResponse>(201)
         .Produces<Error>(422)
         .RequireAuthorization();

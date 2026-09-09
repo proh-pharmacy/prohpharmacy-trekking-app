@@ -34,8 +34,6 @@ public static class GetStaffList
             var query = _db.StaffMembers
                 .Include(s => s.Branch)
                 .Include(s => s.ApplicationUser)
-                .Include(s => s.DeviceAssignments.Where(a => a.UnassignedAt == null))
-                    .ThenInclude(a => a.Device)
                 .AsNoTracking();
 
             if (request.BranchId.HasValue)
@@ -50,6 +48,11 @@ public static class GetStaffList
                     ? query.Where(s => s.ApplicationUser != null)
                     : query.Where(s => s.ApplicationUser == null);
 
+            var devicesByStaff = await _db.TrackingDevices
+                .Where(d => d.StaffMemberId != null)
+                .AsNoTracking()
+                .ToDictionaryAsync(d => d.StaffMemberId!.Value, cancellationToken);
+
             var result = await new QueryBuilder<Entities.StaffMember>(query)
                 .WithSearch(request.Search, nameof(Entities.StaffMember.FirstName),
                     nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress),
@@ -58,11 +61,11 @@ public static class GetStaffList
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(s =>
                 {
-                    var activeDevice = s.DeviceAssignments.FirstOrDefault();
+                    devicesByStaff.TryGetValue(s.Id, out var device);
                     return (object)CreateStaff.Handler.ToResponse(s, s.Branch?.Name ?? string.Empty,
                         s.ApplicationUser is not null,
-                        currentDeviceId: activeDevice?.DeviceId,
-                        currentDeviceName: activeDevice?.Device?.Name);
+                        currentDeviceId: device?.Id,
+                        currentDeviceName: device?.Name);
                 });
 
             return Result.Success(result);

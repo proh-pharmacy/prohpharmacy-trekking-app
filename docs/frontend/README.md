@@ -16,8 +16,5 @@ Step-by-step guides for implementing each area of the Proh Pharmacy Trekking fro
 | 07 | [Organisation](./07-organisation.md) | Regions, districts, branches |
 | 08 | [Products](./08-products.md) | Product catalogue — create, list, update, toggle status |
 | 09 | [Customers](./09-customers.md) | Customer registration, locations, representative portrait |
-
-## Coming Next
-
-- `10-fleet.md` — Vehicles, GPS devices, driver assignments
-- `11-trekking.md` — Trek scheduling, driver link, delivery recording, PDF sheet
+| 10 | [Fleet](./10-fleet.md) | Vehicles, GPS devices, Traccar drivers and sync |
+| 11 | [Trekking](./11-trekking.md) | Trek scheduling, stops, driver link, delivery recording, PDF sheet |
