@@ -17,8 +17,61 @@ When a trek is `Cancelled`, all auto-generated entries tied to that trek are rem
 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
-| `GET` | `api/v1/customers/{customerId}/ledger` | Required | Get ledger with running totals |
+| `GET` | `api/v1/ledger/summary` | Required | All customers with balances (debtors list) |
+| `GET` | `api/v1/customers/{customerId}/ledger` | Required | Get a single customer's ledger with running totals |
 | `POST` | `api/v1/customers/{customerId}/ledger` | Required | Manually add a debit or credit entry |
+
+---
+
+## GET /api/v1/ledger/summary
+
+Returns a paginated list of all customers with their pre-calculated debit, credit, and outstanding balance totals. Use this to build a debtors page — filter to customers who owe money, sort by balance, and drill into any individual customer's ledger from there.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `hasBalance` | `bool?` | `true` = only customers with a positive outstanding balance |
+| `search` | `string?` | Search by business name or customer code |
+| `sort` | `string?` | `balance_desc` (default), `balance_asc`, `name_asc`, `name_desc` |
+| `branchId` | `guid?` | Filter by owning branch |
+| `regionId` | `guid?` | Filter by region |
+| `pageNumber` | `int?` | Defaults to `1` |
+| `pageSize` | `int?` | Defaults to `20`, max `100` |
+
+### Response `200 OK`
+
+```json
+{
+  "totalOutstanding": 4250.00,
+  "customersWithBalance": 12,
+  "page": 1,
+  "pageSize": 20,
+  "totalCount": 12,
+  "totalPages": 1,
+  "customers": [
+    {
+      "customerId": "...",
+      "customerCode": "GAR-00001",
+      "businessName": "Tema Central Pharmacy",
+      "primaryPhoneNumber": "+233244123456",
+      "regionName": "Greater Accra",
+      "branchName": "Tema Branch",
+      "totalDebits": 850.00,
+      "totalCredits": 600.00,
+      "currentBalance": 250.00
+    }
+  ]
+}
+```
+
+### Field notes
+
+| Field | Notes |
+|---|---|
+| `totalOutstanding` | Sum of `currentBalance` across **all** customers with a positive balance — not affected by pagination or `hasBalance` filter, but does respect `branchId`, `regionId`, and `search`. |
+| `customersWithBalance` | Count of customers with a positive balance — same scope as `totalOutstanding`. |
+| `currentBalance` | `totalDebits − totalCredits`. Positive = customer owes money. Zero or negative = no outstanding debt. |
 
 ---
 

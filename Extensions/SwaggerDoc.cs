@@ -21,6 +21,7 @@ namespace prohpharmacy_trekking_app.Extensions
             public const string Tracking = "Tracking";
             public const string Trekking = "Trekking";
             public const string Customers = "Customers";
+            public const string Ledger = "Ledger";
             public const string Visits = "Visits";
             public const string Reports = "Reports";
         }
