@@ -5,6 +5,7 @@
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `api/v1/customers` | List customers (paginated, filterable) |
+| `GET` | `api/v1/customers/map-pins` | All customer locations for a map (unpaginated) |
 | `GET` | `api/v1/customers/{id}` | Get a single customer |
 | `POST` | `api/v1/customers` | Register a new customer |
 | `PATCH` | `api/v1/customers/{id}` | Update customer business details |
@@ -28,6 +29,95 @@
 `BusinessPremises` `DeliveryLocation` `Residential` `Other`
 
 > Always send enum values as strings, not integers.
+
+---
+
+## GET /api/v1/customers/map-pins
+
+Returns a flat, unpaginated array of every customer that has a primary GPS location recorded. Use this to seed a customer overview map — do not use the paginated list endpoint for this.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `branchId` | `guid` | Scope to customers belonging to a specific branch |
+| `regionId` | `guid` | Scope to customers in a specific region |
+
+### Response `200 OK`
+
+```json
+[
+  {
+    "customerAccountId": "...",
+    "customerCode": "GAR-00001",
+    "businessName": "Accra Pharmacy Ltd",
+    "tradingName": "Accra Pharma",
+    "customerType": "RetailPharmacy",
+    "registrationStatus": "Active",
+    "primaryPhoneNumber": "+233201234567",
+    "latitude": 5.6032,
+    "longitude": -0.1869,
+    "accuracyMetres": 12.5,
+    "streetAddress": "12 Liberation Road, Accra",
+    "landmarkAndDirections": "Next to Accra Mall, ground floor",
+    "branchId": "...",
+    "branchName": "Tema Branch",
+    "regionId": "...",
+    "regionName": "Greater Accra Region",
+    "primaryContactName": "Ama Boateng",
+    "primaryContactPhone": "+233209876543"
+  }
+]
+```
+
+### Leaflet example
+
+```js
+const res = await fetch('/api/v1/customers/map-pins', {
+    headers: { Authorization: `Bearer ${token}` }
+})
+const pins = await res.json()
+
+pins.forEach(p => {
+    L.marker([p.latitude, p.longitude])
+        .addTo(map)
+        .bindPopup(`
+            <strong>${p.businessName}</strong><br>
+            <small>${p.customerCode} · ${p.customerType}</small><br>
+            ${p.primaryContactName ?? ''}<br>
+            ${p.streetAddress ?? p.landmarkAndDirections ?? ''}
+        `)
+})
+```
+
+### Marker colour by customer type
+
+```js
+const typeColours = {
+    RetailPharmacy:         '#00bf6f',
+    WholesalePharmacy:      '#0284c7',
+    OTCMedicineSeller:      '#f59e0b',
+    Clinic:                 '#8b5cf6',
+    Hospital:               '#dc2626',
+    ChemicalShop:           '#64748b',
+    LicensedHealthFacility: '#0891b2',
+    Other:                  '#94a3b8'
+}
+
+function getCustomerIcon(customerType) {
+    const colour = typeColours[customerType] ?? '#94a3b8'
+    return L.divIcon({
+        className: '',
+        html: `<div style="
+            width:12px; height:12px; border-radius:50%;
+            background:${colour}; border:2px solid #fff;
+            box-shadow:0 1px 3px rgba(0,0,0,.4)">
+        </div>`,
+        iconSize: [12, 12],
+        iconAnchor: [6, 6]
+    })
+}
+```
 
 ---
 
