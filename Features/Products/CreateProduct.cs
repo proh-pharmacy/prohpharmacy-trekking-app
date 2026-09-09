@@ -33,7 +33,7 @@ public static class CreateProduct
         public Validator()
         {
             RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-            RuleFor(x => x.Unit).MaximumLength(50).When(x => x.Unit is not null);
+            RuleFor(x => x.Unit).MaximumLength(80).When(x => x.Unit is not null);
             RuleFor(x => x.Description).MaximumLength(500).When(x => x.Description is not null);
         }
     }
