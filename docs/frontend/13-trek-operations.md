@@ -50,13 +50,13 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 
 ## Picking a vehicle for a new trek
 
-Before creating a trek, fetch the vehicle list to let the admin pick one. The vehicle response already includes the assigned driver — use `currentStaffId` and `currentStaffName` to show who is driving and to confirm the vehicle is ready.
+Before creating a trek, fetch the full vehicle list to let the admin pick one. Vehicle branch assignment is optional, so do not filter by branch — show all vehicles.
 
 ```
-GET /api/v1/fleet/vehicles?branchId={branchId}
+GET /api/v1/fleet/vehicles
 ```
 
-Only vehicles where `currentStaffId` is not `null` are eligible for trek creation. Grey out or hide unassigned vehicles in the picker.
+The vehicle response already includes the assigned driver via `currentStaffId` and `currentStaffName`. Only vehicles where `currentStaffId` is not `null` are eligible for trek creation — grey out or hide unassigned vehicles in the picker. The backend enforces this too and will return `422` if you try to create a trek with an unassigned vehicle.
 
 ```json
 {
