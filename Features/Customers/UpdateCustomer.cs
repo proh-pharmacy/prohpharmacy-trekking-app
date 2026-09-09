@@ -151,8 +151,10 @@ public static class UpdateCustomer
                         location.DistrictId = request.Location.DistrictId;
                         location.RegionId = request.RegionId;
                     }
-                    location.StreetAddress = request.Location.StreetAddress?.Trim();
-                    location.LandmarkAndDirections = request.Location.LandmarkAndDirections?.Trim();
+                    if (request.Location.StreetAddress is not null)
+                        location.StreetAddress = request.Location.StreetAddress.Trim();
+                    if (request.Location.LandmarkAndDirections is not null)
+                        location.LandmarkAndDirections = request.Location.LandmarkAndDirections.Trim();
                     if (request.Location.Latitude.HasValue) location.Latitude = request.Location.Latitude;
                     if (request.Location.Longitude.HasValue) location.Longitude = request.Location.Longitude;
                     if (request.Location.AccuracyMetres.HasValue) location.AccuracyMetres = request.Location.AccuracyMetres;

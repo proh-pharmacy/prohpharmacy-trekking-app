@@ -210,7 +210,7 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasKey(l => l.Id);
                 entity.Property(l => l.LocationType).HasConversion<string>().HasMaxLength(30).IsRequired();
                 entity.Property(l => l.StreetAddress).HasMaxLength(300);
-                entity.Property(l => l.LandmarkAndDirections).HasMaxLength(500).IsRequired();
+                entity.Property(l => l.LandmarkAndDirections).HasMaxLength(500);
                 entity.Property(l => l.Latitude).HasPrecision(9, 6);
                 entity.Property(l => l.Longitude).HasPrecision(9, 6);
                 entity.Property(l => l.AccuracyMetres).HasPrecision(8, 2);
