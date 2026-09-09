@@ -380,6 +380,23 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
 
 ---
 
+## GET /api/v1/treks/driver/{token}/sheet/pdf
+
+Anonymous endpoint. Downloads the delivery sheet as a PDF using the driver token.
+
+Returns a `application/pdf` file attachment named `TrekkingSheet-{trekNumber}-{scheduledDate}.pdf`. The PDF reflects live data — if the driver has already recorded deliveries, those quantities, payment method, and balance will appear in the sheet.
+
+**Usage:** render a download button on the driver portal that opens or downloads this URL directly. No `Authorization` header needed.
+
+```
+GET /api/v1/treks/driver/3fa85f64-5717-4562-b3fc-2c963f66afa6/sheet/pdf
+```
+
+### Errors
+- `404` — token not found or invalid
+
+---
+
 ## POST /api/v1/treks/driver/{token}/record
 
 Anonymous delivery recording via driver link. Identical request/response shape to the admin record endpoint.
