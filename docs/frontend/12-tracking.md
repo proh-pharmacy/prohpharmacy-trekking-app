@@ -150,6 +150,8 @@ const connection = new signalR.HubConnectionBuilder()
 await connection.start()
 ```
 
+> **On connect**, the hub immediately pushes the last known position for every device that has reported in at least once — same `PositionUpdated` event as live updates. The frontend only needs one pipeline: connect, listen, done. No separate REST call needed to seed the map.
+
 ### Branch filtering (optional)
 
 To receive updates only for devices belonging to a specific branch, join the branch group after connecting. You can join multiple branches.
@@ -236,30 +238,15 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
 
 const markers = {}  // keyed by deviceId
 
-// 2. Seed map with last known positions
+// 2. Connect SignalR — hub pushes last known positions immediately on connect,
+//    then continues streaming live updates. No separate REST call needed.
 const token = localStorage.getItem('token')
-const res = await fetch('/api/v1/fleet/positions', {
-    headers: { Authorization: `Bearer ${token}` }
-})
-const positions = await res.json()
 
-for (const p of positions) {
-    markers[p.deviceId] = L.marker([p.latitude, p.longitude])
-        .addTo(map)
-        .bindPopup(`
-            <strong>${p.staffName ?? 'Unassigned'}</strong><br>
-            ${p.vehicleRegistration}<br>
-            <small>${p.lastAddress ?? ''}</small>
-        `)
-}
-
-// 3. Connect SignalR
 const connection = new signalR.HubConnectionBuilder()
     .withUrl('/hubs/tracking', { accessTokenFactory: () => token })
     .withAutomaticReconnect()
     .build()
 
-// 4. Handle live updates
 connection.on('PositionUpdated', (p) => {
     if (!p.valid) return  // skip bad GPS fixes
 
@@ -275,14 +262,14 @@ connection.on('PositionUpdated', (p) => {
                 <small>${p.address ?? ''}</small>
             `)
     } else {
-        // First position report for this device
+        // New device appearing for the first time
         markers[p.deviceId] = L.marker([p.latitude, p.longitude])
             .addTo(map)
             .bindPopup(`<strong>${p.staffName ?? 'Unassigned'}</strong>`)
     }
 })
 
-await connection.start()
+await connection.start()  // triggers immediate push of all stored positions
 ```
 
 ### Marker colour by status

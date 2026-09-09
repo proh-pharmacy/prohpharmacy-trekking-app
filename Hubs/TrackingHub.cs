@@ -1,9 +1,50 @@
 using Microsoft.AspNetCore.SignalR;
+using Microsoft.EntityFrameworkCore;
+using prohpharmacy_trekking_app.Database;
 
 namespace prohpharmacy_trekking_app.Hubs;
 
 public class TrackingHub : Hub
 {
+    private readonly AppDbContext _db;
+
+    public TrackingHub(AppDbContext db) => _db = db;
+
+    public override async Task OnConnectedAsync()
+    {
+        var devices = await _db.TrackingDevices
+            .Include(d => d.StaffMember)
+                .ThenInclude(s => s!.Branch)
+            .Include(d => d.Vehicle)
+            .Where(d => d.LastLatitude != null && d.LastLongitude != null && d.LastReportedAt != null)
+            .AsNoTracking()
+            .ToListAsync();
+
+        foreach (var device in devices)
+        {
+            await Clients.Caller.SendAsync("PositionUpdated", new PositionBroadcast
+            {
+                DeviceId = device.Id,
+                TraccarDeviceId = device.TraccarDeviceId ?? 0,
+                StaffMemberId = device.StaffMemberId,
+                StaffName = device.StaffMember?.FullName,
+                VehicleId = device.VehicleId,
+                VehicleRegistration = device.Vehicle?.RegistrationNumber,
+                BranchId = device.StaffMember?.BranchId,
+                BranchName = device.StaffMember?.Branch?.Name,
+                Latitude = (double)device.LastLatitude!,
+                Longitude = (double)device.LastLongitude!,
+                Speed = 0,
+                Course = 0,
+                FixTime = device.LastReportedAt!.Value,
+                Valid = true,
+                Address = device.LastAddress
+            });
+        }
+
+        await base.OnConnectedAsync();
+    }
+
     public async Task JoinBranch(string branchId) =>
         await Groups.AddToGroupAsync(Context.ConnectionId, $"branch-{branchId}");
 
