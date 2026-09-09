@@ -250,6 +250,7 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(e => e.EntryType).HasConversion<string>().HasMaxLength(10).IsRequired();
                 entity.Property(e => e.Amount).HasPrecision(14, 2).IsRequired();
                 entity.Property(e => e.Description).HasMaxLength(500).IsRequired();
+                entity.Property(e => e.PaymentMethod).HasMaxLength(30);
                 entity.HasOne(e => e.CustomerAccount)
                     .WithMany()
                     .HasForeignKey(e => e.CustomerAccountId)
