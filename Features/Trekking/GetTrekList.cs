@@ -40,8 +40,9 @@ public static class GetTrekList
             if (request.BranchId.HasValue)
                 query = query.Where(t => t.BranchId == request.BranchId.Value);
 
-            if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(t => t.Status.ToString().ToLower() == request.Status.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<Enums.TrekStatus>(request.Status, ignoreCase: true, out var parsedStatus))
+                query = query.Where(t => t.Status == parsedStatus);
 
             if (request.ScheduledDate.HasValue)
                 query = query.Where(t => t.ScheduledDate == request.ScheduledDate.Value);
