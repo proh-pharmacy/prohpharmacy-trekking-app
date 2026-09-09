@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Organisation.Enums;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 using static prohpharmacy_trekking_app.Features.Organisation.Branches.CreateBranch;
@@ -46,8 +47,9 @@ public static class GetBranchList
             if (request.DistrictId.HasValue)
                 query = query.Where(b => b.DistrictId == request.DistrictId.Value);
 
-            if (!string.IsNullOrWhiteSpace(request.BranchType))
-                query = query.Where(b => b.BranchType.ToString().ToLower() == request.BranchType.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.BranchType) &&
+                Enum.TryParse<BranchType>(request.BranchType, ignoreCase: true, out var parsedBranchType))
+                query = query.Where(b => b.BranchType == parsedBranchType);
 
             var result = await new QueryBuilder<Entities.Branch>(query)
                 .WithSearch(request.Search, nameof(Entities.Branch.Name), nameof(Entities.Branch.Code))

@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Customers.Entities;
+using prohpharmacy_trekking_app.Features.Customers.Enums;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 
@@ -47,11 +48,13 @@ public static class GetCustomerList
             if (request.BranchId.HasValue)
                 query = query.Where(a => a.OwningBranchId == request.BranchId.Value);
 
-            if (!string.IsNullOrWhiteSpace(request.CustomerType))
-                query = query.Where(a => a.CustomerType.ToString().ToLower() == request.CustomerType.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.CustomerType) &&
+                Enum.TryParse<CustomerType>(request.CustomerType, ignoreCase: true, out var parsedCustomerType))
+                query = query.Where(a => a.CustomerType == parsedCustomerType);
 
-            if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(a => a.RegistrationStatus.ToString().ToLower() == request.Status.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<RegistrationStatus>(request.Status, ignoreCase: true, out var parsedStatus))
+                query = query.Where(a => a.RegistrationStatus == parsedStatus);
 
             var result = await new QueryBuilder<CustomerAccount>(query)
                 .WithSearch(request.Search, nameof(CustomerAccount.BusinessName),

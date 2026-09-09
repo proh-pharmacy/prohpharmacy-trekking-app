@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
+using prohpharmacy_trekking_app.Features.Fleet.Enums;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 using static prohpharmacy_trekking_app.Features.Fleet.Vehicles.CreateVehicle;
@@ -40,8 +41,9 @@ public static class GetVehicleList
             if (request.BranchId.HasValue)
                 query = query.Where(v => v.BranchId == request.BranchId.Value);
 
-            if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(v => v.OperationalStatus.ToString().ToLower() == request.Status.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<VehicleOperationalStatus>(request.Status, ignoreCase: true, out var parsedStatus))
+                query = query.Where(v => v.OperationalStatus == parsedStatus);
 
             var result = await new QueryBuilder<Vehicle>(query)
                 .WithSearch(request.Search,

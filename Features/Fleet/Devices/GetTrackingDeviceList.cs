@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
+using prohpharmacy_trekking_app.Features.Fleet.Enums;
 using prohpharmacy_trekking_app.Shared;
 using prohpharmacy_trekking_app.Utilities;
 using static prohpharmacy_trekking_app.Features.Fleet.Devices.CreateTrackingDevice;
@@ -31,8 +32,9 @@ public static class GetTrackingDeviceList
                 .Include(d => d.StaffMember)
                 .AsNoTracking();
 
-            if (!string.IsNullOrWhiteSpace(request.Status))
-                query = query.Where(d => d.Status.ToString().ToLower() == request.Status.ToLower());
+            if (!string.IsNullOrWhiteSpace(request.Status) &&
+                Enum.TryParse<TrackingDeviceStatus>(request.Status, ignoreCase: true, out var parsedStatus))
+                query = query.Where(d => d.Status == parsedStatus);
 
             var result = await new QueryBuilder<TrackingDevice>(query)
                 .WithSearch(request.Search,
