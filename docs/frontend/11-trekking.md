@@ -15,6 +15,7 @@
 | `POST` | `api/v1/treks/{id}/send-email` | Email trek sheet to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
 | `GET` | `api/v1/treks/driver/{token}` | Get trek via driver token | None |
+| `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | Download delivery sheet PDF via driver token | None |
 | `POST` | `api/v1/treks/driver/{token}/record` | Record deliveries via driver token | None |
 | `GET` | `api/v1/treks/sheet/preview` | Preview sample trek sheet PDF | None |
 

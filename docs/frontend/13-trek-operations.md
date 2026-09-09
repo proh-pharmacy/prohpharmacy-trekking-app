@@ -34,6 +34,7 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `POST` | `api/v1/treks/{id}/record` | Required | Admin records delivery results |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
+| `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
 | `POST` | `api/v1/treks/driver/{token}/record` | None | Driver records deliveries |
 
 ---
@@ -383,6 +384,17 @@ Fetches the full trek for the driver view.
 ```
 
 > `isLocked: true` when the trek is `Completed` — show a read-only view, hide the submit button.
+
+### Errors
+- `404` — invalid token
+
+---
+
+### GET /api/v1/treks/driver/{token}/sheet/pdf
+
+Downloads the delivery sheet PDF using the driver token. No authentication required.
+
+Returns a `application/pdf` file attachment named `TrekkingSheet-{trekNumber}-{scheduledDate}.pdf`. The PDF includes all stops with any delivery data already recorded (quantities, payment, balance).
 
 ### Errors
 - `404` — invalid token
