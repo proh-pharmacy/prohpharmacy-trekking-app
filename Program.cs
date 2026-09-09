@@ -106,7 +106,8 @@ builder.Services.AddCors(options =>
                 "https://prohpharmacy.com")
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials();
+            .AllowCredentials()
+            .WithExposedHeaders("Content-Disposition");
     });
 });
 
