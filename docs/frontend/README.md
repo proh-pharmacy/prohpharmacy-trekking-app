@@ -19,3 +19,4 @@ Step-by-step guides for implementing each area of the Proh Pharmacy Trekking fro
 | 10 | [Fleet](./10-fleet.md) | Vehicles, GPS devices, Traccar drivers and sync |
 | 11 | [Trekking](./11-trekking.md) | Trek scheduling, stops, driver link, delivery recording, PDF sheet |
 | 12 | [Real-Time Tracking](./12-tracking.md) | Live map with Leaflet + SignalR, position history, webhook setup |
+| 13 | [Trek Operations](./13-trek-operations.md) | Day-to-day trek execution — driver portal, delivery recording, ledger sync, PDF sheet |
