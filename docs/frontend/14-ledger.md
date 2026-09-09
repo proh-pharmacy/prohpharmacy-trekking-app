@@ -100,10 +100,20 @@ Returns a file download named `LedgerSummary-{YYYYMMDD}.xlsx`. The sheet include
 
 ### Usage
 
-Render a download button that opens this URL directly — the browser will prompt the user to save the file.
+These endpoints require auth, so you must use `fetch` with the Bearer token rather than a plain `<a href>` link. Read the filename from the `Content-Disposition` response header (exposed via CORS).
 
-```
-GET /api/v1/ledger/export?from=2026-01-01&to=2026-09-30&hasBalance=true
+```js
+const response = await fetch(
+  '/api/v1/ledger/export?from=2026-01-01&to=2026-09-30&hasBalance=true',
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+const disposition = response.headers.get('Content-Disposition');
+const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'LedgerSummary.xlsx';
+const blob = await response.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = filename; a.click();
+URL.revokeObjectURL(url);
 ```
 
 ---
@@ -128,9 +138,20 @@ Returns a file download named `Ledger-{CustomerCode}-{YYYYMMDD}.xlsx`. The sheet
 
 ### Usage
 
-```
-GET /api/v1/customers/{customerId}/ledger/export
-GET /api/v1/customers/{customerId}/ledger/export?from=2026-01-01&to=2026-09-30
+Same fetch pattern as `/api/v1/ledger/export` — send the Bearer token and read the filename from `Content-Disposition`. The filename is `Ledger-{CustomerCode}-{YYYYMMDD}.xlsx`.
+
+```js
+const response = await fetch(
+  `/api/v1/customers/${customerId}/ledger/export?from=2026-01-01&to=2026-09-30`,
+  { headers: { Authorization: `Bearer ${token}` } }
+);
+const disposition = response.headers.get('Content-Disposition');
+const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'Ledger.xlsx';
+const blob = await response.blob();
+const url = URL.createObjectURL(blob);
+const a = document.createElement('a');
+a.href = url; a.download = filename; a.click();
+URL.revokeObjectURL(url);
 ```
 
 ### Errors
