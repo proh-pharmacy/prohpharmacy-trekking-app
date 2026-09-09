@@ -208,7 +208,7 @@ public static class TrekkingSheetPdfGenerator
     {
         container.Column(col =>
         {
-            col.Spacing(8); // Subtle spacing between consecutive stops
+            col.Spacing(0);
 
             var sortedStops = data.Stops.OrderBy(s => s.Sequence).ToList();
 
@@ -225,9 +225,11 @@ public static class TrekkingSheetPdfGenerator
                 return;
             }
 
-            foreach (var stop in sortedStops)
+            for (var i = 0; i < sortedStops.Count; i++)
             {
-                col.Item().Element(c => ComposeStop(c, stop));
+                col.Item().Element(c => ComposeStop(c, sortedStops[i]));
+                if (i < sortedStops.Count - 1)
+                    col.Item().PaddingVertical(4).LineHorizontal(1.5f).LineColor(PrimaryColor);
             }
         });
     }

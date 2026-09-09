@@ -60,10 +60,17 @@ public static class CreateTrek
 
     public class TrekStopProductResponse
     {
+        public Guid StopProductId { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? Unit { get; set; }
         public decimal PlannedQuantity { get; set; }
+        public decimal? QtyDelivered { get; set; }
+        public string? PaymentMethod { get; set; }
+        public decimal? AmtPaid { get; set; }
+        public decimal? Balance { get; set; }
+        public string? Notes { get; set; }
+        public DateTime? DeliveredAt { get; set; }
     }
 
     public class Validator : AbstractValidator<Command>

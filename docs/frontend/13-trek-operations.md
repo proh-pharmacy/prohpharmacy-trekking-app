@@ -197,14 +197,23 @@ Adds a customer stop to the trek with the products to be delivered.
   "notes": null,
   "products": [
     {
+      "stopProductId": "...",
       "productId": "...",
       "productName": "Paracetamol 500mg",
       "unit": "Box",
-      "plannedQuantity": 10
+      "plannedQuantity": 10,
+      "qtyDelivered": null,
+      "paymentMethod": null,
+      "amtPaid": null,
+      "balance": null,
+      "notes": null,
+      "deliveredAt": null
     }
   ]
 }
 ```
+
+> `stopProductId` is the ID to pass when recording delivery results — use it directly in the `POST /record` body.
 
 ### Errors
 - `404` — trek, customer, or product not found
@@ -302,6 +311,17 @@ window.open(`/api/v1/treks/${trekId}/sheet/pdf`, '_blank')
 
 ### Response
 `application/pdf` file download named `TrekkingSheet-TRK-00001-2026-09-10.pdf`
+
+### What the PDF contains per stop
+
+Each stop card on the sheet includes:
+
+| Section | Fields printed |
+|---|---|
+| Header | Stop sequence, customer name, customer code |
+| Left column | Scheduled date, phone number, street address, landmark & directions, district / region |
+| Right column | Branch, driver, vehicle, primary contact name and phone |
+| Products table | Product name, unit, planned quantity (with a blank "Delivered" column for the driver to fill in by hand) |
 
 ### Errors
 - `404` — trek not found
@@ -403,6 +423,8 @@ Driver submits delivery results for one or more products. Can be called multiple
 }
 ```
 
+> The record response is intentionally slim. After a successful submission, re-fetch the trek (`GET /api/v1/treks/driver/{token}` or `GET /api/v1/treks/{id}`) to get the updated product values and repopulate your form.
+
 ### Errors
 - `404` — invalid token
 - `422` — trek is already `Completed`
@@ -411,9 +433,26 @@ Driver submits delivery results for one or more products. Can be called multiple
 
 ## POST /api/v1/treks/{id}/record (admin)
 
-Same as the driver endpoint but requires authentication. Use this when an admin needs to enter or correct delivery data from the office.
+Same shape and behaviour as the driver endpoint but requires authentication. Use this when an admin needs to enter or correct delivery data from the office.
 
-### Request body — same shape as driver record
+### Request body
+
+```json
+{
+  "products": [
+    {
+      "stopProductId": "...",
+      "qtyDelivered": 8,
+      "paymentMethod": "Cash",
+      "amtPaid": 240.00,
+      "balance": 60.00,
+      "notes": "Short delivery — 2 boxes damaged"
+    }
+  ]
+}
+```
+
+> After submitting, re-fetch `GET /api/v1/treks/{id}` to get the updated product values back.
 
 ---
 

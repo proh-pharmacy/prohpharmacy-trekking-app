@@ -58,21 +58,36 @@ Used by create, get single, get list, and status change.
       "customerAccountId": "...",
       "customerName": "Accra Pharmacy Ltd",
       "customerCode": "GAR-00001",
+      "customerPhone": "0244123456",
+      "customerType": "RetailPharmacy",
+      "regionName": "Greater Accra",
+      "districtName": "Tema",
       "primaryLocationLandmark": "Next to Accra Mall, ground floor",
       "primaryLocationStreet": "12 Liberation Road, Accra",
+      "primaryContactName": "Ama Boateng",
+      "primaryContactPhone": "0209876543",
       "notes": null,
       "products": [
         {
+          "stopProductId": "...",
           "productId": "...",
           "productName": "Paracetamol 500mg",
           "unit": "Box",
-          "plannedQuantity": 10
+          "plannedQuantity": 10,
+          "qtyDelivered": null,
+          "paymentMethod": null,
+          "amtPaid": null,
+          "balance": null,
+          "notes": null,
+          "deliveredAt": null
         }
       ]
     }
   ]
 }
 ```
+
+> The list endpoint (`GET /api/v1/treks`) returns treks with `stops: []` — stops are only populated on the single get (`GET /api/v1/treks/{id}`).
 
 ---
 
@@ -84,7 +99,6 @@ Used by create, get single, get list, and status change.
 {
   "branchId": "<branch-guid>",
   "scheduledDate": "2026-09-15",
-  "driverStaffId": "<staff-guid>",
   "vehicleId": "<vehicle-guid>",
   "notes": "Morning route"
 }
@@ -94,13 +108,13 @@ Used by create, get single, get list, and status change.
 |---|---|---|
 | `branchId` | Yes | Must exist |
 | `scheduledDate` | Yes | `DateOnly` format (`YYYY-MM-DD`) |
-| `driverStaffId` | Yes | Must be an active staff member |
-| `vehicleId` | Yes | Must be an active vehicle |
+| `vehicleId` | Yes | Must have an active driver assigned |
 | `notes` | No | Max 500 chars |
 
 ### Notes
 - `trekNumber` is auto-generated in format `TRK-{SEQUENCE:D5}` e.g. `TRK-00001`
 - `status` defaults to `Draft`
+- The driver is **auto-inferred** from the vehicle's active staff assignment — do not send a `driverStaffId`. Returns `422` if the vehicle has no active driver.
 
 ### Response `201 Created` — `TrekResponse`
 
@@ -198,15 +212,28 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
   "customerAccountId": "...",
   "customerName": "Accra Pharmacy Ltd",
   "customerCode": "GAR-00001",
+  "customerPhone": "0244123456",
+  "customerType": "RetailPharmacy",
+  "regionName": "Greater Accra",
+  "districtName": "Tema",
   "primaryLocationLandmark": "Next to Accra Mall, ground floor",
   "primaryLocationStreet": "12 Liberation Road, Accra",
+  "primaryContactName": "Ama Boateng",
+  "primaryContactPhone": "0209876543",
   "notes": "Call ahead before arriving",
   "products": [
     {
+      "stopProductId": "...",
       "productId": "...",
       "productName": "Paracetamol 500mg",
       "unit": "Box",
-      "plannedQuantity": 10
+      "plannedQuantity": 10,
+      "qtyDelivered": null,
+      "paymentMethod": null,
+      "amtPaid": null,
+      "balance": null,
+      "notes": null,
+      "deliveredAt": null
     }
   ]
 }
@@ -396,8 +423,8 @@ Emails the trek sheet (with PDF attachment and driver form link) to one or more 
   "trekNumber": "TRK-00001",
   "sent": 2,
   "recipients": [
-    "kwame@example.com",
-    "ama@example.com"
+    "Kwame Asante <kwame@prohpharmacy.com>",
+    "Ama Boateng <ama@prohpharmacy.com>"
   ]
 }
 ```

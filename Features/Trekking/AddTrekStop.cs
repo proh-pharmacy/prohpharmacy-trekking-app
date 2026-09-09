@@ -119,10 +119,17 @@ public static class AddTrekStop
                 Notes = stop.Notes,
                 Products = stop.Products.Select(p => new TrekStopProductResponse
                 {
+                    StopProductId = p.Id,
                     ProductId = p.ProductId,
                     ProductName = productDict.TryGetValue(p.ProductId, out var prod) ? prod.Name : string.Empty,
                     Unit = productDict.TryGetValue(p.ProductId, out var prod2) ? prod2.Unit : null,
-                    PlannedQuantity = p.PlannedQuantity
+                    PlannedQuantity = p.PlannedQuantity,
+                    QtyDelivered = p.QtyDelivered,
+                    PaymentMethod = p.PaymentMethod?.ToString(),
+                    AmtPaid = p.AmtPaid,
+                    Balance = p.Balance,
+                    Notes = p.Notes,
+                    DeliveredAt = p.DeliveredAt
                 }).ToList()
             };
 
