@@ -46,8 +46,14 @@ public static class CreateTrek
         public Guid CustomerAccountId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
+        public string? CustomerPhone { get; set; }
+        public string? CustomerType { get; set; }
+        public string? RegionName { get; set; }
+        public string? DistrictName { get; set; }
         public string? PrimaryLocationLandmark { get; set; }
         public string? PrimaryLocationStreet { get; set; }
+        public string? PrimaryContactName { get; set; }
+        public string? PrimaryContactPhone { get; set; }
         public string? Notes { get; set; }
         public List<TrekStopProductResponse> Products { get; set; } = [];
     }

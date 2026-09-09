@@ -64,7 +64,10 @@ public static class AddTrekStop
                 return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError("Trekking trip not found."));
 
             var customer = await _db.CustomerAccounts
+                .Include(ca => ca.Region)
                 .Include(ca => ca.Locations.Where(l => l.IsPrimary))
+                    .ThenInclude(l => l.District)
+                .Include(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .FirstOrDefaultAsync(ca => ca.Id == request.CustomerAccountId, cancellationToken);
             if (customer is null)
                 return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError("Customer account not found."));
@@ -96,6 +99,7 @@ public static class AddTrekStop
 
             var productDict = products.ToDictionary(p => p.Id);
             var primaryLocation = customer.Locations.FirstOrDefault();
+            var primaryContact = customer.People.FirstOrDefault();
 
             var response = new TrekStopResponse
             {
@@ -104,8 +108,14 @@ public static class AddTrekStop
                 CustomerAccountId = stop.CustomerAccountId,
                 CustomerName = customer.BusinessName,
                 CustomerCode = customer.CustomerCode,
+                CustomerPhone = customer.PrimaryPhoneNumber,
+                CustomerType = customer.CustomerType.ToString(),
+                RegionName = customer.Region?.Name,
+                DistrictName = primaryLocation?.District?.Name,
                 PrimaryLocationLandmark = primaryLocation?.LandmarkAndDirections,
                 PrimaryLocationStreet = primaryLocation?.StreetAddress,
+                PrimaryContactName = primaryContact?.FullName,
+                PrimaryContactPhone = primaryContact?.PrimaryPhoneNumber,
                 Notes = stop.Notes,
                 Products = stop.Products.Select(p => new TrekStopProductResponse
                 {

@@ -29,7 +29,14 @@ public static class GetTrek
                 .Include(t => t.Vehicle)
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.Region)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
                         .ThenInclude(ca => ca.Locations.Where(l => l.IsPrimary))
+                            .ThenInclude(l => l.District)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
@@ -55,6 +62,7 @@ public static class GetTrek
         internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop)
         {
             var primaryLocation = stop.CustomerAccount?.Locations.FirstOrDefault();
+            var primaryContact = stop.CustomerAccount?.People.FirstOrDefault();
             return new TrekStopResponse
             {
                 StopId = stop.Id,
@@ -62,8 +70,14 @@ public static class GetTrek
                 CustomerAccountId = stop.CustomerAccountId,
                 CustomerName = stop.CustomerAccount?.BusinessName ?? string.Empty,
                 CustomerCode = stop.CustomerAccount?.CustomerCode ?? string.Empty,
+                CustomerPhone = stop.CustomerAccount?.PrimaryPhoneNumber,
+                CustomerType = stop.CustomerAccount?.CustomerType.ToString(),
+                RegionName = stop.CustomerAccount?.Region?.Name,
+                DistrictName = primaryLocation?.District?.Name,
                 PrimaryLocationLandmark = primaryLocation?.LandmarkAndDirections,
                 PrimaryLocationStreet = primaryLocation?.StreetAddress,
+                PrimaryContactName = primaryContact?.FullName,
+                PrimaryContactPhone = primaryContact?.PrimaryPhoneNumber,
                 Notes = stop.Notes,
                 Products = stop.Products.Select(p => new TrekStopProductResponse
                 {

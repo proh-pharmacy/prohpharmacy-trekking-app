@@ -186,8 +186,14 @@ Adds a customer stop to the trek with the products to be delivered.
   "customerAccountId": "...",
   "customerName": "Tema Central Pharmacy",
   "customerCode": "GAR-00001",
+  "customerPhone": "+233244123456",
+  "customerType": "RetailPharmacy",
+  "regionName": "Greater Accra Region",
+  "districtName": "Tema",
   "primaryLocationLandmark": "Opposite the blue mosque",
   "primaryLocationStreet": "Community 5, Tema",
+  "primaryContactName": "Ama Boateng",
+  "primaryContactPhone": "+233209876543",
   "notes": null,
   "products": [
     {
