@@ -58,7 +58,7 @@ public static class AddLedgerEntry
             if (!customerExists)
                 return Result.Failure<LedgerEntryResponse>(Error.CreateNotFoundError("Customer not found."));
 
-            if (!Guid.TryParse(auth.GetUserId(), out var staffId))
+            if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
                 return Result.Failure<LedgerEntryResponse>(Error.BadRequest("Authenticated user ID is invalid."));
 
             Enum.TryParse<LedgerEntryType>(request.EntryType, true, out var entryType);

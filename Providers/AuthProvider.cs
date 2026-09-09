@@ -28,6 +28,10 @@ namespace prohpharmacy_trekking_app.Providers
             => CurrentUser?.FindFirstValue(ClaimTypes.NameIdentifier)
                ?? CurrentUser?.FindFirstValue("sub");
 
+        /// <summary>Returns the StaffMember ID embedded in the token as the "staff_id" claim.</summary>
+        public string? GetStaffId()
+            => CurrentUser?.FindFirstValue("staff_id");
+
         /// <summary>Returns the authenticated user's email claim, or null.</summary>
         public string? GetEmail()
             => CurrentUser?.FindFirstValue(ClaimTypes.Email);
