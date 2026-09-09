@@ -18,7 +18,9 @@ using prohpharmacy_trekking_app.Utilities;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Host.UseSerilog((ctx, lc) => lc.ReadFrom.Configuration(ctx.Configuration));
+builder.Host.UseSerilog((ctx, lc) => lc
+    .ReadFrom.Configuration(ctx.Configuration)
+    .WriteTo.Console());
 var assembly = typeof(Program).Assembly;
 var appKey = builder.Configuration.GetValue<string>("SiteSettings:AppKey")
     ?? throw new InvalidOperationException("SiteSettings:AppKey is not configured.");
