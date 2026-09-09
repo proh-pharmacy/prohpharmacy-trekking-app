@@ -17,7 +17,6 @@ public static class CreateTrek
     {
         public Guid BranchId { get; set; }
         public DateOnly ScheduledDate { get; set; }
-        public Guid DriverStaffId { get; set; }
         public Guid VehicleId { get; set; }
         public string? Notes { get; set; }
     }
@@ -67,7 +66,6 @@ public static class CreateTrek
         {
             RuleFor(x => x.BranchId).NotEmpty();
             RuleFor(x => x.ScheduledDate).NotEmpty();
-            RuleFor(x => x.DriverStaffId).NotEmpty();
             RuleFor(x => x.VehicleId).NotEmpty();
             RuleFor(x => x.Notes).MaximumLength(500).When(x => x.Notes is not null);
         }
@@ -96,13 +94,18 @@ public static class CreateTrek
             if (branch is null)
                 return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Branch not found."));
 
-            var driver = await _db.StaffMembers.FindAsync([request.DriverStaffId], cancellationToken);
-            if (driver is null)
-                return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Driver staff member not found."));
-
-            var vehicle = await _db.Vehicles.FindAsync([request.VehicleId], cancellationToken);
+            var vehicle = await _db.Vehicles
+                .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
+                    .ThenInclude(a => a.StaffMember)
+                .FirstOrDefaultAsync(v => v.Id == request.VehicleId, cancellationToken);
             if (vehicle is null)
                 return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Vehicle not found."));
+
+            var activeAssignment = vehicle.StaffAssignments.FirstOrDefault();
+            if (activeAssignment is null)
+                return Result.Failure<TrekResponse>(Error.BadRequest("Vehicle has no active driver assigned. Please assign a staff member to this vehicle before creating a trek."));
+
+            var driver = activeAssignment.StaffMember;
 
             var userId = _auth.GetUserId();
             if (userId is null)
@@ -116,7 +119,7 @@ public static class CreateTrek
                 TrekNumber = trekNumber,
                 BranchId = request.BranchId,
                 ScheduledDate = request.ScheduledDate,
-                DriverStaffId = request.DriverStaffId,
+                DriverStaffId = driver.Id,
                 VehicleId = request.VehicleId,
                 Status = TrekStatus.Draft,
                 Notes = request.Notes?.Trim(),
