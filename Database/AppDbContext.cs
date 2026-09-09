@@ -5,6 +5,7 @@ using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Features.Products.Entities;
+using prohpharmacy_trekking_app.Features.Units.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
 using prohpharmacy_trekking_app.Features.Trekking.Entities;
 
@@ -35,6 +36,7 @@ namespace prohpharmacy_trekking_app.Database
 
         // Products
         public DbSet<Product> Products => Set<Product>();
+        public DbSet<Unit> Units => Set<Unit>();
 
         // Ledger
         public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
@@ -225,8 +227,15 @@ namespace prohpharmacy_trekking_app.Database
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
-                entity.Property(p => p.Unit).HasMaxLength(50);
+                entity.Property(p => p.Unit).HasMaxLength(80);
                 entity.Property(p => p.Description).HasMaxLength(500);
+            });
+
+            modelBuilder.Entity<Unit>(entity =>
+            {
+                entity.HasKey(u => u.Id);
+                entity.Property(u => u.Name).HasMaxLength(80).IsRequired();
+                entity.HasIndex(u => u.Name).IsUnique();
             });
 
             // ── Ledger ────────────────────────────────────────────────────────────
