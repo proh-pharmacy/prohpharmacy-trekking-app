@@ -47,6 +47,29 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 
 ---
 
+## Picking a vehicle for a new trek
+
+Before creating a trek, fetch the vehicle list to let the admin pick one. The vehicle response already includes the assigned driver — use `currentStaffId` and `currentStaffName` to show who is driving and to confirm the vehicle is ready.
+
+```
+GET /api/v1/fleet/vehicles?branchId={branchId}
+```
+
+Only vehicles where `currentStaffId` is not `null` are eligible for trek creation. Grey out or hide unassigned vehicles in the picker.
+
+```json
+{
+  "id": "...",
+  "displayName": "Sprinter Van 1",
+  "registrationNumber": "GR-1234-24",
+  "currentStaffId": "...",
+  "currentStaffName": "Kwame Asante",
+  ...
+}
+```
+
+---
+
 ## POST /api/v1/treks
 
 Creates a trek in `Draft` status. The driver is **automatically inferred** from the vehicle's active staff assignment — do not send a `driverStaffId`. Returns `422` if the vehicle has no active driver assigned.
@@ -66,7 +89,7 @@ Creates a trek in `Draft` status. The driver is **automatically inferred** from 
 |---|---|---|
 | `branchId` | Yes | |
 | `scheduledDate` | Yes | `YYYY-MM-DD` |
-| `vehicleId` | Yes | Must have an active staff assignment |
+| `vehicleId` | Yes | Must have an active staff assignment — use `currentStaffId != null` to filter |
 | `notes` | No | Max 500 chars |
 
 ### Response `201 Created`
