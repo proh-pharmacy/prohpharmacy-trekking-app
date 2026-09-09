@@ -44,12 +44,14 @@ public static class AssignVehicleToStaff
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _validator = validator;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result<AssignmentResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -74,6 +76,7 @@ public static class AssignVehicleToStaff
                     Error.Conflict("Vehicle already has a staff member assigned. Unassign first."));
 
             var staff = await _db.StaffMembers
+                .Include(s => s.Branch)
                 .FirstOrDefaultAsync(s => s.Id == request.StaffMemberId, cancellationToken);
 
             if (staff is null)
@@ -99,16 +102,51 @@ public static class AssignVehicleToStaff
                 device.UpdatedAt = DateTime.UtcNow;
             }
 
+            // Auto-register as fleet driver if not already registered
+            var fleetDriver = await _db.FleetDrivers
+                .FirstOrDefaultAsync(d => d.StaffMemberId == staff.Id, cancellationToken);
+
+            if (fleetDriver is null)
+            {
+                fleetDriver = new FleetDriver
+                {
+                    StaffMemberId = staff.Id,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                var attributes = new Dictionary<string, string>
+                {
+                    ["phone"] = staff.PhoneNumber,
+                    ["branch"] = staff.Branch?.Name ?? string.Empty,
+                    ["role"] = staff.Role ?? string.Empty
+                };
+                if (!string.IsNullOrEmpty(staff.EmployeeNumber))
+                    attributes["employeeNumber"] = staff.EmployeeNumber;
+
+                var traccarDriver = await _traccar.CreateDriverAsync(staff.FullName, Guid.NewGuid().ToString("N"), attributes, cancellationToken);
+                if (traccarDriver is not null)
+                {
+                    fleetDriver.TraccarDriverId = traccarDriver.Id;
+                    fleetDriver.TraccarUniqueId = traccarDriver.UniqueId;
+                    _logger.LogInformation("Fleet driver {StaffId} ({Name}) auto-registered in Traccar as #{TraccarId} on vehicle assignment",
+                        staff.Id, staff.FullName, traccarDriver.Id);
+                }
+                else
+                {
+                    _logger.LogWarning("Fleet driver {StaffId} ({Name}) created locally but Traccar registration failed — sync manually",
+                        staff.Id, staff.FullName);
+                }
+
+                _db.FleetDrivers.Add(fleetDriver);
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
 
             if (device?.TraccarDeviceId is not null)
             {
                 _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
 
-                var fleetDriver = await _db.FleetDrivers
-                    .FirstOrDefaultAsync(d => d.StaffMemberId == staff.Id, cancellationToken);
-
-                if (fleetDriver?.TraccarDriverId is not null)
+                if (fleetDriver.TraccarDriverId is not null)
                     _ = _traccar.LinkDriverToDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
             }
 
@@ -144,7 +182,7 @@ public class AssignVehicleToStaffEndpoint : ICarterModule
         .WithSummary("Assign a staff member to a vehicle")
         .WithDescription(
             "Links a staff member to an Active vehicle. " +
-            "A vehicle can only have one active staff assignment at a time. " +
+            "The staff member is automatically registered as a fleet driver (locally and in Traccar) if not already registered. " +
             "If the vehicle has a registered tracking device, its name and Traccar driver link are updated automatically.")
         .Produces<AssignVehicleToStaff.AssignmentResponse>(200)
         .Produces<Error>(404)

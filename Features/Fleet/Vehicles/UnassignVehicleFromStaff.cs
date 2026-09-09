@@ -19,11 +19,13 @@ public static class UnassignVehicleFromStaff
     {
         private readonly AppDbContext _db;
         private readonly ITraccarService _traccar;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, ITraccarService traccar)
+        public Handler(AppDbContext db, ITraccarService traccar, ILogger<Handler> logger)
         {
             _db = db;
             _traccar = traccar;
+            _logger = logger;
         }
 
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
@@ -52,17 +54,27 @@ public static class UnassignVehicleFromStaff
                 device.UpdatedAt = DateTime.UtcNow;
             }
 
+            var fleetDriver = await _db.FleetDrivers
+                .FirstOrDefaultAsync(d => d.StaffMemberId == previousStaffId, cancellationToken);
+
+            if (fleetDriver is not null)
+                _db.FleetDrivers.Remove(fleetDriver);
+
             await _db.SaveChangesAsync(cancellationToken);
 
             if (device?.TraccarDeviceId is not null)
             {
                 _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
 
-                var fleetDriver = await _db.FleetDrivers
-                    .FirstOrDefaultAsync(d => d.StaffMemberId == previousStaffId, cancellationToken);
-
                 if (fleetDriver?.TraccarDriverId is not null)
                     _ = _traccar.UnlinkDriverFromDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
+            }
+
+            if (fleetDriver?.TraccarDriverId is not null)
+            {
+                _ = _traccar.DeleteDriverAsync(fleetDriver.TraccarDriverId.Value, cancellationToken);
+                _logger.LogInformation("Fleet driver {StaffId} removed from Traccar #{TraccarId} on vehicle unassignment",
+                    previousStaffId, fleetDriver.TraccarDriverId.Value);
             }
 
             return Result.Success();
@@ -86,7 +98,7 @@ public class UnassignVehicleFromStaffEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Unassign the current staff member from a vehicle")
         .WithDescription(
-            "Ends the active vehicle assignment. " +
+            "Ends the active vehicle assignment and removes the staff member as a fleet driver (locally and from Traccar). " +
             "If the vehicle has a registered tracking device, its name reverts to the registration number and the Traccar driver link is removed.")
         .Produces(204)
         .Produces<Error>(404)
