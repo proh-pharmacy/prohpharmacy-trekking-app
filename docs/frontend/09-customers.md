@@ -191,7 +191,7 @@ Customer, representative, and primary location are created in a single request.
 
 ## PATCH /api/v1/customers/{id}
 
-Updates business-level fields only. Representative and location are updated via separate endpoints.
+Updates business details, primary representative, and primary location in a single request. Omit `representative` or `location` to leave them unchanged.
 
 ### Request body
 
@@ -200,15 +200,65 @@ Updates business-level fields only. Representative and location are updated via 
   "businessName": "Accra Pharmacy Ltd",
   "tradingName": "Accra Pharma",
   "customerType": "RetailPharmacy",
+  "regionId": "<region-guid>",
   "primaryPhoneNumber": "+233201234567",
-  "whatsAppNumber": "+233209999999"
+  "whatsAppNumber": "+233209999999",
+  "representative": {
+    "firstName": "Ama",
+    "middleName": null,
+    "lastName": "Boateng",
+    "relationshipType": "Owner",
+    "primaryPhoneNumber": "+233209876543",
+    "ghanaCardNumber": "GHA-123456789-0"
+  },
+  "location": {
+    "districtId": "<district-guid>",
+    "streetAddress": "12 Liberation Road, Accra",
+    "landmarkAndDirections": "Next to Accra Mall, ground floor",
+    "latitude": 5.6032,
+    "longitude": -0.1869,
+    "accuracyMetres": 12.5
+  }
 }
 ```
+
+**Business fields:**
+
+| Field | Required | Constraints |
+|---|---|---|
+| `businessName` | Yes | Max 200 chars |
+| `regionId` | Yes | If changed, `customerCode` is regenerated for the new region |
+| `primaryPhoneNumber` | Yes | Max 30 chars |
+| `customerType` | Yes | String — see enum table |
+| `tradingName` | No | Max 200 chars |
+| `whatsAppNumber` | No | Max 30 chars |
+
+**`representative` — omit to leave unchanged:**
+
+| Field | Required | Constraints |
+|---|---|---|
+| `firstName` | Yes | Max 80 chars |
+| `lastName` | Yes | Max 80 chars |
+| `relationshipType` | Yes | String — see enum table |
+| `primaryPhoneNumber` | Yes | Max 30 chars |
+| `middleName` | No | Max 80 chars |
+| `ghanaCardNumber` | No | Max 30 chars |
+
+**`location` — omit to leave unchanged:**
+
+| Field | Required | Constraints |
+|---|---|---|
+| `districtId` | Yes | Must exist |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `latitude` | No | -90 to 90 |
+| `longitude` | No | -180 to 180 |
+| `accuracyMetres` | No | Must be > 0 if provided |
 
 ### Response `200 OK` — full `CustomerResponse`
 
 ### Errors
-- `404` — customer not found
+- `404` — customer, region, or district not found
 - `422` — validation error
 
 ---
