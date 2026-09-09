@@ -42,6 +42,7 @@ Returns a flat, unpaginated array of every customer that has a primary GPS locat
 |---|---|---|
 | `branchId` | `guid` | Scope to customers belonging to a specific branch |
 | `regionId` | `guid` | Scope to customers in a specific region |
+| `districtId` | `guid` | Scope to customers whose primary location is in a specific district |
 
 ### Response `200 OK`
 
@@ -133,6 +134,7 @@ function getCustomerIcon(customerType) {
 | `pageNumber` | `int` | Default: 1 |
 | `pageSize` | `int` | Default: 20 |
 | `regionId` | `guid` | Filter by region |
+| `districtId` | `guid` | Filter by district (matched against primary location) |
 | `branchId` | `guid` | Filter by owning branch |
 | `customerType` | `string` | e.g. `RetailPharmacy` |
 | `status` | `string` | e.g. `Active`, `PendingReview` |

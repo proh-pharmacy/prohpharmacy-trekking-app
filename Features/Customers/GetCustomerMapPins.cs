@@ -14,6 +14,7 @@ public static class GetCustomerMapPins
     {
         public Guid? BranchId { get; set; }
         public Guid? RegionId { get; set; }
+        public Guid? DistrictId { get; set; }
     }
 
     public class CustomerMapPin
@@ -57,6 +58,9 @@ public static class GetCustomerMapPins
             if (request.RegionId.HasValue)
                 query = query.Where(a => a.RegionId == request.RegionId.Value);
 
+            if (request.DistrictId.HasValue)
+                query = query.Where(a => a.Locations.Any(l => l.IsPrimary && l.DistrictId == request.DistrictId.Value));
+
             var accounts = await query.ToListAsync(cancellationToken);
 
             var pins = accounts.Select(a =>
@@ -99,12 +103,14 @@ public class GetCustomerMapPinsEndpoint : ICarterModule
         app.MapGet("api/v1/customers/map-pins", async (
             ISender sender,
             [FromQuery] Guid? branchId,
-            [FromQuery] Guid? regionId) =>
+            [FromQuery] Guid? regionId,
+            [FromQuery] Guid? districtId) =>
         {
             var result = await sender.Send(new GetCustomerMapPins.Query
             {
                 BranchId = branchId,
-                RegionId = regionId
+                RegionId = regionId,
+                DistrictId = districtId
             });
             return result.IsFailure ? Results.BadRequest(result.Error) : Results.Ok(result.Value);
         })

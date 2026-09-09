@@ -19,6 +19,7 @@ public static class GetCustomerList
         public int? PageNumber { get; set; }
         public int? PageSize { get; set; }
         public Guid? RegionId { get; set; }
+        public Guid? DistrictId { get; set; }
         public Guid? BranchId { get; set; }
         public string? CustomerType { get; set; }
         public string? Status { get; set; }
@@ -39,6 +40,9 @@ public static class GetCustomerList
 
             if (request.RegionId.HasValue)
                 query = query.Where(a => a.RegionId == request.RegionId.Value);
+
+            if (request.DistrictId.HasValue)
+                query = query.Where(a => a.Locations.Any(l => l.IsPrimary && l.DistrictId == request.DistrictId.Value));
 
             if (request.BranchId.HasValue)
                 query = query.Where(a => a.OwningBranchId == request.BranchId.Value);
@@ -80,6 +84,7 @@ public class GetCustomerListEndpoint : ICarterModule
             [FromQuery] int? pageNumber,
             [FromQuery] int? pageSize,
             [FromQuery] Guid? regionId,
+            [FromQuery] Guid? districtId,
             [FromQuery] Guid? branchId,
             [FromQuery] string? customerType,
             [FromQuery] string? status) =>
@@ -91,6 +96,7 @@ public class GetCustomerListEndpoint : ICarterModule
                 PageNumber = pageNumber,
                 PageSize = pageSize,
                 RegionId = regionId,
+                DistrictId = districtId,
                 BranchId = branchId,
                 CustomerType = customerType,
                 Status = status
@@ -100,7 +106,7 @@ public class GetCustomerListEndpoint : ICarterModule
         .WithTags("Customers")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Customers)
         .WithSummary("List customers")
-        .WithDescription("Returns a paginated list of customers. Filter by region, branch, type or status. Search by business name, customer code or phone number.")
+        .WithDescription("Returns a paginated list of customers. Filter by region, district, branch, type or status. Search by business name, customer code or phone number.")
         .Produces<Paginator.PaginatedData<CreateCustomer.CustomerResponse>>(200)
         .RequireAuthorization();
     }
