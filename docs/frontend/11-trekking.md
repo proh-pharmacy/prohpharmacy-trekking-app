@@ -297,7 +297,7 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 ```
 
 ### Notes
-- On recording: a ledger `Credit` entry is created for `amtPaid` and a `Debit` entry for `balance` against the customer account.
+- Recording does **not** touch the ledger. Ledger entries are only written when the trek is marked `Completed`. Re-submitting updated figures before completion is safe — the ledger will reflect the final values at completion time.
 
 ### Errors
 - `404` — trek not found
