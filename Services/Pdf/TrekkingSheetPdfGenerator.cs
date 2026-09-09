@@ -38,8 +38,12 @@ public static class TrekkingSheetPdfGenerator
             public string CustomerName { get; set; } = string.Empty;
             public string CustomerCode { get; set; } = string.Empty;
             public string? PrimaryPhoneNumber { get; set; }
+            public string? DistrictName { get; set; }
+            public string? RegionName { get; set; }
             public string? PrimaryLocationLandmark { get; set; }
             public string? PrimaryLocationStreet { get; set; }
+            public string? PrimaryContactName { get; set; }
+            public string? PrimaryContactPhone { get; set; }
             public List<ProductData> Products { get; set; } = [];
         }
 
@@ -239,47 +243,47 @@ public static class TrekkingSheetPdfGenerator
                 .PaddingHorizontal(8).PaddingVertical(6)
                 .Row(row =>
                 {
-                    // Column 1 (Left): Stop, Business Name, Customer Code, Address
+                    // Column 1 (Left): Stop, Business Name, Customer Code, District/Region, Address
                     row.RelativeItem(1).Column(col1 =>
                     {
                         col1.Spacing(3);
 
-                        // Stop: 1
                         InfoRow(col1, "Stop:", stop.Sequence.ToString(), 75);
                         col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Business Name: Tema Central Pharmacy
                         InfoRow(col1, "Business Name:", stop.CustomerName, 75);
                         col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Customer Code: GAR-00001
                         InfoRow(col1, "Customer Code:", string.IsNullOrWhiteSpace(stop.CustomerCode) ? "—" : stop.CustomerCode, 75);
                         col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Address: Community 5, Tema
+                        var location = string.Join(", ", new[] { stop.DistrictName, stop.RegionName }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                        InfoRow(col1, "District / Region:", string.IsNullOrWhiteSpace(location) ? "—" : location, 75);
+                        col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+
                         InfoRow(col1, "Address:", string.IsNullOrWhiteSpace(stop.PrimaryLocationStreet) ? "—" : stop.PrimaryLocationStreet, 75);
                     });
 
-                    row.ConstantItem(16); // Spacing between the two columns
+                    row.ConstantItem(16);
 
-                    // Column 2 (Right): Tel, Location, Customer Signature, Date
+                    // Column 2 (Right): Tel, Contact, Location, Customer Signature, Date
                     row.RelativeItem(1).Column(col2 =>
                     {
                         col2.Spacing(3);
 
-                        // Tel: 0244 123 456
                         InfoRow(col2, "Tel:", string.IsNullOrWhiteSpace(stop.PrimaryPhoneNumber) ? "—" : stop.PrimaryPhoneNumber, 95);
                         col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Location: Opposite the blue mosque, after the junction
+                        var contactLine = string.Join(" / ", new[] { stop.PrimaryContactName, stop.PrimaryContactPhone }.Where(s => !string.IsNullOrWhiteSpace(s)));
+                        InfoRow(col2, "Contact:", string.IsNullOrWhiteSpace(contactLine) ? "—" : contactLine, 95);
+                        col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+
                         InfoRow(col2, "Location:", string.IsNullOrWhiteSpace(stop.PrimaryLocationLandmark) ? "—" : stop.PrimaryLocationLandmark, 95);
                         col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Customer Signature: (no placeholder line)
                         InfoRow(col2, "Customer Signature:", string.Empty, 95);
                         col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        // Date: (no placeholder line)
                         InfoRow(col2, "Date:", string.Empty, 95);
                     });
                 });

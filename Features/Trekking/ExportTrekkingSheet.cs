@@ -30,6 +30,13 @@ public static class ExportTrekkingSheet
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
                         .ThenInclude(ca => ca.Locations.Where(l => l.IsPrimary))
+                            .ThenInclude(l => l.District)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.Region)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
@@ -50,14 +57,19 @@ public static class ExportTrekkingSheet
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var primaryLocation = s.CustomerAccount?.Locations.FirstOrDefault();
+                    var primaryContact = s.CustomerAccount?.People.FirstOrDefault();
                     return new TrekkingSheetPdfGenerator.TrekkingSheetData.StopData
                     {
                         Sequence = s.Sequence,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
+                        DistrictName = primaryLocation?.District?.Name,
+                        RegionName = s.CustomerAccount?.Region?.Name,
                         PrimaryLocationLandmark = primaryLocation?.LandmarkAndDirections,
                         PrimaryLocationStreet = primaryLocation?.StreetAddress,
+                        PrimaryContactName = primaryContact?.FullName,
+                        PrimaryContactPhone = primaryContact?.PrimaryPhoneNumber,
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,

@@ -39,6 +39,13 @@ public static class SendTrekAssignmentEmail
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
                         .ThenInclude(ca => ca.Locations.Where(l => l.IsPrimary))
+                            .ThenInclude(l => l.District)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.Region)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
@@ -71,14 +78,19 @@ public static class SendTrekAssignmentEmail
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var loc = s.CustomerAccount?.Locations.FirstOrDefault();
+                    var contact = s.CustomerAccount?.People.FirstOrDefault();
                     return new TrekkingSheetPdfGenerator.TrekkingSheetData.StopData
                     {
                         Sequence = s.Sequence,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
+                        DistrictName = loc?.District?.Name,
+                        RegionName = s.CustomerAccount?.Region?.Name,
                         PrimaryLocationLandmark = loc?.LandmarkAndDirections,
                         PrimaryLocationStreet = loc?.StreetAddress,
+                        PrimaryContactName = contact?.FullName,
+                        PrimaryContactPhone = contact?.PrimaryPhoneNumber,
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
