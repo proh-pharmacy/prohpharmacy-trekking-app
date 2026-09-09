@@ -43,8 +43,8 @@ public static class CreateCustomer
             public decimal Latitude { get; set; }
             public decimal Longitude { get; set; }
             public decimal AccuracyMetres { get; set; }
-            public string LandmarkAndDirections { get; set; } = string.Empty;
-            public string StreetAddress { get; set; } = string.Empty;
+            public string? LandmarkAndDirections { get; set; }
+            public string? StreetAddress { get; set; }
             public Guid DistrictId { get; set; }
         }
     }
@@ -119,8 +119,8 @@ public static class CreateCustomer
 
             RuleFor(x => x.Location).NotNull();
             RuleFor(x => x.Location.DistrictId).NotEmpty();
-            RuleFor(x => x.Location.LandmarkAndDirections).NotEmpty().MaximumLength(500);
-            RuleFor(x => x.Location.StreetAddress).NotEmpty().MaximumLength(300);
+            RuleFor(x => x.Location.LandmarkAndDirections).MaximumLength(500).When(x => x.Location.LandmarkAndDirections is not null);
+            RuleFor(x => x.Location.StreetAddress).MaximumLength(300).When(x => x.Location.StreetAddress is not null);
             RuleFor(x => x.Location.Latitude).InclusiveBetween(-90, 90);
             RuleFor(x => x.Location.Longitude).InclusiveBetween(-180, 180);
             RuleFor(x => x.Location.AccuracyMetres).GreaterThan(0);
@@ -209,8 +209,8 @@ public static class CreateCustomer
                 LocationType = LocationType.BusinessPremises,
                 RegionId = request.RegionId,
                 DistrictId = request.Location.DistrictId,
-                StreetAddress = request.Location.StreetAddress.Trim(),
-                LandmarkAndDirections = request.Location.LandmarkAndDirections.Trim(),
+                StreetAddress = request.Location.StreetAddress?.Trim(),
+                LandmarkAndDirections = request.Location.LandmarkAndDirections?.Trim(),
                 Latitude = request.Location.Latitude,
                 Longitude = request.Location.Longitude,
                 AccuracyMetres = request.Location.AccuracyMetres,

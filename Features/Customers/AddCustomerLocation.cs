@@ -19,7 +19,7 @@ public static class AddCustomerLocation
         public LocationType LocationType { get; set; } = LocationType.BusinessPremises;
         public Guid RegionId { get; set; }
         public Guid DistrictId { get; set; }
-        public string LandmarkAndDirections { get; set; } = string.Empty;
+        public string? LandmarkAndDirections { get; set; }
         public string? StreetAddress { get; set; }
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
@@ -53,7 +53,7 @@ public static class AddCustomerLocation
         {
             RuleFor(x => x.RegionId).NotEmpty();
             RuleFor(x => x.DistrictId).NotEmpty();
-            RuleFor(x => x.LandmarkAndDirections).NotEmpty().MaximumLength(500);
+            RuleFor(x => x.LandmarkAndDirections).MaximumLength(500).When(x => x.LandmarkAndDirections is not null);
             RuleFor(x => x.StreetAddress).MaximumLength(300).When(x => x.StreetAddress is not null);
             RuleFor(x => x.Latitude).InclusiveBetween(-90, 90).When(x => x.Latitude.HasValue);
             RuleFor(x => x.Longitude).InclusiveBetween(-180, 180).When(x => x.Longitude.HasValue);
@@ -102,7 +102,7 @@ public static class AddCustomerLocation
                 LocationType = request.LocationType,
                 RegionId = request.RegionId,
                 DistrictId = request.DistrictId,
-                LandmarkAndDirections = request.LandmarkAndDirections.Trim(),
+                LandmarkAndDirections = request.LandmarkAndDirections?.Trim(),
                 StreetAddress = request.StreetAddress?.Trim(),
                 Latitude = request.Latitude,
                 Longitude = request.Longitude,

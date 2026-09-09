@@ -12,7 +12,7 @@ public class CustomerLocation
     public Guid RegionId { get; set; }
     public Guid DistrictId { get; set; }
     public string? StreetAddress { get; set; }
-    public string LandmarkAndDirections { get; set; } = string.Empty;
+    public string? LandmarkAndDirections { get; set; }
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public decimal? AccuracyMetres { get; set; }
