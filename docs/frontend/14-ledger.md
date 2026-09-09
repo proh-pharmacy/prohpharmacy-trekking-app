@@ -18,6 +18,7 @@ When a trek is `Cancelled`, all auto-generated entries tied to that trek are rem
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
 | `GET` | `api/v1/ledger/summary` | Required | All customers with balances (debtors list) |
+| `GET` | `api/v1/ledger/export` | Required | Download customer balance report as Excel (.xlsx) |
 | `GET` | `api/v1/customers/{customerId}/ledger` | Required | Get a single customer's ledger with running totals |
 | `POST` | `api/v1/customers/{customerId}/ledger` | Required | Manually add a debit or credit entry |
 
@@ -72,6 +73,37 @@ Returns a paginated list of all customers with their pre-calculated debit, credi
 | `totalOutstanding` | Sum of `currentBalance` across **all** customers with a positive balance — not affected by pagination or `hasBalance` filter, but does respect `branchId`, `regionId`, and `search`. |
 | `customersWithBalance` | Count of customers with a positive balance — same scope as `totalOutstanding`. |
 | `currentBalance` | `totalDebits − totalCredits`. Positive = customer owes money. Zero or negative = no outstanding debt. |
+
+---
+
+## GET /api/v1/ledger/export
+
+Downloads a styled `.xlsx` Excel report of customer balances for a given date range. Entries are filtered by their `recordedAt` date, so totals reflect only what was recorded within the specified period.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `from` | `date?` | Start date (inclusive), e.g. `2026-01-01` |
+| `to` | `date?` | End date (inclusive), e.g. `2026-09-30` |
+| `hasBalance` | `bool?` | `true` = only customers with a positive outstanding balance |
+| `branchId` | `guid?` | Filter by owning branch |
+| `regionId` | `guid?` | Filter by region |
+
+Returns a file download named `LedgerSummary-{YYYYMMDD}.xlsx`. The sheet includes:
+- Report title and period label
+- One row per customer: Customer Code, Business Name, Region, Branch, Total Debits, Total Credits, Outstanding Balance
+- Totals row at the bottom
+- Outstanding balances highlighted in red
+- Rows sorted highest balance first
+
+### Usage
+
+Render a download button that opens this URL directly — the browser will prompt the user to save the file.
+
+```
+GET /api/v1/ledger/export?from=2026-01-01&to=2026-09-30&hasBalance=true
+```
 
 ---
 

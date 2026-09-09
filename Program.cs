@@ -110,6 +110,9 @@ builder.Services.AddCors(options =>
     });
 });
 
+// ─── EPPlus ───────────────────────────────────────────────────────────────────
+OfficeOpenXml.ExcelPackage.LicenseContext = OfficeOpenXml.LicenseContext.NonCommercial;
+
 // ─── Build ────────────────────────────────────────────────────────────────────
 var app = builder.Build();
 
