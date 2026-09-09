@@ -20,6 +20,7 @@ When a trek is `Cancelled`, all auto-generated entries tied to that trek are rem
 | `GET` | `api/v1/ledger/summary` | Required | All customers with balances (debtors list) |
 | `GET` | `api/v1/ledger/export` | Required | Download customer balance report as Excel (.xlsx) |
 | `GET` | `api/v1/customers/{customerId}/ledger` | Required | Get a single customer's ledger with running totals |
+| `GET` | `api/v1/customers/{customerId}/ledger/export` | Required | Download individual customer ledger statement as Excel (.xlsx) |
 | `POST` | `api/v1/customers/{customerId}/ledger` | Required | Manually add a debit or credit entry |
 
 ---
@@ -104,6 +105,36 @@ Render a download button that opens this URL directly — the browser will promp
 ```
 GET /api/v1/ledger/export?from=2026-01-01&to=2026-09-30&hasBalance=true
 ```
+
+---
+
+## GET /api/v1/customers/{customerId}/ledger/export
+
+Downloads a styled `.xlsx` Excel statement for a single customer. Entries are filtered by their `recordedAt` date. Both date parameters are optional — omit both to export the full history.
+
+### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `from` | `date?` | Start date (inclusive), e.g. `2026-01-01` |
+| `to` | `date?` | End date (inclusive), e.g. `2026-09-30` |
+
+Returns a file download named `Ledger-{CustomerCode}-{YYYYMMDD}.xlsx`. The sheet includes:
+- Customer info block: name, code, phone, region, branch, period label, generated timestamp
+- Entry table: Date, Type, Payment Method, Description, Trek No., Debit (GHS), Credit (GHS), Recorded By
+  - Debit amounts appear in the Debit column (red), Credit amounts in the Credit column (green)
+- Summary block: Total Debits, Total Credits, Outstanding Balance
+  - Outstanding Balance highlighted red if positive (customer owes money), green if zero/paid up
+
+### Usage
+
+```
+GET /api/v1/customers/{customerId}/ledger/export
+GET /api/v1/customers/{customerId}/ledger/export?from=2026-01-01&to=2026-09-30
+```
+
+### Errors
+- `404` — customer not found
 
 ---
 
