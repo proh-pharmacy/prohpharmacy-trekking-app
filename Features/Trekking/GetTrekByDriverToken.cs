@@ -34,7 +34,14 @@ public static class GetTrekByDriverToken
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
         public string? PrimaryPhoneNumber { get; set; }
-        public string? Location { get; set; }
+        public string? CustomerType { get; set; }
+        public string? RegionName { get; set; }
+        public string? DistrictName { get; set; }
+        public string? PrimaryLocationLandmark { get; set; }
+        public string? PrimaryLocationStreet { get; set; }
+        public string? PrimaryContactName { get; set; }
+        public string? PrimaryContactPhone { get; set; }
+        public string? Notes { get; set; }
         public List<DriverProductResponse> Products { get; set; } = [];
     }
 
@@ -64,6 +71,13 @@ public static class GetTrekByDriverToken
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
                         .ThenInclude(ca => ca.Locations.Where(l => l.IsPrimary))
+                            .ThenInclude(l => l.District)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.Region)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.CustomerAccount)
+                        .ThenInclude(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
@@ -86,11 +100,7 @@ public static class GetTrekByDriverToken
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var loc = s.CustomerAccount?.Locations.FirstOrDefault();
-                    var locationText = loc is null ? null :
-                        string.IsNullOrWhiteSpace(loc.LandmarkAndDirections) ? loc.StreetAddress :
-                        string.IsNullOrWhiteSpace(loc.StreetAddress) ? loc.LandmarkAndDirections :
-                        $"{loc.LandmarkAndDirections}, {loc.StreetAddress}";
-
+                    var contact = s.CustomerAccount?.People.FirstOrDefault();
                     return new DriverStopResponse
                     {
                         StopId = s.Id,
@@ -98,7 +108,14 @@ public static class GetTrekByDriverToken
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
-                        Location = locationText,
+                        CustomerType = s.CustomerAccount?.CustomerType.ToString(),
+                        RegionName = s.CustomerAccount?.Region?.Name,
+                        DistrictName = loc?.District?.Name,
+                        PrimaryLocationLandmark = loc?.LandmarkAndDirections,
+                        PrimaryLocationStreet = loc?.StreetAddress,
+                        PrimaryContactName = contact?.FullName,
+                        PrimaryContactPhone = contact?.PrimaryPhoneNumber,
+                        Notes = s.Notes,
                         Products = s.Products.Select(p => new DriverProductResponse
                         {
                             StopProductId = p.Id,
