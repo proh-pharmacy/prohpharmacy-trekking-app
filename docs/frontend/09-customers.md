@@ -168,8 +168,8 @@ Customer, representative, and primary location are created in a single request.
 | Field | Required | Constraints |
 |---|---|---|
 | `districtId` | Yes | Must exist |
-| `landmarkAndDirections` | Yes | Max 500 chars |
-| `streetAddress` | Yes | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `streetAddress` | No | Max 300 chars |
 | `latitude` | Yes | -90 to 90 |
 | `longitude` | Yes | -180 to 180 |
 | `accuracyMetres` | Yes | Must be > 0 |
@@ -235,7 +235,7 @@ Updates business-level fields only. Representative and location are updated via 
 |---|---|---|
 | `regionId` | Yes | |
 | `districtId` | Yes | |
-| `landmarkAndDirections` | Yes | Max 500 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
 | `locationType` | No | String. Defaults to `BusinessPremises` |
 | `streetAddress` | No | Max 300 chars |
 | `latitude` | No | -90 to 90 |
