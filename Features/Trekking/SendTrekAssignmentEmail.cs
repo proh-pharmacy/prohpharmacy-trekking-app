@@ -95,7 +95,12 @@ public static class SendTrekAssignmentEmail
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
                             Unit = p.Product?.Unit,
-                            PlannedQuantity = p.PlannedQuantity
+                            PlannedQuantity = p.PlannedQuantity,
+                            QtyDelivered = p.QtyDelivered,
+                            PaymentMethod = p.PaymentMethod?.ToString(),
+                            AmtPaid = p.AmtPaid,
+                            Balance = p.Balance,
+                            Notes = p.Notes
                         }).ToList()
                     };
                 }).ToList()

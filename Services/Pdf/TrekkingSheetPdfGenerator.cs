@@ -52,6 +52,11 @@ public static class TrekkingSheetPdfGenerator
             public string ProductName { get; set; } = string.Empty;
             public string? Unit { get; set; }
             public decimal PlannedQuantity { get; set; }
+            public decimal? QtyDelivered { get; set; }
+            public string? PaymentMethod { get; set; }
+            public decimal? AmtPaid { get; set; }
+            public decimal? Balance { get; set; }
+            public string? Notes { get; set; }
         }
     }
 
@@ -339,14 +344,21 @@ public static class TrekkingSheetPdfGenerator
                         var background = itemIndex % 2 == 1 ? "#eef7f3" : "#f8fbf9";
                         var unitSuffix = string.IsNullOrWhiteSpace(product.Unit) ? string.Empty : $" {product.Unit}";
 
+                        var qtyDelivered = product.QtyDelivered.HasValue
+                            ? $"{product.QtyDelivered:0.###}{unitSuffix}" : string.Empty;
+                        var amtPaid = product.AmtPaid.HasValue
+                            ? $"GHS {product.AmtPaid:0.00}" : string.Empty;
+                        var balance = product.Balance.HasValue
+                            ? $"GHS {product.Balance:0.00}" : string.Empty;
+
                         BodyCell(table, itemIndex.ToString(), background, alignCenter: true);
                         BodyCell(table, product.ProductName, background, alignCenter: false);
                         BodyCell(table, $"{product.PlannedQuantity:0.###}{unitSuffix}", background, alignCenter: true);
-                        BodyCell(table, string.Empty, background, alignCenter: true);
-                        BodyCell(table, string.Empty, background, alignCenter: true);
-                        BodyCell(table, string.Empty, background, alignCenter: true);
-                        BodyCell(table, string.Empty, background, alignCenter: true);
-                        BodyCell(table, string.Empty, background, alignCenter: false);
+                        BodyCell(table, qtyDelivered, background, alignCenter: true);
+                        BodyCell(table, product.PaymentMethod ?? string.Empty, background, alignCenter: true);
+                        BodyCell(table, amtPaid, background, alignCenter: true);
+                        BodyCell(table, balance, background, alignCenter: true);
+                        BodyCell(table, product.Notes ?? string.Empty, background, alignCenter: false);
 
                         itemIndex++;
                     }
