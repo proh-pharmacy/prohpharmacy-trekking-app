@@ -65,7 +65,8 @@ Returns a flat, unpaginated array of every customer that has a primary GPS locat
     "regionId": "...",
     "regionName": "Greater Accra Region",
     "primaryContactName": "Ama Boateng",
-    "primaryContactPhone": "+233209876543"
+    "primaryContactPhone": "+233209876543",
+    "primaryContactPortraitUrl": "https://ik.imagekit.io/..."
   }
 ]
 ```

@@ -36,6 +36,7 @@ public static class GetCustomerMapPins
         public string RegionName { get; set; } = string.Empty;
         public string? PrimaryContactName { get; set; }
         public string? PrimaryContactPhone { get; set; }
+        public string? PrimaryContactPortraitUrl { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<List<CustomerMapPin>>>
@@ -81,7 +82,8 @@ public static class GetCustomerMapPins
                     RegionId = a.RegionId,
                     RegionName = a.Region.Name,
                     PrimaryContactName = person?.FullName,
-                    PrimaryContactPhone = person?.PrimaryPhoneNumber
+                    PrimaryContactPhone = person?.PrimaryPhoneNumber,
+                    PrimaryContactPortraitUrl = person?.PortraitUrl
                 };
             }).ToList();
 
