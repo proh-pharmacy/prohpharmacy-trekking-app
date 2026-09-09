@@ -13,10 +13,11 @@ Step-by-step guides for implementing each area of the Proh Pharmacy Trekking fro
 | 04 | [Staff Onboarding](./04-staff-onboarding.md) | Creating staff, granting app access, invitation acceptance |
 | 05 | [User Onboarding](./05-user-onboarding.md) | Direct invitations, first-time setup, accepting invitations |
 | 06 | [Password Reset](./06-password-reset.md) | Forgot password flow, reset token, set new password |
+| 07 | [Organisation](./07-organisation.md) | Regions, districts, branches |
+| 08 | [Products](./08-products.md) | Product catalogue — create, list, update, toggle status |
+| 09 | [Customers](./09-customers.md) | Customer registration, locations, representative portrait |
 
 ## Coming Next
 
-- `07-customers.md` — Customer accounts, locations, representatives, portrait upload
-- `07-trekking.md` — Trek scheduling, driver link, delivery recording, PDF sheet
-- `08-ledger.md` — Customer ledger, debit/credit entries, balance view
-- `09-fleet.md` — Vehicles, GPS devices, driver assignments
+- `10-fleet.md` — Vehicles, GPS devices, driver assignments
+- `11-trekking.md` — Trek scheduling, driver link, delivery recording, PDF sheet
