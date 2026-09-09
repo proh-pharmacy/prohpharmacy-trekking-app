@@ -23,6 +23,7 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
 | `POST` | `api/v1/treks` | Required | Create a new trek |
+| `PATCH` | `api/v1/treks/{id}` | Required | Update trek details |
 | `GET` | `api/v1/treks` | Required | List / search treks |
 | `GET` | `api/v1/treks/{id}` | Required | Get a single trek |
 | `POST` | `api/v1/treks/{id}/stops` | Required | Add a customer stop |
@@ -116,6 +117,36 @@ Creates a trek in `Draft` status. The driver is **automatically inferred** from 
 ### Errors
 - `404` — branch or vehicle not found
 - `422` — validation error, or vehicle has no active driver assigned
+
+---
+
+## PATCH /api/v1/treks/{id}
+
+Updates the branch, scheduled date, vehicle, and notes. The driver is re-inferred from the new vehicle's active staff assignment — same rule as create. Blocked if the trek is `Completed` or `Cancelled`.
+
+### Request body
+
+```json
+{
+  "branchId": "<guid>",
+  "scheduledDate": "2026-09-11",
+  "vehicleId": "<guid>",
+  "notes": "Updated route — skip Stop 2 if closed"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `branchId` | Yes | |
+| `scheduledDate` | Yes | `YYYY-MM-DD` |
+| `vehicleId` | Yes | Must have an active staff assignment |
+| `notes` | No | Max 500 chars. Send `null` to clear |
+
+### Response `200 OK` — full `TrekResponse` with updated `driverName` reflected
+
+### Errors
+- `404` — trek, branch, or vehicle not found
+- `422` — vehicle has no active driver, or trek is `Completed` / `Cancelled`
 
 ---
 
