@@ -83,6 +83,7 @@ public static class CreateCustomer
         public string PrimaryPhoneNumber { get; set; } = string.Empty;
         public bool IsPrimaryContact { get; set; }
         public bool IsCreditResponsiblePerson { get; set; }
+        public string? PortraitUrl { get; set; }
     }
 
     public class CustomerLocationResponse
@@ -267,7 +268,8 @@ public static class CreateCustomer
                 RelationshipType = primaryPerson.RelationshipType.ToString(),
                 PrimaryPhoneNumber = primaryPerson.PrimaryPhoneNumber,
                 IsPrimaryContact = primaryPerson.IsPrimaryContact,
-                IsCreditResponsiblePerson = primaryPerson.IsCreditResponsiblePerson
+                IsCreditResponsiblePerson = primaryPerson.IsCreditResponsiblePerson,
+                PortraitUrl = primaryPerson.PortraitUrl
             },
             PrimaryLocation = primaryLocation is null ? null : new CustomerLocationResponse
             {
