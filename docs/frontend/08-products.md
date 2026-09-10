@@ -21,6 +21,7 @@ Units are managed separately as a lookup list. When creating or updating a produ
 |---|---|---|
 | `GET` | `api/v1/products` | List all products (paginated, searchable) |
 | `POST` | `api/v1/products` | Create a product |
+| `POST` | `api/v1/products/import` | Bulk import products from Excel |
 | `PUT` | `api/v1/products/{id}` | Update a product |
 | `PATCH` | `api/v1/products/{id}/status` | Toggle active / inactive |
 
@@ -175,3 +176,68 @@ No request body. Toggles `isActive` between `true` and `false`.
 
 ### Errors
 - `404` — product not found
+
+---
+
+## POST /api/v1/products/import
+
+Bulk-creates products from an Excel file. The user specifies which column header in their file maps to the product name and which maps to the unit — so the file layout is flexible and not fixed.
+
+### Request
+
+`Content-Type: multipart/form-data`
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `file` | file | Yes | `.xlsx` or `.xls` file |
+| `productNameColumn` | string | Yes | Exact text of the header in row 1 that contains product names, e.g. `"Product Name"` |
+| `unitColumn` | string | Yes | Exact text of the header in row 1 that contains units, e.g. `"Unit"` |
+
+The header match is **case-insensitive** — `"product name"`, `"Product Name"`, and `"PRODUCT NAME"` all match the same column.
+
+### How the file is processed
+
+1. Row 1 is treated as the header row. The two specified column headers are located by text match.
+2. Every row from row 2 onwards is processed. Blank product name rows are silently skipped.
+3. **If a product with the same name already exists in the database** (case-insensitive) → the row is skipped and the name is added to `skippedNames`.
+4. **If the same product name appears more than once in the file** → only the first occurrence is imported; subsequent duplicates are also skipped.
+5. **If the unit value does not exist in the Units table** → it is created automatically before the product is saved.
+6. All inserts are committed in a single database round-trip at the end.
+
+### Response `200 OK`
+
+```json
+{
+  "imported": 42,
+  "skipped": 5,
+  "unitsCreated": 3,
+  "skippedNames": [
+    "Amoxicillin 500mg",
+    "Paracetamol 500mg",
+    "Ibuprofen 400mg",
+    "Metformin 850mg",
+    "Omeprazole 20mg"
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `imported` | Number of new products successfully created |
+| `skipped` | Number of rows skipped because the product name already existed |
+| `unitsCreated` | Number of new units auto-created from the file |
+| `skippedNames` | Full list of product names that were skipped |
+
+### Errors
+- `422` — no file provided, missing form fields, unsupported file type (not `.xlsx`/`.xls`), or a specified column header was not found in the file
+
+When a column header is not found the error message names the missing header explicitly:
+```json
+{ "message": "Column 'Product Name' was not found in the file header row." }
+```
+
+### Usage notes
+
+- Build a two-step UI: first let the user upload the file and peek at the headers (you can read them client-side from the first row), then present two dropdowns — one for product name column, one for unit column — pre-populated with the detected headers. Submit the file + the two chosen values.
+- Show `skippedNames` to the user after import so they know which rows were ignored and why.
+- Units created during import are immediately available in `GET /api/v1/units` for use in future product creation.
