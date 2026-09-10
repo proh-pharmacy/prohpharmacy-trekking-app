@@ -205,9 +205,18 @@ public static class ExportCustomerLedger
             balCell.Style.Numberformat.Format = "#,##0.00";
             balCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
             balCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-            balCell.Style.Fill.BackgroundColor.SetColor(balance > 0 ? Color.FromArgb(254, 242, 242) : Color.FromArgb(240, 253, 244));
-            balCell.Style.Font.Color.SetColor(balance > 0 ? Color.FromArgb(185, 28, 28) : Color.FromArgb(21, 128, 61));
-            balCell.Style.Border.BorderAround(ExcelBorderStyle.Medium, balance > 0 ? Color.FromArgb(185, 28, 28) : brandGreen);
+            balCell.Style.Fill.BackgroundColor.SetColor(
+                balance > 0 ? Color.FromArgb(240, 253, 244) :
+                balance < 0 ? Color.FromArgb(254, 242, 242) :
+                Color.White);
+            balCell.Style.Font.Color.SetColor(
+                balance > 0 ? Color.FromArgb(21, 128, 61) :
+                balance < 0 ? Color.FromArgb(185, 28, 28) :
+                darkSlate);
+            balCell.Style.Border.BorderAround(ExcelBorderStyle.Medium,
+                balance > 0 ? brandGreen :
+                balance < 0 ? Color.FromArgb(185, 28, 28) :
+                borderColor);
 
             // ── Column widths ────────────────────────────────────────────────
             ws.Column(1).Width = 18;

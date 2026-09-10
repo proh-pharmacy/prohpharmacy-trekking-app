@@ -161,11 +161,20 @@ public static class ExportLedgerSummary
                 SetCell(5, row.BranchName ?? "—");
                 SetCell(6, row.TotalDebits, isNumber: true);
                 SetCell(7, row.TotalCredits, isNumber: true);
-                SetCell(8, row.CurrentBalance, isNumber: true, isBold: row.CurrentBalance > 0);
+                SetCell(8, row.CurrentBalance, isNumber: true, isBold: row.CurrentBalance != 0);
 
-                // Colour outstanding balance red if positive
                 if (row.CurrentBalance > 0)
+                {
+                    ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                    ws.Cells[r, 8].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    ws.Cells[r, 8].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                }
+                else if (row.CurrentBalance < 0)
+                {
                     ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
+                    ws.Cells[r, 8].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    ws.Cells[r, 8].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(254, 242, 242));
+                }
 
                 // Format currency columns
                 ws.Cells[r, 6].Style.Numberformat.Format = "#,##0.00";
@@ -180,7 +189,7 @@ public static class ExportLedgerSummary
             ws.Cells[totalsRow, 1].Style.Font.Bold = true;
             ws.Cells[totalsRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
 
-            void TotalCell(int col, decimal value)
+            void TotalCell(int col, decimal value, bool applyBalanceColor = false)
             {
                 var cell = ws.Cells[totalsRow, col];
                 cell.Value = value;
@@ -188,13 +197,27 @@ public static class ExportLedgerSummary
                 cell.Style.Numberformat.Format = "#,##0.00";
                 cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
                 cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
                 cell.Style.Border.BorderAround(ExcelBorderStyle.Medium, brandGreen);
+
+                if (applyBalanceColor && value > 0)
+                {
+                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                    cell.Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                }
+                else if (applyBalanceColor && value < 0)
+                {
+                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(254, 242, 242));
+                    cell.Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
+                }
+                else
+                {
+                    cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                }
             }
 
             TotalCell(6, data.Sum(r => r.TotalDebits));
             TotalCell(7, data.Sum(r => r.TotalCredits));
-            TotalCell(8, data.Sum(r => r.CurrentBalance));
+            TotalCell(8, data.Sum(r => r.CurrentBalance), applyBalanceColor: true);
 
             // ── Column widths ────────────────────────────────────────────────
             ws.Column(1).Width = 5;
