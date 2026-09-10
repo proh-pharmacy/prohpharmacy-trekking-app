@@ -108,7 +108,7 @@ const response = await fetch(
   { headers: { Authorization: `Bearer ${token}` } }
 );
 const disposition = response.headers.get('Content-Disposition');
-const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'LedgerSummary.xlsx';
+const filename = disposition?.match(/filename="?([^";]+)"?/)?.[1] ?? 'LedgerSummary.xlsx';
 const blob = await response.blob();
 const url = URL.createObjectURL(blob);
 const a = document.createElement('a');
@@ -146,7 +146,7 @@ const response = await fetch(
   { headers: { Authorization: `Bearer ${token}` } }
 );
 const disposition = response.headers.get('Content-Disposition');
-const filename = disposition?.match(/filename="?([^"]+)"?/)?.[1] ?? 'Ledger.xlsx';
+const filename = disposition?.match(/filename="?([^";]+)"?/)?.[1] ?? 'Ledger.xlsx';
 const blob = await response.blob();
 const url = URL.createObjectURL(blob);
 const a = document.createElement('a');
