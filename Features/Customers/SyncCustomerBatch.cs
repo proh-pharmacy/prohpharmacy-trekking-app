@@ -46,8 +46,8 @@ public static class SyncCustomerBatch
             public decimal Latitude { get; set; }
             public decimal Longitude { get; set; }
             public decimal AccuracyMetres { get; set; }
-            public string LandmarkAndDirections { get; set; } = string.Empty;
-            public string StreetAddress { get; set; } = string.Empty;
+            public string? LandmarkAndDirections { get; set; }
+            public string? StreetAddress { get; set; }
             public Guid DistrictId { get; set; }
         }
     }
@@ -148,10 +148,6 @@ public static class SyncCustomerBatch
                 return Result.Failure<CustomerAccount>(Error.BadRequest("Representative first and last name are required."));
             if (string.IsNullOrWhiteSpace(item.Representative.PrimaryPhoneNumber))
                 return Result.Failure<CustomerAccount>(Error.BadRequest("Representative phone number is required."));
-            if (string.IsNullOrWhiteSpace(item.Location.LandmarkAndDirections))
-                return Result.Failure<CustomerAccount>(Error.BadRequest("LandmarkAndDirections is required."));
-            if (string.IsNullOrWhiteSpace(item.Location.StreetAddress))
-                return Result.Failure<CustomerAccount>(Error.BadRequest("StreetAddress is required."));
 
             var region = await _db.Regions.FirstOrDefaultAsync(r => r.Id == item.RegionId, ct);
             if (region is null)
@@ -207,8 +203,8 @@ public static class SyncCustomerBatch
                 LocationType = LocationType.BusinessPremises,
                 RegionId = item.RegionId,
                 DistrictId = item.Location.DistrictId,
-                StreetAddress = item.Location.StreetAddress.Trim(),
-                LandmarkAndDirections = item.Location.LandmarkAndDirections.Trim(),
+                StreetAddress = item.Location.StreetAddress?.Trim(),
+                LandmarkAndDirections = item.Location.LandmarkAndDirections?.Trim(),
                 Latitude = item.Location.Latitude,
                 Longitude = item.Location.Longitude,
                 AccuracyMetres = item.Location.AccuracyMetres,

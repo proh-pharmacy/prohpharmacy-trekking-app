@@ -124,7 +124,7 @@ public static class CreateCustomer
             RuleFor(x => x.Location.StreetAddress).MaximumLength(300).When(x => x.Location.StreetAddress is not null);
             RuleFor(x => x.Location.Latitude).InclusiveBetween(-90, 90);
             RuleFor(x => x.Location.Longitude).InclusiveBetween(-180, 180);
-            RuleFor(x => x.Location.AccuracyMetres).GreaterThan(0);
+            RuleFor(x => x.Location.AccuracyMetres).GreaterThanOrEqualTo(0);
         }
     }
 
