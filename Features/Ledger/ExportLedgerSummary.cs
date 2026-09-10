@@ -49,6 +49,16 @@ public static class ExportLedgerSummary
                 ca.BusinessName,
                 RegionName = (string?)ca.Region!.Name,
                 BranchName = (string?)ca.OwningBranch!.Name,
+                RepName = ca.People
+                    .Where(p => p.IsPrimaryContact && p.IsActive)
+                    .Select(p => p.MiddleName != null
+                        ? p.FirstName + " " + p.MiddleName + " " + p.LastName
+                        : p.FirstName + " " + p.LastName)
+                    .FirstOrDefault(),
+                RepPhone = ca.People
+                    .Where(p => p.IsPrimaryContact && p.IsActive)
+                    .Select(p => p.PrimaryPhoneNumber)
+                    .FirstOrDefault(),
                 TotalDebits = db.CustomerLedgerEntries
                     .Where(e => e.CustomerAccountId == ca.Id
                         && e.EntryType == LedgerEntryType.Debit
@@ -71,6 +81,8 @@ public static class ExportLedgerSummary
                     r.BusinessName,
                     r.RegionName,
                     r.BranchName,
+                    r.RepName,
+                    r.RepPhone,
                     r.TotalDebits,
                     r.TotalCredits,
                     CurrentBalance = r.TotalDebits - r.TotalCredits
@@ -112,13 +124,12 @@ public static class ExportLedgerSummary
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
             // ── Column headers ───────────────────────────────────────────────
-            var headers = new[] { "#", "Customer Code", "Business Name", "Region", "Branch", "Total Debits (GHS)", "Total Credits (GHS)", "Outstanding Balance (GHS)" };
-            ws.Cells["A:H"].Style.Font.Name = "Calibri";
+            var headers = new[] { "#", "Customer Code", "Business Name", "Region", "Branch", "Rep Name", "Rep Tel", "Total Debits (GHS)", "Total Credits (GHS)", "Outstanding Balance (GHS)" };
+            ws.Cells["A:J"].Style.Font.Name = "Calibri";
 
-            // extend merge to H for 8 columns
-            ws.Cells["A1:H1"].Merge = true;
-            ws.Cells["A2:H2"].Merge = true;
-            ws.Cells["A3:H3"].Merge = true;
+            ws.Cells["A1:J1"].Merge = true;
+            ws.Cells["A2:J2"].Merge = true;
+            ws.Cells["A3:J3"].Merge = true;
 
             int headerRow = 5;
             for (int c = 0; c < headers.Length; c++)
@@ -159,32 +170,34 @@ public static class ExportLedgerSummary
                 SetCell(3, row.BusinessName);
                 SetCell(4, row.RegionName ?? "—");
                 SetCell(5, row.BranchName ?? "—");
-                SetCell(6, row.TotalDebits, isNumber: true);
-                SetCell(7, row.TotalCredits, isNumber: true);
-                SetCell(8, row.CurrentBalance, isNumber: true, isBold: row.CurrentBalance != 0);
+                SetCell(6, row.RepName ?? "—");
+                SetCell(7, row.RepPhone ?? "—");
+                SetCell(8, row.TotalDebits, isNumber: true);
+                SetCell(9, row.TotalCredits, isNumber: true);
+                SetCell(10, row.CurrentBalance, isNumber: true, isBold: row.CurrentBalance != 0);
 
                 if (row.CurrentBalance > 0)
                 {
-                    ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
-                    ws.Cells[r, 8].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    ws.Cells[r, 8].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                    ws.Cells[r, 10].Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                    ws.Cells[r, 10].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    ws.Cells[r, 10].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
                 }
                 else if (row.CurrentBalance < 0)
                 {
-                    ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
-                    ws.Cells[r, 8].Style.Fill.PatternType = ExcelFillStyle.Solid;
-                    ws.Cells[r, 8].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(254, 242, 242));
+                    ws.Cells[r, 10].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
+                    ws.Cells[r, 10].Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    ws.Cells[r, 10].Style.Fill.BackgroundColor.SetColor(Color.FromArgb(254, 242, 242));
                 }
 
                 // Format currency columns
-                ws.Cells[r, 6].Style.Numberformat.Format = "#,##0.00";
-                ws.Cells[r, 7].Style.Numberformat.Format = "#,##0.00";
                 ws.Cells[r, 8].Style.Numberformat.Format = "#,##0.00";
+                ws.Cells[r, 9].Style.Numberformat.Format = "#,##0.00";
+                ws.Cells[r, 10].Style.Numberformat.Format = "#,##0.00";
             }
 
             // ── Totals row ───────────────────────────────────────────────────
             int totalsRow = headerRow + 1 + data.Count;
-            ws.Cells[totalsRow, 1, totalsRow, 5].Merge = true;
+            ws.Cells[totalsRow, 1, totalsRow, 7].Merge = true;
             ws.Cells[totalsRow, 1].Value = "TOTAL";
             ws.Cells[totalsRow, 1].Style.Font.Bold = true;
             ws.Cells[totalsRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
@@ -215,9 +228,9 @@ public static class ExportLedgerSummary
                 }
             }
 
-            TotalCell(6, data.Sum(r => r.TotalDebits));
-            TotalCell(7, data.Sum(r => r.TotalCredits));
-            TotalCell(8, data.Sum(r => r.CurrentBalance), applyBalanceColor: true);
+            TotalCell(8, data.Sum(r => r.TotalDebits));
+            TotalCell(9, data.Sum(r => r.TotalCredits));
+            TotalCell(10, data.Sum(r => r.CurrentBalance), applyBalanceColor: true);
 
             // ── Column widths ────────────────────────────────────────────────
             ws.Column(1).Width = 5;
@@ -225,9 +238,11 @@ public static class ExportLedgerSummary
             ws.Column(3).Width = 32;
             ws.Column(4).Width = 20;
             ws.Column(5).Width = 20;
-            ws.Column(6).Width = 22;
-            ws.Column(7).Width = 22;
-            ws.Column(8).Width = 26;
+            ws.Column(6).Width = 26;
+            ws.Column(7).Width = 18;
+            ws.Column(8).Width = 22;
+            ws.Column(9).Width = 22;
+            ws.Column(10).Width = 26;
 
             ws.Row(1).Height = 22;
             ws.View.FreezePanes(headerRow + 1, 1);
