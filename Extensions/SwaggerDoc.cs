@@ -24,6 +24,7 @@ namespace prohpharmacy_trekking_app.Extensions
             public const string Ledger = "Ledger";
             public const string Visits = "Visits";
             public const string Reports = "Reports";
+            public const string Dashboard = "Dashboard";
         }
 
         // ─── Operation Filters ─────────────────────────────────────────────────────
