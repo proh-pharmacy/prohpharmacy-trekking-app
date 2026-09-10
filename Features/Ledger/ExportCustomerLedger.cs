@@ -234,6 +234,7 @@ public class ExportCustomerLedgerEndpoint : ICarterModule
         app.MapGet("api/v1/customers/{customerId:guid}/ledger/export", async (
             Guid customerId,
             ISender sender,
+            HttpContext ctx,
             [FromQuery] DateOnly? from,
             [FromQuery] DateOnly? to) =>
         {
@@ -249,9 +250,9 @@ public class ExportCustomerLedgerEndpoint : ICarterModule
 
             var (file, code) = result.Value;
             var filename = $"Ledger-{code}-{DateTime.UtcNow:yyyyMMdd}.xlsx";
+            ctx.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{filename}\"";
             return Results.File(file,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                filename);
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         })
         .WithTags("Ledger")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Ledger)

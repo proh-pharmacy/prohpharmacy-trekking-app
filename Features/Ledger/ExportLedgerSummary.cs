@@ -220,6 +220,7 @@ public class ExportLedgerSummaryEndpoint : ICarterModule
     {
         app.MapGet("api/v1/ledger/export", async (
             ISender sender,
+            HttpContext ctx,
             [FromQuery] DateOnly? from,
             [FromQuery] DateOnly? to,
             [FromQuery] bool? hasBalance,
@@ -239,9 +240,9 @@ public class ExportLedgerSummaryEndpoint : ICarterModule
                 return Results.BadRequest(result.Error);
 
             var filename = $"LedgerSummary-{DateTime.UtcNow:yyyyMMdd}.xlsx";
+            ctx.Response.Headers["Content-Disposition"] = $"attachment; filename=\"{filename}\"";
             return Results.File(result.Value,
-                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                filename);
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
         })
         .WithTags("Ledger")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Ledger)
