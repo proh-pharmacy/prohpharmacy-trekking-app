@@ -63,15 +63,18 @@ public static class SyncOfflineActionsByDriverToken
             // In-batch maps: clientId → server Guid for entities created in this batch
             var customerClientMap = new Dictionary<Guid, Guid>();
             var stopClientMap = new Dictionary<Guid, Guid>();
+            var returnClientMap = new Dictionary<Guid, Guid>();
 
             foreach (var action in ordered)
             {
                 var result = action.Type switch
                 {
-                    "RegisterCustomer" => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, cancellationToken),
-                    "AddWalkInStop"    => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
-                    "RecordUnplannedSale" => await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
-                    "RecordReturn"     => await ProcessRecordReturnAsync(action, trip, attributedStaffId, stopClientMap, cancellationToken),
+                    "RegisterCustomer"   => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, cancellationToken),
+                    "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
+                    "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, cancellationToken),
+                    "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
+                    "RecordReturn"       => await ProcessRecordReturnAsync(action, trip, attributedStaffId, stopClientMap, returnClientMap, cancellationToken),
+                    "VoidReturn"         => await ProcessVoidReturnAsync(action, trip, returnClientMap, cancellationToken),
                     _ => new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Unknown action type: {action.Type}" }
                 };
                 results.Add(result);
@@ -319,11 +322,51 @@ public static class SyncOfflineActionsByDriverToken
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
         }
 
+        private async Task<ActionResult> ProcessRecordDeliveryAsync(
+            OfflineAction action,
+            Entities.TrekkingTrip trip,
+            CancellationToken ct)
+        {
+            var payload = action.Payload;
+
+            if (!payload.TryGetProperty("stopProductId", out var spidEl) || !Guid.TryParse(spidEl.GetString(), out var stopProductId))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "stopProductId is required." };
+
+            var stopProduct = await db.TrekkingTripStopProducts
+                .Include(p => p.TrekkingTripStop)
+                    .ThenInclude(s => s.TrekkingTrip)
+                .FirstOrDefaultAsync(p => p.Id == stopProductId, ct);
+
+            if (stopProduct is null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Stop product not found." };
+
+            if (stopProduct.TrekkingTripStop.TrekkingTrip.RegionId != trip.RegionId)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Stop product does not belong to a trek in this region." };
+
+            if (stopProduct.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Completed ||
+                stopProduct.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Cancelled)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Trek is {stopProduct.TrekkingTripStop.TrekkingTrip.Status}." };
+
+            var pmStr = payload.TryGetProperty("paymentMethod", out var pm) ? pm.GetString() : null;
+            Enum.TryParse<PaymentMethod>(pmStr, ignoreCase: true, out var paymentMethod);
+
+            stopProduct.BasicQtyDelivered = payload.TryGetProperty("basicQtyDelivered", out var bq) ? bq.GetDecimal() : stopProduct.BasicQtyDelivered;
+            stopProduct.PackagingQtyDelivered = payload.TryGetProperty("packagingQtyDelivered", out var pq) ? (decimal?)pq.GetDecimal() : stopProduct.PackagingQtyDelivered;
+            stopProduct.PaymentMethod = pmStr is not null ? paymentMethod : stopProduct.PaymentMethod;
+            stopProduct.AmtPaid = payload.TryGetProperty("amtPaid", out var ap) ? (decimal?)ap.GetDecimal() : stopProduct.AmtPaid;
+            stopProduct.Balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : stopProduct.Balance;
+            stopProduct.Notes = payload.TryGetProperty("notes", out var n) ? n.GetString()?.Trim() ?? stopProduct.Notes : stopProduct.Notes;
+            stopProduct.DeliveredAt ??= action.OccurredAt;
+
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = stopProductId };
+        }
+
         private async Task<ActionResult> ProcessRecordReturnAsync(
             OfflineAction action,
             Entities.TrekkingTrip trip,
             Guid attributedStaffId,
             Dictionary<Guid, Guid> stopClientMap,
+            Dictionary<Guid, Guid> returnClientMap,
             CancellationToken ct)
         {
             var existing = await db.TrekkingTripStopReturns
@@ -390,7 +433,64 @@ public static class SyncOfflineActionsByDriverToken
             };
             db.TrekkingTripStopReturns.Add(ret);
 
+            returnClientMap[action.ClientId] = ret.Id;
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = ret.Id };
+        }
+
+        private async Task<ActionResult> ProcessVoidReturnAsync(
+            OfflineAction action,
+            Entities.TrekkingTrip trip,
+            Dictionary<Guid, Guid> returnClientMap,
+            CancellationToken ct)
+        {
+            var payload = action.Payload;
+
+            Guid returnId;
+
+            // Resolve by returnClientId (return recorded offline in this or a previous batch)
+            if (payload.TryGetProperty("returnClientId", out var rcid) && Guid.TryParse(rcid.GetString(), out var returnClientId))
+            {
+                if (returnClientMap.TryGetValue(returnClientId, out returnId))
+                {
+                    // Created in this batch — remove from the tracked set and don't persist it
+                    returnClientMap.Remove(returnClientId);
+                }
+                else
+                {
+                    var resolved = await db.TrekkingTripStopReturns
+                        .FirstOrDefaultAsync(r => r.ClientGeneratedId == returnClientId, ct);
+                    if (resolved is null)
+                        return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", Reason = "Return not found — may have already been voided." };
+                    returnId = resolved.Id;
+                }
+            }
+            else if (payload.TryGetProperty("returnId", out var rid) && Guid.TryParse(rid.GetString(), out var directReturnId))
+            {
+                returnId = directReturnId;
+            }
+            else
+            {
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "returnId or returnClientId is required." };
+            }
+
+            var ret = await db.TrekkingTripStopReturns
+                .Include(r => r.TrekkingTripStop)
+                    .ThenInclude(s => s.TrekkingTrip)
+                .FirstOrDefaultAsync(r => r.Id == returnId, ct);
+
+            if (ret is null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", Reason = "Return not found — may have already been voided." };
+
+            if (ret.TrekkingTripStop.TrekkingTrip.RegionId != trip.RegionId)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Return does not belong to a trek in this region." };
+
+            if (ret.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Completed ||
+                ret.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Cancelled)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Trek is {ret.TrekkingTripStop.TrekkingTrip.Status}." };
+
+            db.TrekkingTripStopReturns.Remove(ret);
+
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
         }
     }
 }
@@ -411,7 +511,7 @@ public class SyncOfflineActionsByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Push queued offline actions in a batch (driver portal)")
-        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, AddWalkInStop, RecordUnplannedSale, RecordReturn.")
+        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, AddWalkInStop, RecordDelivery, RecordUnplannedSale, RecordReturn, VoidReturn.")
         .Produces<SyncOfflineActionsByDriverToken.SyncResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

@@ -328,7 +328,7 @@ function getGps() {
 ```
 
 **GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddWalkInStop` (stored on stop), `RecordReturn` (stored on return record).
-**GPS is NOT captured on:** `RecordUnplannedSale` — the stop already has a location.
+**GPS is NOT captured on:** `RecordDelivery` or `RecordUnplannedSale` — the stop already has a location.
 **Never block an action on GPS failure.** Pass `gps: null` and the action goes through without coordinates.
 
 ---
@@ -373,8 +373,20 @@ When connectivity returns, push all queued actions in one request. Actions are p
       }
     },
     {
-      "type": "RecordUnplannedSale",
+      "type": "RecordDelivery",
       "clientId": "<device-uuid-3>",
+      "occurredAt": "2026-09-17T10:38:00Z",
+      "payload": {
+        "stopProductId": "<existing-server-stop-product-guid>",
+        "basicQtyDelivered": 10,
+        "paymentMethod": "Cash",
+        "amtPaid": 250.00,
+        "balance": 0.00
+      }
+    },
+    {
+      "type": "RecordUnplannedSale",
+      "clientId": "<device-uuid-4>",
       "occurredAt": "2026-09-17T10:40:00Z",
       "payload": {
         "stopClientId": "<device-uuid-2>",
@@ -387,7 +399,7 @@ When connectivity returns, push all queued actions in one request. Actions are p
     },
     {
       "type": "RecordReturn",
-      "clientId": "<device-uuid-4>",
+      "clientId": "<device-uuid-5>",
       "occurredAt": "2026-09-17T10:45:00Z",
       "payload": {
         "stopId": "<existing-server-stop-guid>",
@@ -397,6 +409,14 @@ When connectivity returns, push all queued actions in one request. Actions are p
         "refundMethod": "Cash",
         "reason": "Damaged packaging",
         "gps": { "latitude": 6.0835, "longitude": -0.2170, "accuracyMetres": 18.0 }
+      }
+    },
+    {
+      "type": "VoidReturn",
+      "clientId": "<device-uuid-6>",
+      "occurredAt": "2026-09-17T10:46:00Z",
+      "payload": {
+        "returnClientId": "<device-uuid-5>"
       }
     }
   ]
@@ -428,6 +448,22 @@ When connectivity returns, push all queued actions in one request. Actions are p
 | `sequence` | Yes | > 0 |
 | `notes` | No | |
 
+**`RecordDelivery`**
+
+Records the delivery outcome for a **planned** stop product (one that already exists in the trek plan). This is the offline equivalent of the existing driver delivery page. `stopProductId` is the server ID of the `TrekkingTripStopProduct` row — it is available in the offline trek seed (`stops[].products[].stopProductId`). Only fields present in the payload are applied; omitted fields keep their current values.
+
+| Field | Required | Notes |
+|---|---|---|
+| `stopProductId` | Yes | Server ID of the planned stop product to update |
+| `basicQtyDelivered` | No | Actual qty delivered |
+| `packagingQtyDelivered` | No | Only if product has a packaging unit |
+| `paymentMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
+| `amtPaid` | No | ≥ 0 |
+| `balance` | No | ≥ 0 |
+| `notes` | No | Max 500 chars |
+
+**Note:** `RecordDelivery` is an update, not a create. It is naturally idempotent — applying the same values twice produces the same result. `serverId` in the response echoes back the `stopProductId`.
+
 **`RecordUnplannedSale`**
 
 | Field | Required | Notes |
@@ -455,15 +491,26 @@ When connectivity returns, push all queued actions in one request. Actions are p
 | `reason` | No | Max 500 chars |
 | `gps` | No | Optional |
 
+**`VoidReturn`**
+
+Cancels a return that was recorded online or offline. If `returnClientId` matches a `RecordReturn` in the **same batch**, the return is cancelled before it reaches the database — both actions cancel each other out cleanly.
+
+| Field | Required | Notes |
+|---|---|---|
+| `returnClientId` | Either/or | The `clientId` from the original `RecordReturn` action (offline or previous batch) |
+| `returnId` | Either/or | Server return ID — use when the return was recorded online |
+
 ### Response `200 OK`
 
 ```json
 {
   "results": [
-    { "clientId": "...", "type": "RegisterCustomer",  "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "AddWalkInStop",     "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "RecordUnplannedSale","status": "Created",     "serverId": null  },
-    { "clientId": "...", "type": "RecordReturn",      "status": "AlreadySynced","serverId": "..." }
+    { "clientId": "...", "type": "RegisterCustomer",   "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "AddWalkInStop",      "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "RecordDelivery",     "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "RecordUnplannedSale","status": "Created",      "serverId": null  },
+    { "clientId": "...", "type": "RecordReturn",       "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "VoidReturn",         "status": "Created",      "serverId": null  }
   ]
 }
 ```
@@ -473,14 +520,28 @@ When connectivity returns, push all queued actions in one request. Actions are p
 | Status | Meaning |
 |---|---|
 | `Created` | Action was processed and saved. Use `serverId` to update your local record. |
-| `AlreadySynced` | `clientId` already existed — existing `serverId` returned. Update your local record with the returned ID. |
+| `AlreadySynced` | Already processed — existing `serverId` returned. Update your local record with the returned ID. |
 | `Conflict` | Could not apply — e.g. phone already registered, trek is Completed, stop not found. Check `reason`. |
 
 ### Dependency resolution
 
-A `AddWalkInStop` can reference a customer registered in the **same batch** via `customerClientId`. The server processes all actions in `occurredAt` order and builds an in-memory map of `clientId → serverId` as it goes. When an `AddWalkInStop` arrives with `customerClientId`, the server looks up the map before the database — so a customer registered two actions earlier in the same batch resolves correctly.
+The server processes all actions in `occurredAt` order and builds in-memory maps of `clientId → serverId` as it goes:
 
-The same applies to `RecordUnplannedSale` referencing an offline stop via `stopClientId`.
+| Map | Populated by | Consumed by |
+|---|---|---|
+| `customerClientMap` | `RegisterCustomer` | `AddWalkInStop` via `customerClientId` |
+| `stopClientMap` | `AddWalkInStop` | `RecordUnplannedSale` and `RecordReturn` via `stopClientId` |
+| `returnClientMap` | `RecordReturn` | `VoidReturn` via `returnClientId` |
+
+Each map also falls back to a DB lookup — so references to records created in **previous batches** resolve correctly too.
+
+### Offline work on other regional treks
+
+The `AddWalkInStop` action accepts any `trekId` from the driver's region — the driver does not have to be assigned to that trek. The `trekId` is available from the regional treks summary seeded by `GET .../offline/region/treks`.
+
+However, the offline trek seed (`GET .../offline/trek`) only covers the **driver's assigned trek**. The stops and products of other regional treks are not seeded. This means:
+- Adding a walk-in stop to another trek offline — **supported** (only needs `trekId` + customer)
+- Viewing the existing stops of another trek offline — **not supported** (requires connectivity)
 
 ---
 
@@ -519,7 +580,30 @@ const stopClientId = await queueAction('AddWalkInStop', {
   sequence: nextSequence()
 });
 
+// Example — record a planned delivery while offline:
+await queueAction('RecordDelivery', {
+  stopProductId: plannedProduct.stopProductId,  // from offline trek seed
+  basicQtyDelivered: 10,
+  paymentMethod: 'Cash',
+  amtPaid: 250.00,
+  balance: 0.00
+});
+
 // Example — record an unplanned sale at that offline stop:
+const returnClientId = await queueAction('RecordReturn', {
+  stopId: existingStopId,
+  productId: returnedProductId,
+  basicQtyReturned: 2,
+  refundAmount: 50.00,
+  refundMethod: 'Cash',
+  reason: 'Damaged packaging',
+  gps: await getGps()
+});
+
+// Example — driver realises the return was a mistake, void it immediately:
+await queueAction('VoidReturn', { returnClientId });
+
+// Example — record an unplanned sale at the offline walk-in stop:
 await queueAction('RecordUnplannedSale', {
   stopClientId,       // references the stop added above
   productId: selectedProductId,
