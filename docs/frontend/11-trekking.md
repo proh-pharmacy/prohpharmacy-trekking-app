@@ -79,6 +79,8 @@ Used by create, get single, get list, and status change.
           "productName": "Paracetamol 500mg",
           "basicUnitName": "Tab",
           "packagingUnitName": "Box",
+          "basicUnitPrice": 2.50,
+          "packagingUnitPrice": 60.00,
           "plannedBasicQuantity": 10,
           "plannedPackagingQuantity": 2,
           "basicQtyDelivered": null,
@@ -94,6 +96,8 @@ Used by create, get single, get list, and status change.
   ]
 }
 ```
+
+`basicUnitPrice` and `packagingUnitPrice` are snapshotted at the time the stop is added — they will not change if the product price is later updated in the system.
 
 > The list endpoint (`GET /api/v1/treks`) returns treks with `stops: []` — stops are only populated on the single get (`GET /api/v1/treks/{id}`).
 
@@ -247,6 +251,8 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
       "productName": "Paracetamol 500mg",
       "basicUnitName": "Tab",
       "packagingUnitName": "Box",
+      "basicUnitPrice": 2.50,
+      "packagingUnitPrice": 60.00,
       "plannedBasicQuantity": 10,
       "plannedPackagingQuantity": 2,
       "basicQtyDelivered": null,
@@ -261,7 +267,7 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
 }
 ```
 
-`packagingUnitName` and `plannedPackagingQuantity` are `null` when the product has no packaging unit.
+`packagingUnitName`, `packagingUnitPrice`, and `plannedPackagingQuantity` are `null` when the product has no packaging unit. Prices are snapshotted at stop-creation time.
 
 ### Errors
 - `404` — trek, customer, or product not found
@@ -387,6 +393,8 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
           "productName": "Paracetamol 500mg",
           "basicUnitName": "Tab",
           "packagingUnitName": "Box",
+          "basicUnitPrice": 2.50,
+          "packagingUnitPrice": 60.00,
           "plannedBasicQuantity": 10,
           "plannedPackagingQuantity": 2,
           "basicQtyDelivered": 8,

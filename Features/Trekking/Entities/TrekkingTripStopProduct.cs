@@ -10,6 +10,8 @@ public class TrekkingTripStopProduct
     public Guid ProductId { get; set; }
     public decimal PlannedBasicQuantity { get; set; }
     public decimal? PlannedPackagingQuantity { get; set; }
+    public decimal BasicUnitPrice { get; set; }
+    public decimal? PackagingUnitPrice { get; set; }
     public decimal? BasicQtyDelivered { get; set; }
     public decimal? PackagingQtyDelivered { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }

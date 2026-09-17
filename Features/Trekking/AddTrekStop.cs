@@ -100,7 +100,9 @@ public static class AddTrekStop
                 {
                     ProductId = input.ProductId,
                     PlannedBasicQuantity = input.PlannedBasicQuantity ?? 0,
-                    PlannedPackagingQuantity = hasPackaging ? input.PlannedPackagingQuantity : null
+                    PlannedPackagingQuantity = hasPackaging ? input.PlannedPackagingQuantity : null,
+                    BasicUnitPrice = product.BasicUnitPrice,
+                    PackagingUnitPrice = hasPackaging ? product.PackagingUnitPrice : null
                 });
             }
 
@@ -145,6 +147,8 @@ public static class AddTrekStop
                         ProductName = prod?.Name ?? string.Empty,
                         BasicUnitName = prod?.BasicUnit?.Name,
                         PackagingUnitName = prod?.PackagingUnit?.Name,
+                        BasicUnitPrice = p.BasicUnitPrice,
+                        PackagingUnitPrice = p.PackagingUnitPrice,
                         PlannedBasicQuantity = p.PlannedBasicQuantity,
                         PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                         BasicQtyDelivered = p.BasicQtyDelivered,

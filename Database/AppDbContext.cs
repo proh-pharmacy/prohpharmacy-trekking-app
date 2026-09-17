@@ -338,6 +338,8 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.PlannedBasicQuantity).HasPrecision(10, 3);
                 entity.Property(p => p.PlannedPackagingQuantity).HasPrecision(10, 3);
+                entity.Property(p => p.BasicUnitPrice).HasPrecision(14, 2);
+                entity.Property(p => p.PackagingUnitPrice).HasPrecision(14, 2);
                 entity.Property(p => p.BasicQtyDelivered).HasPrecision(10, 3);
                 entity.Property(p => p.PackagingQtyDelivered).HasPrecision(10, 3);
                 entity.Property(p => p.AmtPaid).HasPrecision(14, 2);
