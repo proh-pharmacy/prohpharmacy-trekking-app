@@ -111,6 +111,10 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(v => v.Model).HasMaxLength(80).IsRequired();
                 entity.Property(v => v.Colour).HasMaxLength(50).IsRequired();
                 entity.Property(v => v.OperationalStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.HasOne(v => v.Region)
+                    .WithMany()
+                    .HasForeignKey(v => v.RegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(v => v.Branch)
                     .WithMany()
                     .HasForeignKey(v => v.BranchId)

@@ -98,7 +98,6 @@ public static class AssignVehicleToStaff
             if (device is not null)
             {
                 device.StaffMemberId = staff.Id;
-                device.Name = $"{staff.FullName} - {vehicle.RegistrationNumber}";
                 device.UpdatedAt = DateTime.UtcNow;
             }
 
@@ -142,13 +141,8 @@ public static class AssignVehicleToStaff
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            if (device?.TraccarDeviceId is not null)
-            {
-                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
-
-                if (fleetDriver.TraccarDriverId is not null)
-                    _ = _traccar.LinkDriverToDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
-            }
+            if (device?.TraccarDeviceId is not null && fleetDriver.TraccarDriverId is not null)
+                _ = _traccar.LinkDriverToDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
 
             return Result.Success(new AssignmentResponse
             {

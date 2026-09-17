@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Fleet.Vehicles.CreateVehicle;
 
@@ -19,6 +20,7 @@ public static class UpdateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
+        public Guid RegionId { get; set; }
         public Guid? BranchId { get; set; }
     }
 
@@ -32,6 +34,7 @@ public static class UpdateVehicle
             RuleFor(x => x.Year).InclusiveBetween(1990, DateTime.UtcNow.Year + 1)
                 .WithMessage($"Year must be between 1990 and {DateTime.UtcNow.Year + 1}.");
             RuleFor(x => x.Colour).NotEmpty().MaximumLength(50);
+            RuleFor(x => x.RegionId).NotEmpty();
         }
     }
 
@@ -39,11 +42,13 @@ public static class UpdateVehicle
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly ITraccarService _traccar;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, ITraccarService traccar)
         {
             _db = db;
             _validator = validator;
+            _traccar = traccar;
         }
 
         public async Task<Result<VehicleResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -53,6 +58,7 @@ public static class UpdateVehicle
                 return Result.Failure<VehicleResponse>(Error.ValidationError(validation));
 
             var vehicle = await _db.Vehicles
+                .Include(v => v.Region)
                 .Include(v => v.Branch)
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
                     .ThenInclude(a => a.StaffMember)
@@ -60,6 +66,13 @@ public static class UpdateVehicle
 
             if (vehicle is null)
                 return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Vehicle not found."));
+
+            var region = await _db.Regions.FindAsync([request.RegionId], cancellationToken);
+            if (region is null)
+                return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Region not found."));
+
+            var deviceNameChanged = vehicle.RegionId != request.RegionId || vehicle.DisplayName != request.DisplayName.Trim();
+            vehicle.RegionId = request.RegionId;
 
             string? branchName = vehicle.Branch?.Name;
             if (request.BranchId.HasValue)
@@ -87,10 +100,28 @@ public static class UpdateVehicle
 
             await _db.SaveChangesAsync(cancellationToken);
 
+            if (deviceNameChanged)
+            {
+                var device = await _db.TrackingDevices
+                    .FirstOrDefaultAsync(d => d.VehicleId == vehicle.Id, cancellationToken);
+
+                if (device is not null)
+                {
+                    var newDeviceName = $"{region.Name} - {vehicle.DisplayName}";
+                    device.Name = newDeviceName;
+                    device.UpdatedAt = DateTime.UtcNow;
+                    await _db.SaveChangesAsync(cancellationToken);
+
+                    if (device.TraccarDeviceId is not null)
+                        _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, newDeviceName, cancellationToken);
+                }
+            }
+
             var activeStaff = vehicle.StaffAssignments.FirstOrDefault();
 
             return Result.Success(CreateVehicle.Handler.ToResponse(
                 vehicle,
+                region.Name,
                 branchName,
                 activeStaff?.StaffMemberId,
                 activeStaff?.StaffMember?.FullName));

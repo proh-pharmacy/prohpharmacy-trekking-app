@@ -20,6 +20,7 @@ public static class CreateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
+        public Guid RegionId { get; set; }
         public Guid? BranchId { get; set; }
     }
 
@@ -32,6 +33,8 @@ public static class CreateVehicle
         public string Model { get; set; } = string.Empty;
         public int Year { get; set; }
         public string Colour { get; set; } = string.Empty;
+        public Guid RegionId { get; set; }
+        public string? RegionName { get; set; }
         public Guid? BranchId { get; set; }
         public string? BranchName { get; set; }
         public string OperationalStatus { get; set; } = string.Empty;
@@ -52,6 +55,7 @@ public static class CreateVehicle
             RuleFor(x => x.Year).InclusiveBetween(1990, DateTime.UtcNow.Year + 1)
                 .WithMessage($"Year must be between 1990 and {DateTime.UtcNow.Year + 1}.");
             RuleFor(x => x.Colour).NotEmpty().MaximumLength(50);
+            RuleFor(x => x.RegionId).NotEmpty();
         }
     }
 
@@ -71,6 +75,10 @@ public static class CreateVehicle
             var validation = await _validator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
                 return Result.Failure<VehicleResponse>(Error.ValidationError(validation));
+
+            var region = await _db.Regions.FindAsync([request.RegionId], cancellationToken);
+            if (region is null)
+                return Result.Failure<VehicleResponse>(Error.CreateNotFoundError("Region not found."));
 
             string? branchName = null;
             if (request.BranchId.HasValue)
@@ -96,6 +104,7 @@ public static class CreateVehicle
                 Model = request.Model.Trim(),
                 Year = request.Year,
                 Colour = request.Colour.Trim(),
+                RegionId = request.RegionId,
                 BranchId = request.BranchId,
                 OperationalStatus = VehicleOperationalStatus.Active,
                 CreatedAt = DateTime.UtcNow
@@ -104,11 +113,11 @@ public static class CreateVehicle
             _db.Vehicles.Add(vehicle);
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(ToResponse(vehicle, branchName, null, null));
+            return Result.Success(ToResponse(vehicle, region.Name, branchName, null, null));
         }
 
         internal static VehicleResponse ToResponse(
-            Vehicle v, string? branchName,
+            Vehicle v, string? regionName, string? branchName,
             Guid? currentStaffId, string? currentStaffName) => new()
         {
             Id = v.Id,
@@ -118,6 +127,8 @@ public static class CreateVehicle
             Model = v.Model,
             Year = v.Year,
             Colour = v.Colour,
+            RegionId = v.RegionId,
+            RegionName = regionName,
             BranchId = v.BranchId,
             BranchName = branchName,
             OperationalStatus = v.OperationalStatus.ToString(),

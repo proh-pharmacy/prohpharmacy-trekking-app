@@ -16,6 +16,7 @@ public static class GetVehicleList
 {
     public class Query : IRequest<Result<object>>
     {
+        public Guid? RegionId { get; set; }
         public Guid? BranchId { get; set; }
         public string? Status { get; set; }
         public string? Search { get; set; }
@@ -33,10 +34,14 @@ public static class GetVehicleList
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
             var query = _db.Vehicles
+                .Include(v => v.Region)
                 .Include(v => v.Branch)
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
                     .ThenInclude(a => a.StaffMember)
                 .AsNoTracking();
+
+            if (request.RegionId.HasValue)
+                query = query.Where(v => v.RegionId == request.RegionId.Value);
 
             if (request.BranchId.HasValue)
                 query = query.Where(v => v.BranchId == request.BranchId.Value);
@@ -58,6 +63,7 @@ public static class GetVehicleList
                     var activeStaff = v.StaffAssignments.FirstOrDefault();
                     return (object)CreateVehicle.Handler.ToResponse(
                         v,
+                        v.Region?.Name,
                         v.Branch?.Name,
                         activeStaff?.StaffMemberId,
                         activeStaff?.StaffMember?.FullName);
@@ -74,6 +80,7 @@ public class GetVehicleListEndpoint : ICarterModule
     {
         app.MapGet("api/v1/fleet/vehicles", async (
             ISender sender,
+            [FromQuery] Guid? regionId,
             [FromQuery] Guid? branchId,
             [FromQuery] string? status,
             [FromQuery] string? search,
@@ -83,6 +90,7 @@ public class GetVehicleListEndpoint : ICarterModule
         {
             var result = await sender.Send(new GetVehicleList.Query
             {
+                RegionId = regionId,
                 BranchId = branchId,
                 Status = status,
                 Search = search,

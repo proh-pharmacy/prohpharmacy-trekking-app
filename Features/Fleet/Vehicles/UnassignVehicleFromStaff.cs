@@ -50,7 +50,6 @@ public static class UnassignVehicleFromStaff
             if (device is not null)
             {
                 device.StaffMemberId = null;
-                device.Name = vehicle.RegistrationNumber;
                 device.UpdatedAt = DateTime.UtcNow;
             }
 
@@ -62,13 +61,8 @@ public static class UnassignVehicleFromStaff
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            if (device?.TraccarDeviceId is not null)
-            {
-                _ = _traccar.UpdateDeviceAsync(device.TraccarDeviceId.Value, device.Name, cancellationToken);
-
-                if (fleetDriver?.TraccarDriverId is not null)
-                    _ = _traccar.UnlinkDriverFromDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
-            }
+            if (device?.TraccarDeviceId is not null && fleetDriver?.TraccarDriverId is not null)
+                _ = _traccar.UnlinkDriverFromDeviceAsync(device.TraccarDeviceId.Value, fleetDriver.TraccarDriverId.Value, cancellationToken);
 
             if (fleetDriver?.TraccarDriverId is not null)
             {

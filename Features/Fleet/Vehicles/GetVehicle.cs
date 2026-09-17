@@ -24,6 +24,7 @@ public static class GetVehicle
         public async Task<Result<VehicleResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var vehicle = await _db.Vehicles
+                .Include(v => v.Region)
                 .Include(v => v.Branch)
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
                     .ThenInclude(a => a.StaffMember)
@@ -37,6 +38,7 @@ public static class GetVehicle
 
             return Result.Success(CreateVehicle.Handler.ToResponse(
                 vehicle,
+                vehicle.Region?.Name,
                 vehicle.Branch?.Name,
                 activeStaff?.StaffMemberId,
                 activeStaff?.StaffMember?.FullName));

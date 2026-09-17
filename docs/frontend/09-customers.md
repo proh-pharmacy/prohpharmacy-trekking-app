@@ -11,6 +11,7 @@
 | `PATCH` | `api/v1/customers/{id}` | Update customer business details |
 | `POST` | `api/v1/customers/{customerId}/locations` | Add an additional location |
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
+| `POST` | `api/v1/customers/sync` | Batch sync offline-created customers |
 
 ---
 
@@ -265,7 +266,7 @@ Customer, representative, and primary location are created in a single request.
 | `streetAddress` | No | Max 300 chars |
 | `latitude` | Yes | -90 to 90 |
 | `longitude` | Yes | -180 to 180 |
-| `accuracyMetres` | Yes | Must be > 0 |
+| `accuracyMetres` | Yes | Must be >= 0. `0` means manual map selection |
 
 ### Notes
 - `owningBranch` is **auto-resolved** from the authenticated staff member's branch — do not send it

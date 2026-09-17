@@ -51,6 +51,8 @@
   "model": "Sprinter",
   "year": 2022,
   "colour": "White",
+  "regionId": "...",
+  "regionName": "Greater Accra",
   "branchId": "...",
   "branchName": "Tema Branch",
   "operationalStatus": "Active",
@@ -75,6 +77,7 @@
   "model": "Sprinter",
   "year": 2022,
   "colour": "White",
+  "regionId": "<region-guid>",
   "branchId": "<branch-guid>"
 }
 ```
@@ -87,12 +90,13 @@
 | `model` | Yes | Max 80 chars |
 | `year` | Yes | 1990 to current year + 1 |
 | `colour` | Yes | Max 50 chars |
+| `regionId` | Yes | The region this vehicle treks — must exist |
 | `branchId` | No | Must be an active branch if provided |
 
 ### Response `201 Created` — `VehicleResponse`
 
 ### Errors
-- `422` — validation error or branch not found / inactive
+- `422` — validation error, region not found, or branch not found / inactive
 
 ---
 
@@ -106,6 +110,7 @@
 | `sort` | `string` | e.g. `createdAt_desc`, `displayName_asc` |
 | `pageNumber` | `int` | Default: 1 |
 | `pageSize` | `int` | Default: 20 |
+| `regionId` | `guid` | Filter by region |
 | `branchId` | `guid` | Filter by branch |
 | `status` | `string` | e.g. `Active`, `UnderMaintenance` |
 
@@ -135,6 +140,7 @@ Registration number cannot be changed after creation.
   "model": "Sprinter",
   "year": 2022,
   "colour": "Silver",
+  "regionId": "<region-guid>",
   "branchId": "<branch-guid>"
 }
 ```
@@ -146,6 +152,7 @@ Registration number cannot be changed after creation.
 | `model` | Yes | Max 80 chars |
 | `year` | Yes | 1990 to current year + 1 |
 | `colour` | Yes | Max 50 chars |
+| `regionId` | Yes | The region this vehicle treks — must exist |
 | `branchId` | No | Must be an active branch if provided |
 
 ### Response `200 OK` — `VehicleResponse`

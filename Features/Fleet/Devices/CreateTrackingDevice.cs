@@ -72,6 +72,7 @@ public static class CreateTrackingDevice
                 return Result.Failure<DeviceResponse>(Error.ValidationError(validation));
 
             var vehicle = await _db.Vehicles
+                .Include(v => v.Region)
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
                     .ThenInclude(a => a.StaffMember)
                 .FirstOrDefaultAsync(v => v.Id == request.VehicleId, cancellationToken);
@@ -88,9 +89,7 @@ public static class CreateTrackingDevice
             var activeAssignment = vehicle.StaffAssignments.FirstOrDefault();
             var staff = activeAssignment?.StaffMember;
 
-            var deviceName = staff is not null
-                ? $"{staff.FullName} - {vehicle.RegistrationNumber}"
-                : vehicle.RegistrationNumber;
+            var deviceName = $"{vehicle.Region.Name} - {vehicle.DisplayName}";
 
             var device = new TrackingDevice
             {
@@ -160,7 +159,7 @@ public class CreateTrackingDeviceEndpoint : ICarterModule
         .WithSummary("Register a tracking device for a vehicle")
         .WithDescription(
             "Registers a GPS tracking device for a vehicle and immediately syncs to Traccar. " +
-            "Device name is auto-set to '{StaffName} - {RegistrationNumber}' if the vehicle has a driver assigned, otherwise just the registration number. " +
+            "Device name is auto-set to '{RegionName} - {RegistrationNumber}'. " +
             "**Smartphone:** omit `uniqueId` — a UUID is auto-generated. " +
             "**Hardware GPS tracker:** supply the IMEI as `uniqueId`.")
         .Produces<CreateTrackingDevice.DeviceResponse>(201)
