@@ -73,7 +73,7 @@ Used by create, get single, get list, and status change.
           "stopProductId": "...",
           "productId": "...",
           "productName": "Paracetamol 500mg",
-          "unit": "Box",
+          "basicUnitName": "Box",
           "plannedQuantity": 10,
           "qtyDelivered": null,
           "paymentMethod": null,
@@ -358,7 +358,7 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
         {
           "stopProductId": "...",
           "productName": "Paracetamol 500mg",
-          "unit": "Box",
+          "basicUnitName": "Box",
           "plannedQuantity": 10,
           "qtyDelivered": 8,
           "paymentMethod": "Cash",

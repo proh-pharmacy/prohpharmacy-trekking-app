@@ -204,7 +204,7 @@ Only products from **Completed** treks with `qtyDelivered > 0` are included.
     {
       "productId": "...",
       "productName": "Paracetamol 500mg",
-      "unit": "Strips",
+      "basicUnitName": "Strips",
       "totalQtyDelivered": 1200.0,
       "totalCollected": 15000.00,
       "totalOutstanding": 800.00,

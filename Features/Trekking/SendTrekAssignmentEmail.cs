@@ -49,6 +49,7 @@ public static class SendTrekAssignmentEmail
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.BasicUnit)
                 .FirstOrDefaultAsync(t => t.Id == request.TrekId, cancellationToken);
 
             if (trip is null)
@@ -94,7 +95,7 @@ public static class SendTrekAssignmentEmail
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
-                            Unit = p.Product?.Unit,
+                            Unit = p.Product?.BasicUnit?.Name,
                             PlannedQuantity = p.PlannedQuantity,
                             QtyDelivered = p.QtyDelivered,
                             PaymentMethod = p.PaymentMethod?.ToString(),

@@ -40,6 +40,7 @@ public static class GetTrek
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.BasicUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken);
 
@@ -84,7 +85,7 @@ public static class GetTrek
                     StopProductId = p.Id,
                     ProductId = p.ProductId,
                     ProductName = p.Product?.Name ?? string.Empty,
-                    Unit = p.Product?.Unit,
+                    Unit = p.Product?.BasicUnit?.Name,
                     PlannedQuantity = p.PlannedQuantity,
                     QtyDelivered = p.QtyDelivered,
                     PaymentMethod = p.PaymentMethod?.ToString(),

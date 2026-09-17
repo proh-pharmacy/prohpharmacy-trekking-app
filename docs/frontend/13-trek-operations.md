@@ -201,7 +201,7 @@ Adds a customer stop to the trek with the products to be delivered.
       "stopProductId": "...",
       "productId": "...",
       "productName": "Paracetamol 500mg",
-      "unit": "Box",
+      "basicUnitName": "Box",
       "plannedQuantity": 10,
       "qtyDelivered": null,
       "paymentMethod": null,
@@ -368,7 +368,7 @@ Fetches the full trek for the driver view.
         {
           "stopProductId": "...",
           "productName": "Paracetamol 500mg",
-          "unit": "Box",
+          "basicUnitName": "Box",
           "plannedQuantity": 10,
           "qtyDelivered": null,
           "paymentMethod": null,

@@ -45,7 +45,7 @@ public static class ExportProductDeliveryReport
                 {
                     p.ProductId,
                     ProductName = p.Product.Name,
-                    ProductUnit = p.Product.Unit,
+                    ProductUnit = p.Product.BasicUnit.Name,
                     QtyDelivered = p.QtyDelivered ?? 0,
                     AmtPaid = p.AmtPaid ?? 0,
                     Balance = p.Balance ?? 0,

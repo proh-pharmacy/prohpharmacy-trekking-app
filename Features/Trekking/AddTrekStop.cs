@@ -74,6 +74,7 @@ public static class AddTrekStop
 
             var productIds = request.Products.Select(p => p.ProductId).Distinct().ToList();
             var products = await _db.Products
+                .Include(p => p.BasicUnit)
                 .Where(p => productIds.Contains(p.Id))
                 .ToListAsync(cancellationToken);
 
@@ -122,7 +123,7 @@ public static class AddTrekStop
                     StopProductId = p.Id,
                     ProductId = p.ProductId,
                     ProductName = productDict.TryGetValue(p.ProductId, out var prod) ? prod.Name : string.Empty,
-                    Unit = productDict.TryGetValue(p.ProductId, out var prod2) ? prod2.Unit : null,
+                    Unit = productDict.TryGetValue(p.ProductId, out var prod2) ? prod2.BasicUnit?.Name : null,
                     PlannedQuantity = p.PlannedQuantity,
                     QtyDelivered = p.QtyDelivered,
                     PaymentMethod = p.PaymentMethod?.ToString(),

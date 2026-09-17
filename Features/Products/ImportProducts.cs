@@ -16,7 +16,10 @@ public static class ImportProducts
     {
         public byte[] FileBytes { get; set; } = [];
         public string ProductNameColumn { get; set; } = string.Empty;
-        public string UnitColumn { get; set; } = string.Empty;
+        public string BasicUnitColumn { get; set; } = string.Empty;
+        public string? BasicUnitPriceColumn { get; set; }
+        public string? PackagingUnitColumn { get; set; }
+        public string? PackagingUnitPriceColumn { get; set; }
     }
 
     public class ImportResult
@@ -38,8 +41,8 @@ public static class ImportProducts
             if (ws is null || ws.Dimension is null)
                 return Result.Failure<ImportResult>(Error.BadRequest("The uploaded file contains no data."));
 
-            // ── Locate the specified columns by header text ─────────────────
-            int productNameCol = -1, unitCol = -1;
+            int productNameCol = -1, basicUnitCol = -1, basicUnitPriceCol = -1;
+            int packagingUnitCol = -1, packagingUnitPriceCol = -1;
             int totalCols = ws.Dimension.Columns;
 
             for (int c = 1; c <= totalCols; c++)
@@ -47,32 +50,50 @@ public static class ImportProducts
                 var header = ws.Cells[1, c].Text.Trim();
                 if (header.Equals(request.ProductNameColumn, StringComparison.OrdinalIgnoreCase))
                     productNameCol = c;
-                if (header.Equals(request.UnitColumn, StringComparison.OrdinalIgnoreCase))
-                    unitCol = c;
+                if (header.Equals(request.BasicUnitColumn, StringComparison.OrdinalIgnoreCase))
+                    basicUnitCol = c;
+                if (!string.IsNullOrWhiteSpace(request.BasicUnitPriceColumn) &&
+                    header.Equals(request.BasicUnitPriceColumn, StringComparison.OrdinalIgnoreCase))
+                    basicUnitPriceCol = c;
+                if (!string.IsNullOrWhiteSpace(request.PackagingUnitColumn) &&
+                    header.Equals(request.PackagingUnitColumn, StringComparison.OrdinalIgnoreCase))
+                    packagingUnitCol = c;
+                if (!string.IsNullOrWhiteSpace(request.PackagingUnitPriceColumn) &&
+                    header.Equals(request.PackagingUnitPriceColumn, StringComparison.OrdinalIgnoreCase))
+                    packagingUnitPriceCol = c;
             }
 
             if (productNameCol == -1)
                 return Result.Failure<ImportResult>(Error.BadRequest(
                     $"Column '{request.ProductNameColumn}' was not found in the file header row."));
 
-            if (unitCol == -1)
+            if (basicUnitCol == -1)
                 return Result.Failure<ImportResult>(Error.BadRequest(
-                    $"Column '{request.UnitColumn}' was not found in the file header row."));
+                    $"Column '{request.BasicUnitColumn}' was not found in the file header row."));
 
-            // ── Load existing names once for O(1) duplicate checks ──────────
+            if (!string.IsNullOrWhiteSpace(request.BasicUnitPriceColumn) && basicUnitPriceCol == -1)
+                return Result.Failure<ImportResult>(Error.BadRequest(
+                    $"Column '{request.BasicUnitPriceColumn}' was not found in the file header row."));
+
+            if (!string.IsNullOrWhiteSpace(request.PackagingUnitColumn) && packagingUnitCol == -1)
+                return Result.Failure<ImportResult>(Error.BadRequest(
+                    $"Column '{request.PackagingUnitColumn}' was not found in the file header row."));
+
+            if (!string.IsNullOrWhiteSpace(request.PackagingUnitPriceColumn) && packagingUnitPriceCol == -1)
+                return Result.Failure<ImportResult>(Error.BadRequest(
+                    $"Column '{request.PackagingUnitPriceColumn}' was not found in the file header row."));
+
             var existingProductNames = (await db.Products
                 .AsNoTracking()
                 .Select(p => p.Name.ToLower())
                 .ToListAsync(cancellationToken))
                 .ToHashSet();
 
-            var existingUnitNames = (await db.Units
+            var existingUnits = (await db.Units
                 .AsNoTracking()
-                .Select(u => u.Name.ToLower())
                 .ToListAsync(cancellationToken))
-                .ToHashSet();
+                .ToDictionary(u => u.Name.ToLower(), u => u);
 
-            // ── Process rows ────────────────────────────────────────────────
             var result = new ImportResult();
             var now = DateTime.UtcNow;
             int totalRows = ws.Dimension.Rows;
@@ -82,7 +103,6 @@ public static class ImportProducts
                 var productName = ws.Cells[r, productNameCol].Text.Trim();
                 if (string.IsNullOrWhiteSpace(productName)) continue;
 
-                // Skip if a product with this name already exists
                 if (existingProductNames.Contains(productName.ToLower()))
                 {
                     result.Skipped++;
@@ -90,31 +110,64 @@ public static class ImportProducts
                     continue;
                 }
 
-                // Create unit if it doesn't exist yet
-                var unitName = ws.Cells[r, unitCol].Text.Trim();
-                string? unitValue = null;
-
-                if (!string.IsNullOrWhiteSpace(unitName))
+                var basicUnitName = ws.Cells[r, basicUnitCol].Text.Trim();
+                if (string.IsNullOrWhiteSpace(basicUnitName))
                 {
-                    unitValue = unitName;
+                    result.Skipped++;
+                    result.SkippedNames.Add(productName);
+                    continue;
+                }
 
-                    if (!existingUnitNames.Contains(unitName.ToLower()))
+                if (!existingUnits.TryGetValue(basicUnitName.ToLower(), out var basicUnit))
+                {
+                    basicUnit = new UnitEntity { Name = basicUnitName, CreatedAt = now };
+                    db.Units.Add(basicUnit);
+                    existingUnits[basicUnitName.ToLower()] = basicUnit;
+                    result.UnitsCreated++;
+                }
+
+                decimal basicUnitPrice = 0;
+                if (basicUnitPriceCol != -1)
+                    decimal.TryParse(ws.Cells[r, basicUnitPriceCol].Text.Trim(), out basicUnitPrice);
+
+                Guid? packagingUnitId = null;
+                decimal? packagingUnitPrice = null;
+
+                if (packagingUnitCol != -1)
+                {
+                    var packagingUnitName = ws.Cells[r, packagingUnitCol].Text.Trim();
+                    if (!string.IsNullOrWhiteSpace(packagingUnitName))
                     {
-                        db.Units.Add(new UnitEntity { Name = unitName, CreatedAt = now });
-                        existingUnitNames.Add(unitName.ToLower());
-                        result.UnitsCreated++;
+                        if (!existingUnits.TryGetValue(packagingUnitName.ToLower(), out var packagingUnit))
+                        {
+                            packagingUnit = new UnitEntity { Name = packagingUnitName, CreatedAt = now };
+                            db.Units.Add(packagingUnit);
+                            existingUnits[packagingUnitName.ToLower()] = packagingUnit;
+                            result.UnitsCreated++;
+                        }
+
+                        if (packagingUnit.Id != basicUnit.Id)
+                        {
+                            packagingUnitId = packagingUnit.Id;
+                            if (packagingUnitPriceCol != -1)
+                                decimal.TryParse(ws.Cells[r, packagingUnitPriceCol].Text.Trim(), out var parsedPackagingPrice);
+                            packagingUnitPrice = packagingUnitPriceCol != -1 &&
+                                decimal.TryParse(ws.Cells[r, packagingUnitPriceCol].Text.Trim(), out var p) ? p : null;
+                        }
                     }
                 }
 
                 db.Products.Add(new Product
                 {
                     Name = productName,
-                    Unit = unitValue,
+                    BasicUnitId = basicUnit.Id,
+                    BasicUnitPrice = basicUnitPrice,
+                    PackagingUnitId = packagingUnitId,
+                    PackagingUnitPrice = packagingUnitPrice,
                     IsActive = true,
                     CreatedAt = now
                 });
 
-                // Track within this batch so duplicate rows in the same file are also caught
                 existingProductNames.Add(productName.ToLower());
                 result.Imported++;
             }
@@ -139,7 +192,10 @@ public class ImportProductsEndpoint : ICarterModule
             var form = await req.ReadFormAsync();
             var file = form.Files.GetFile("file");
             var productNameColumn = form["productNameColumn"].FirstOrDefault()?.Trim() ?? string.Empty;
-            var unitColumn = form["unitColumn"].FirstOrDefault()?.Trim() ?? string.Empty;
+            var basicUnitColumn = form["basicUnitColumn"].FirstOrDefault()?.Trim() ?? string.Empty;
+            var basicUnitPriceColumn = form["basicUnitPriceColumn"].FirstOrDefault()?.Trim();
+            var packagingUnitColumn = form["packagingUnitColumn"].FirstOrDefault()?.Trim();
+            var packagingUnitPriceColumn = form["packagingUnitPriceColumn"].FirstOrDefault()?.Trim();
 
             if (file is null || file.Length == 0)
                 return Results.UnprocessableEntity(Error.BadRequest("No file provided."));
@@ -147,10 +203,10 @@ public class ImportProductsEndpoint : ICarterModule
             if (string.IsNullOrWhiteSpace(productNameColumn))
                 return Results.UnprocessableEntity(Error.BadRequest("'productNameColumn' form field is required."));
 
-            if (string.IsNullOrWhiteSpace(unitColumn))
-                return Results.UnprocessableEntity(Error.BadRequest("'unitColumn' form field is required."));
+            if (string.IsNullOrWhiteSpace(basicUnitColumn))
+                return Results.UnprocessableEntity(Error.BadRequest("'basicUnitColumn' form field is required."));
 
-            var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
+var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
             if (ext != ".xlsx" && ext != ".xls")
                 return Results.UnprocessableEntity(Error.BadRequest("Only .xlsx and .xls files are accepted."));
 
@@ -161,7 +217,10 @@ public class ImportProductsEndpoint : ICarterModule
             {
                 FileBytes = ms.ToArray(),
                 ProductNameColumn = productNameColumn,
-                UnitColumn = unitColumn
+                BasicUnitColumn = basicUnitColumn,
+                BasicUnitPriceColumn = string.IsNullOrWhiteSpace(basicUnitPriceColumn) ? null : basicUnitPriceColumn,
+                PackagingUnitColumn = string.IsNullOrWhiteSpace(packagingUnitColumn) ? null : packagingUnitColumn,
+                PackagingUnitPriceColumn = string.IsNullOrWhiteSpace(packagingUnitPriceColumn) ? null : packagingUnitPriceColumn
             });
 
             return result.IsFailure
@@ -173,11 +232,12 @@ public class ImportProductsEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.General)
         .WithSummary("Bulk import products from Excel")
         .WithDescription(
-            "Upload an .xlsx/.xls file and specify which column headers map to product name and unit. " +
-            "Form fields: `file` (the Excel file), `productNameColumn` (exact header text for product names), `unitColumn` (exact header text for units). " +
-            "Rows whose product name already exists in the database are skipped (case-insensitive). " +
+            "Upload an .xlsx/.xls file and specify which column headers map to each field. " +
+            "Required form fields: `file`, `productNameColumn`, `basicUnitColumn`, `basicUnitPriceColumn`. " +
+            "Optional form fields: `packagingUnitColumn`, `packagingUnitPriceColumn`. " +
             "Units that do not yet exist are created automatically. " +
-            "Duplicate product names within the same file are also skipped after the first occurrence.")
+            "Rows missing a product name or basic unit are skipped. " +
+            "Duplicate product names (case-insensitive) are skipped.")
         .Produces<ImportProducts.ImportResult>(200)
         .Produces<Error>(422)
         .RequireAuthorization();

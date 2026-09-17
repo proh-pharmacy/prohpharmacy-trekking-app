@@ -48,12 +48,12 @@ One endpoint searches customers, products, staff, and treks simultaneously. All 
     {
       "id": "...",
       "name": "Paracetamol 500mg",
-      "unit": "Strips"
+      "basicUnitName": "Strips"
     },
     {
       "id": "...",
       "name": "Paracetamol 250mg",
-      "unit": "Strips"
+      "basicUnitName": "Strips"
     }
   ],
   "staff": [],

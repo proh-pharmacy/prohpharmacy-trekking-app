@@ -1,6 +1,7 @@
 using Carter;
 using FluentValidation;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Shared;
@@ -14,8 +15,11 @@ public static class UpdateProduct
     {
         public Guid Id { get; set; }
         public string Name { get; set; } = string.Empty;
-        public string? Unit { get; set; }
         public string? Description { get; set; }
+        public Guid BasicUnitId { get; set; }
+        public decimal BasicUnitPrice { get; set; }
+        public Guid? PackagingUnitId { get; set; }
+        public decimal? PackagingUnitPrice { get; set; }
     }
 
     public class Validator : AbstractValidator<Command>
@@ -23,8 +27,17 @@ public static class UpdateProduct
         public Validator()
         {
             RuleFor(x => x.Name).NotEmpty().MaximumLength(200);
-            RuleFor(x => x.Unit).MaximumLength(80).When(x => x.Unit is not null);
             RuleFor(x => x.Description).MaximumLength(500).When(x => x.Description is not null);
+            RuleFor(x => x.BasicUnitId).NotEmpty();
+            RuleFor(x => x.BasicUnitPrice).GreaterThanOrEqualTo(0);
+            RuleFor(x => x.PackagingUnitPrice)
+                .NotNull().GreaterThanOrEqualTo(0)
+                .When(x => x.PackagingUnitId.HasValue)
+                .WithMessage("Packaging unit price is required when a packaging unit is provided.");
+            RuleFor(x => x.PackagingUnitId)
+                .NotEqual(x => x.BasicUnitId)
+                .When(x => x.PackagingUnitId.HasValue)
+                .WithMessage("Packaging unit must be different from the basic unit.");
         }
     }
 
@@ -49,14 +62,35 @@ public static class UpdateProduct
             if (product is null)
                 return Result.Failure<ProductResponse>(Error.CreateNotFoundError("Product not found."));
 
+            var basicUnit = await _db.Units.FindAsync([request.BasicUnitId], cancellationToken);
+            if (basicUnit is null)
+                return Result.Failure<ProductResponse>(Error.CreateNotFoundError("Basic unit not found."));
+
+            string? packagingUnitName = null;
+            if (request.PackagingUnitId.HasValue)
+            {
+                var packagingUnit = await _db.Units.FindAsync([request.PackagingUnitId.Value], cancellationToken);
+                if (packagingUnit is null)
+                    return Result.Failure<ProductResponse>(Error.CreateNotFoundError("Packaging unit not found."));
+                packagingUnitName = packagingUnit.Name;
+            }
+
+            var nameTaken = await _db.Products
+                .AnyAsync(p => p.Name.ToLower() == request.Name.Trim().ToLower() && p.Id != request.Id, cancellationToken);
+            if (nameTaken)
+                return Result.Failure<ProductResponse>(Error.Conflict("A product with this name already exists."));
+
             product.Name = request.Name.Trim();
-            product.Unit = request.Unit?.Trim();
             product.Description = request.Description?.Trim();
+            product.BasicUnitId = request.BasicUnitId;
+            product.BasicUnitPrice = request.BasicUnitPrice;
+            product.PackagingUnitId = request.PackagingUnitId;
+            product.PackagingUnitPrice = request.PackagingUnitId.HasValue ? request.PackagingUnitPrice : null;
             product.UpdatedAt = DateTime.UtcNow;
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(CreateProduct.Handler.ToResponse(product));
+            return Result.Success(CreateProduct.Handler.ToResponse(product, basicUnit.Name, packagingUnitName));
         }
     }
 }

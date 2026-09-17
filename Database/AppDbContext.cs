@@ -235,8 +235,17 @@ namespace prohpharmacy_trekking_app.Database
             {
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
-                entity.Property(p => p.Unit).HasMaxLength(80);
                 entity.Property(p => p.Description).HasMaxLength(500);
+                entity.Property(p => p.BasicUnitPrice).HasPrecision(14, 2).IsRequired();
+                entity.Property(p => p.PackagingUnitPrice).HasPrecision(14, 2);
+                entity.HasOne(p => p.BasicUnit)
+                    .WithMany()
+                    .HasForeignKey(p => p.BasicUnitId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(p => p.PackagingUnit)
+                    .WithMany()
+                    .HasForeignKey(p => p.PackagingUnitId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             modelBuilder.Entity<Unit>(entity =>

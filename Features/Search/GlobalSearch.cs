@@ -90,7 +90,7 @@ public static class GlobalSearch
                 {
                     Id = p.Id,
                     Name = p.Name,
-                    Unit = p.Unit
+                    Unit = p.BasicUnit.Name
                 })
                 .ToListAsync(cancellationToken);
 

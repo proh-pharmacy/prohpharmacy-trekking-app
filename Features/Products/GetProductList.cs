@@ -29,7 +29,10 @@ public static class GetProductList
 
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var query = _db.Products.AsNoTracking();
+            var query = _db.Products
+                .Include(p => p.BasicUnit)
+                .Include(p => p.PackagingUnit)
+                .AsNoTracking();
 
             if (request.IsActive.HasValue)
                 query = query.Where(p => p.IsActive == request.IsActive.Value);
@@ -38,7 +41,7 @@ public static class GetProductList
                 .WithSearch(request.Search, nameof(Entities.Product.Name))
                 .WithSort(request.Sort)
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(p => (object)CreateProduct.Handler.ToResponse(p));
+                .BuildAsync(p => (object)CreateProduct.Handler.ToResponse(p, p.BasicUnit.Name, p.PackagingUnit?.Name));
 
             return Result.Success(result);
         }

@@ -1,5 +1,6 @@
 using Carter;
 using MediatR;
+using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Shared;
@@ -22,7 +23,10 @@ public static class ToggleProductStatus
 
         public async Task<Result<ProductResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
-            var product = await _db.Products.FindAsync([request.Id], cancellationToken);
+            var product = await _db.Products
+                .Include(p => p.BasicUnit)
+                .Include(p => p.PackagingUnit)
+                .FirstOrDefaultAsync(p => p.Id == request.Id, cancellationToken);
             if (product is null)
                 return Result.Failure<ProductResponse>(Error.CreateNotFoundError("Product not found."));
 
@@ -31,7 +35,7 @@ public static class ToggleProductStatus
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(CreateProduct.Handler.ToResponse(product));
+            return Result.Success(CreateProduct.Handler.ToResponse(product, product.BasicUnit.Name, product.PackagingUnit?.Name));
         }
     }
 }
