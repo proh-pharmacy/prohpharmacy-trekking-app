@@ -1,224 +1,572 @@
-# 18 — Offline Customer Sync
+# 18 — Trek Driver Control Panel & Offline Sync
 
 ## Overview
 
-The app supports registering new customers while the device has no internet connection. The frontend stores the record locally, then pushes it to the server when connectivity is restored. The backend deduplicates using a client-generated ID so double-syncing is safe.
+The driver token (the UUID sent in trek assignment emails) is the sole credential for a full **field control panel**. No login, no JWT. The driver opens their unique link and gets an operational interface for their assigned trek and all active treks in their region.
+
+Because routes pass through areas with no connectivity, the control panel works **fully offline**. The driver queues actions locally and pushes them in one batch when connectivity returns.
 
 ---
 
-## How it works
+## The Token
 
-### Going offline
+The `DriverToken` on `TrekkingTrip` is a UUID generated when the admin sends the trek assignment email. It never changes.
 
-Before the user goes into the field, the app must cache the following reference data locally (fetch once on login or app load):
+**From the token the backend always derives:**
 
-| Data | Endpoint | Why it's needed offline |
+| Value | Source |
+|---|---|
+| Trek | `TrekkingTrips WHERE DriverToken = token` |
+| Region | `trek.RegionId` |
+| Attribution | `trek.SalesStaffId ?? trek.DriverStaffId` (sales rep first, driver second) |
+
+All actions recorded through the token are attributed to the sales rep if one is assigned, otherwise the driver. This is reflected on ledger entries, return records, and customer registrations.
+
+---
+
+## Endpoint Map
+
+All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **no authorization header** — `.AllowAnonymous()` is set on all of them.
+
+| Method | Endpoint | Purpose |
 |---|---|---|
-| Regions | `GET /api/v1/organisation/regions` | `regionId` is required on every customer |
-| Districts | `GET /api/v1/organisation/districts` | `districtId` is required on every location |
-| Trek assignment | `GET /api/v1/treks/{id}` | `registeredDuringTrekId` if registering mid-trek |
-
-### Creating a customer offline
-
-When the user submits the registration form with no internet:
-
-1. **Generate a UUID client-side** — this becomes `clientGeneratedId`. Use `crypto.randomUUID()`.
-2. **Capture the device timestamp** — store `recordedAt: new Date().toISOString()`.
-3. **Save the full record to local storage** (IndexedDB recommended) with status `pending`.
-4. Show the customer in the UI immediately — treat it as created locally.
-
-### Syncing when back online
-
-When connectivity is detected, collect all `pending` records and send them in one batch. Mark each as `syncing`, then on success mark as `synced` and store the server-assigned `customerId` and `customerCode`.
+| `GET` | `api/v1/treks/driver/{token}` | Driver's assigned trek (existing) |
+| `GET` | `api/v1/treks/driver/{token}/region/treks` | All active treks in the region |
+| `GET` | `api/v1/treks/driver/{token}/offline/products` | Product catalogue seed (supports `?since=`) |
+| `GET` | `api/v1/treks/driver/{token}/offline/customers` | Customers in the region seed (supports `?since=`) |
+| `GET` | `api/v1/treks/driver/{token}/offline/trek` | Full assigned trek with stops + returns (supports `?since=`) |
+| `POST` | `api/v1/treks/driver/{token}/customers` | Register a new customer from the field |
+| `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
+| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
+| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Record a product return at a stop |
+| `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
+| `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
 
 ---
 
-## POST /api/v1/customers/sync
+## Control Panel Views
 
-Accepts a batch of offline-created customers. Each item is processed independently — one failure does not block the rest.
+### GET /api/v1/treks/driver/{token}
 
-### Request body
+Returns the driver's assigned trek with all stops, products, and returns. See [doc 11](./11-trekking.md) for the full response shape. New fields on this response:
+
+- `stops[].isWalkIn` — `true` for stops added mid-trek
+- `stops[].returns[]` — list of product returns recorded at this stop
+- `stops[].products[].isUnplanned` — `true` for products added outside the original plan
+
+### GET /api/v1/treks/driver/{token}/region/treks
+
+All active (`Scheduled` or `InProgress`) treks in the same region.
+
+**Response `200 OK`**
+
+```json
+[
+  {
+    "trekId": "...",
+    "trekNumber": "TRK-00042",
+    "scheduledDate": "2026-09-17",
+    "status": "InProgress",
+    "driverName": "Kwame Asante",
+    "salesStaffName": null,
+    "regionName": "Greater Accra Region",
+    "stopsCount": 8
+  }
+]
+```
+
+---
+
+## Online Individual Actions
+
+These endpoints process one action immediately. Use them when the device is online.
+
+### POST /api/v1/treks/driver/{token}/customers
+
+Register a new customer from the field. Pass `clientGeneratedId` for offline idempotency — if that ID already exists the existing customer is returned without creating a duplicate.
+
+**Request body**
 
 ```json
 {
-  "items": [
+  "businessName": "Koforidua Pharmacy",
+  "customerType": "RetailPharmacy",
+  "primaryPhoneNumber": "0244123456",
+  "tradingName": null,
+  "whatsAppNumber": null,
+  "clientGeneratedId": "<device-uuid>",
+  "representative": {
+    "firstName": "Ama",
+    "lastName": "Boateng",
+    "middleName": null,
+    "relationshipType": "Owner",
+    "primaryPhoneNumber": "0244123456"
+  },
+  "gps": {
+    "latitude": 6.0835,
+    "longitude": -0.2170,
+    "accuracyMetres": 12.5
+  }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `businessName` | Yes | Max 200 chars |
+| `customerType` | Yes | See enum reference in doc 09 |
+| `primaryPhoneNumber` | Yes | Max 30 chars |
+| `clientGeneratedId` | No | UUID — deduplication key for offline idempotency |
+| `tradingName` | No | Max 200 chars |
+| `whatsAppNumber` | No | Max 30 chars |
+| `representative.firstName` | Yes | Max 80 chars |
+| `representative.lastName` | Yes | Max 80 chars |
+| `representative.relationshipType` | Yes | See enum reference in doc 09 |
+| `representative.primaryPhoneNumber` | Yes | Max 30 chars |
+| `representative.middleName` | No | |
+| `gps` | No | Entire object optional — omit if device has no fix |
+| `gps.latitude` | Yes (if gps) | -90 to 90 |
+| `gps.longitude` | Yes (if gps) | -180 to 180 |
+| `gps.accuracyMetres` | Yes (if gps) | ≥ 0 |
+
+**Notes:**
+- `regionId` is derived from the token — the customer is automatically assigned to the trek's region.
+- `owningBranchId` and `registeredByStaffId` are derived from the trek's attribution staff member.
+- `districtId` is not required — GPS-only location records are valid.
+- `createdOffline: true` is always set on customers registered via this endpoint.
+
+**Response `201 Created`** — full `CustomerResponse` (same shape as `POST /api/v1/customers`).
+
+**Errors:**
+- `422` — validation failed, or phone number already registered
+
+---
+
+### POST /api/v1/treks/driver/{token}/treks/{trekId}/stops
+
+Add a walk-in stop to any active trek in the region. `isWalkIn` is always `true` for stops created via this endpoint.
+
+**Request body**
+
+```json
+{
+  "customerAccountId": "<existing-server-customer-guid>",
+  "sequence": 5,
+  "notes": "Met on the main road",
+  "clientGeneratedId": "<device-uuid>",
+  "gps": {
+    "latitude": 6.0835,
+    "longitude": -0.2170,
+    "accuracyMetres": 12.5
+  }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `customerAccountId` | Yes | Must be an existing server-side customer ID |
+| `sequence` | Yes | > 0 |
+| `notes` | No | Max 500 chars |
+| `clientGeneratedId` | No | Deduplication key |
+| `gps` | No | Optional — stored on the stop for location reference |
+
+**Response `201 Created`** — `TrekStopResponse` (same shape as stops in trek response).
+
+**Errors:**
+- `404` — trek not found in this region
+- `422` — trek is Completed or Cancelled
+
+---
+
+### POST /api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned
+
+Add a product sale at a stop that was not in the original plan. The product is recorded as delivered in real time — `isUnplanned: true` on the resulting stop product.
+
+**Request body**
+
+```json
+{
+  "productId": "...",
+  "basicQtyDelivered": 10,
+  "packagingQtyDelivered": null,
+  "paymentMethod": "Cash",
+  "amtPaid": 250.00,
+  "balance": 0.00,
+  "notes": null,
+  "clientGeneratedId": "<device-uuid>"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `productId` | Yes | |
+| `basicQtyDelivered` | Yes | > 0 |
+| `packagingQtyDelivered` | No | Only relevant if the product has a packaging unit |
+| `paymentMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
+| `amtPaid` | No | ≥ 0 |
+| `balance` | No | ≥ 0 |
+| `notes` | No | Max 500 chars |
+| `clientGeneratedId` | No | Deduplication key |
+
+**Response `201 Created`** — `TrekStopProductResponse`.
+
+---
+
+### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns
+
+Record a product return at a stop. The returned product does not have to be from the current trek — a customer may return something from a previous delivery. Unit prices are snapshotted from the product catalogue at the time of recording.
+
+**Request body**
+
+```json
+{
+  "productId": "...",
+  "basicQtyReturned": 2,
+  "packagingQtyReturned": null,
+  "refundAmount": 50.00,
+  "refundMethod": "Cash",
+  "reason": "Damaged packaging",
+  "clientGeneratedId": "<device-uuid>",
+  "gps": {
+    "latitude": 6.0835,
+    "longitude": -0.2170,
+    "accuracyMetres": 18.0
+  }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `productId` | Yes | |
+| `basicQtyReturned` | Yes | > 0 |
+| `packagingQtyReturned` | No | Only if product has a packaging unit |
+| `refundAmount` | No | Actual amount refunded — ≥ 0 |
+| `refundMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
+| `reason` | No | Max 500 chars |
+| `clientGeneratedId` | No | Deduplication key — idempotent |
+| `gps` | No | Optional GPS at time of return |
+
+**Response `201 Created`**
+
+```json
+{
+  "returnId": "...",
+  "productId": "...",
+  "productName": "Paracetamol 500mg",
+  "basicUnitName": "Strips",
+  "packagingUnitName": null,
+  "basicQtyReturned": 2,
+  "packagingQtyReturned": null,
+  "basicUnitPrice": 25.00,
+  "packagingUnitPrice": null,
+  "refundAmount": 50.00,
+  "refundMethod": "Cash",
+  "reason": "Damaged packaging",
+  "recordedAt": "2026-09-17T10:45:00Z"
+}
+```
+
+**Ledger impact:** When the trek is marked `Completed`, each return with a `refundAmount > 0` generates a **Debit** entry on the customer's ledger (mirrors how deliveries generate Credit entries for payments received).
+
+---
+
+### DELETE /api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}
+
+Void a return. Not allowed on Completed or Cancelled treks.
+
+**Response `204 No Content`**
+
+---
+
+## Offline Seed Data
+
+Before going into the field, seed the local store with the following. All three endpoints support `?since=ISO8601` for **delta sync** — pass the last-fetched timestamp to download only records modified since then.
+
+```js
+// Full seed on first load
+await seedLocal('products',   `/api/v1/treks/driver/${token}/offline/products`);
+await seedLocal('customers',  `/api/v1/treks/driver/${token}/offline/customers`);
+await seedLocal('trek',       `/api/v1/treks/driver/${token}/offline/trek`);
+
+// Delta on reconnect
+const since = localStorage.getItem('lastSyncedAt');
+await seedLocal('products',  `/api/v1/treks/driver/${token}/offline/products?since=${since}`);
+```
+
+### GET .../offline/products
+
+Full product catalogue — name, unit prices, basic and packaging unit names.
+
+### GET .../offline/customers
+
+All customers in the trek's region — names, phone numbers, GPS coordinates, primary contact. Used for the customer search/select when adding walk-in stops.
+
+### GET .../offline/trek
+
+Full trek with all stops, products, and returns. Use this to populate the offline working copy. After a batch sync, re-fetch this to apply the server's resolved IDs.
+
+---
+
+## GPS Capture
+
+GPS works from the device hardware chip — **no mobile data, no WiFi, no SIM required**.
+
+```js
+function getGps() {
+  return new Promise((resolve) => {
+    if (!navigator.geolocation) { resolve(null); return; }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({
+        latitude:       pos.coords.latitude,
+        longitude:      pos.coords.longitude,
+        accuracyMetres: pos.coords.accuracy
+      }),
+      () => resolve(null),   // permission denied or no fix — action still proceeds
+      { enableHighAccuracy: true, timeout: 8000 }
+    );
+  });
+}
+```
+
+**GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddWalkInStop` (stored on stop), `RecordReturn` (stored on return record).
+**GPS is NOT captured on:** `RecordUnplannedSale` — the stop already has a location.
+**Never block an action on GPS failure.** Pass `gps: null` and the action goes through without coordinates.
+
+---
+
+## Offline Batch Sync
+
+### POST /api/v1/treks/driver/{token}/sync
+
+When connectivity returns, push all queued actions in one request. Actions are processed in `occurredAt` order. Re-submitting the same batch is safe — every `clientId` is stored and duplicates return `AlreadySynced`.
+
+### Request
+
+```json
+{
+  "actions": [
     {
-      "clientGeneratedId": "a1b2c3d4-...",
-      "recordedAt": "2026-09-10T08:32:00Z",
-      "businessName": "Accra Pharmacy Ltd",
-      "tradingName": "Accra Pharma",
-      "customerType": "RetailPharmacy",
-      "regionId": "<region-guid>",
-      "primaryPhoneNumber": "+233201234567",
-      "whatsAppNumber": "+233201234567",
-      "registeredDuringTrekId": "<trek-guid-or-null>",
-      "representative": {
-        "firstName": "Ama",
-        "middleName": null,
-        "lastName": "Boateng",
-        "relationshipType": "Owner",
-        "primaryPhoneNumber": "+233209876543",
-        "ghanaCardNumber": "GHA-123456789-0"
-      },
-      "location": {
-        "districtId": "<district-guid>",
-        "streetAddress": "12 Liberation Road, Accra",
-        "landmarkAndDirections": "Next to Accra Mall, ground floor",
-        "latitude": 5.6032,
-        "longitude": -0.1869,
-        "accuracyMetres": 12.5
+      "type": "RegisterCustomer",
+      "clientId": "<device-uuid-1>",
+      "occurredAt": "2026-09-17T10:32:00Z",
+      "payload": {
+        "businessName": "Koforidua Pharmacy",
+        "primaryPhoneNumber": "0244123456",
+        "customerType": "RetailPharmacy",
+        "representative": {
+          "firstName": "Ama",
+          "lastName": "Boateng",
+          "relationshipType": "Owner",
+          "primaryPhoneNumber": "0244123456"
+        },
+        "gps": { "latitude": 6.0835, "longitude": -0.2170, "accuracyMetres": 12.5 }
+      }
+    },
+    {
+      "type": "AddWalkInStop",
+      "clientId": "<device-uuid-2>",
+      "occurredAt": "2026-09-17T10:35:00Z",
+      "payload": {
+        "trekId": "<trek-guid>",
+        "customerClientId": "<device-uuid-1>",
+        "sequence": 5,
+        "notes": "Met on the main road"
+      }
+    },
+    {
+      "type": "RecordUnplannedSale",
+      "clientId": "<device-uuid-3>",
+      "occurredAt": "2026-09-17T10:40:00Z",
+      "payload": {
+        "stopClientId": "<device-uuid-2>",
+        "productId": "<product-guid>",
+        "basicQtyDelivered": 10,
+        "paymentMethod": "Cash",
+        "amtPaid": 250.00,
+        "balance": 0.00
+      }
+    },
+    {
+      "type": "RecordReturn",
+      "clientId": "<device-uuid-4>",
+      "occurredAt": "2026-09-17T10:45:00Z",
+      "payload": {
+        "stopId": "<existing-server-stop-guid>",
+        "productId": "<product-guid>",
+        "basicQtyReturned": 2,
+        "refundAmount": 50.00,
+        "refundMethod": "Cash",
+        "reason": "Damaged packaging",
+        "gps": { "latitude": 6.0835, "longitude": -0.2170, "accuracyMetres": 18.0 }
       }
     }
   ]
 }
 ```
 
-### Field rules
+### Action types and payload fields
 
-**Top-level fields:**
-
-| Field | Required | Notes |
-|---|---|---|
-| `clientGeneratedId` | Yes | UUID generated on the device — used for deduplication |
-| `recordedAt` | Yes | Device timestamp at time of capture (ISO 8601 UTC) |
-| `businessName` | Yes | Max 200 chars |
-| `customerType` | Yes | See enum reference in doc 09 |
-| `regionId` | Yes | Must match a cached region |
-| `primaryPhoneNumber` | Yes | Max 30 chars |
-| `tradingName` | No | Max 200 chars |
-| `whatsAppNumber` | No | Max 30 chars |
-| `registeredDuringTrekId` | No | Trek GUID if customer was registered mid-trek |
-
-**`representative`:**
+**`RegisterCustomer`**
 
 | Field | Required | Notes |
 |---|---|---|
-| `firstName` | Yes | Max 80 chars |
-| `lastName` | Yes | Max 80 chars |
-| `relationshipType` | Yes | See enum reference in doc 09 |
-| `primaryPhoneNumber` | Yes | Max 30 chars |
-| `middleName` | No | Max 80 chars |
-| `ghanaCardNumber` | No | Max 30 chars |
+| `businessName` | Yes | |
+| `primaryPhoneNumber` | Yes | |
+| `customerType` | Yes | |
+| `representative.firstName` | Yes | |
+| `representative.lastName` | Yes | |
+| `representative.relationshipType` | Yes | |
+| `representative.primaryPhoneNumber` | Yes | |
+| `gps` | No | Optional — see GPS section |
 
-**`location`:**
+**`AddWalkInStop`**
 
 | Field | Required | Notes |
 |---|---|---|
-| `districtId` | Yes | Must match a cached district |
-| `latitude` | Yes | -90 to 90 |
-| `longitude` | Yes | -180 to 180 |
-| `accuracyMetres` | Yes | `> 0` = GPS captured, `0` = manual map selection |
-| `streetAddress` | No | Max 300 chars |
-| `landmarkAndDirections` | No | Max 500 chars |
+| `trekId` | No | Defaults to the token's own trek |
+| `customerClientId` | Either/or | Use when the customer was registered offline in this same batch or a previous batch |
+| `customerId` | Either/or | Use when the customer already exists on the server |
+| `sequence` | Yes | > 0 |
+| `notes` | No | |
+
+**`RecordUnplannedSale`**
+
+| Field | Required | Notes |
+|---|---|---|
+| `stopClientId` | Either/or | Use when the stop was added offline in this batch |
+| `stopId` | Either/or | Use when the stop already exists on the server |
+| `productId` | Yes | |
+| `basicQtyDelivered` | Yes | |
+| `packagingQtyDelivered` | No | |
+| `paymentMethod` | No | |
+| `amtPaid` | No | |
+| `balance` | No | |
+
+**`RecordReturn`**
+
+| Field | Required | Notes |
+|---|---|---|
+| `stopId` | Either/or | Server stop ID |
+| `stopClientId` | Either/or | Offline stop — resolved from this batch |
+| `productId` | Yes | |
+| `basicQtyReturned` | Yes | |
+| `packagingQtyReturned` | No | |
+| `refundAmount` | No | |
+| `refundMethod` | No | |
+| `reason` | No | Max 500 chars |
+| `gps` | No | Optional |
 
 ### Response `200 OK`
 
 ```json
 {
-  "synced": 2,
-  "skipped": 1,
-  "failed": 0,
   "results": [
-    {
-      "clientGeneratedId": "a1b2c3d4-...",
-      "status": "Created",
-      "customerId": "...",
-      "customerCode": "GAR-00042",
-      "error": null
-    },
-    {
-      "clientGeneratedId": "b2c3d4e5-...",
-      "status": "AlreadySynced",
-      "customerId": "...",
-      "customerCode": "GAR-00031",
-      "error": null
-    },
-    {
-      "clientGeneratedId": "c3d4e5f6-...",
-      "status": "Created",
-      "customerId": "...",
-      "customerCode": "GAR-00043",
-      "error": null
-    }
+    { "clientId": "...", "type": "RegisterCustomer",  "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "AddWalkInStop",     "status": "Created",      "serverId": "..." },
+    { "clientId": "...", "type": "RecordUnplannedSale","status": "Created",     "serverId": null  },
+    { "clientId": "...", "type": "RecordReturn",      "status": "AlreadySynced","serverId": "..." }
   ]
 }
 ```
 
-### Per-item statuses
+### Per-action statuses
 
 | Status | Meaning |
 |---|---|
-| `Created` | Customer was successfully created. Use `customerId` and `customerCode` to update your local record. |
-| `AlreadySynced` | A customer with this `clientGeneratedId` already exists. The existing `customerId` and `customerCode` are returned — update your local record with these. |
-| `Failed` | Validation or lookup error. Check `error` for the reason. The item was not saved. |
+| `Created` | Action was processed and saved. Use `serverId` to update your local record. |
+| `AlreadySynced` | `clientId` already existed — existing `serverId` returned. Update your local record with the returned ID. |
+| `Conflict` | Could not apply — e.g. phone already registered, trek is Completed, stop not found. Check `reason`. |
 
-### Errors
-- `422` — batch is empty
+### Dependency resolution
 
----
+A `AddWalkInStop` can reference a customer registered in the **same batch** via `customerClientId`. The server processes all actions in `occurredAt` order and builds an in-memory map of `clientId → serverId` as it goes. When an `AddWalkInStop` arrives with `customerClientId`, the server looks up the map before the database — so a customer registered two actions earlier in the same batch resolves correctly.
 
-## Key differences from online registration
-
-| | `POST /api/v1/customers` | `POST /api/v1/customers/sync` |
-|---|---|---|
-| `clientGeneratedId` | Not sent | Required — dedup key |
-| `recordedAt` | Set by server (now) | Set by device (time of capture) |
-| `createdOffline` | Always `false` | Always `true` |
-| Response | Full `CustomerResponse` | Per-item `SyncItemResult` |
-| Batch | Single record | Up to many records at once |
+The same applies to `RecordUnplannedSale` referencing an offline stop via `stopClientId`.
 
 ---
 
-## Suggested frontend flow
+## Suggested Frontend Flow
 
 ```js
-// 1. On form submit offline — save locally
-const pendingCustomer = {
-  clientGeneratedId: crypto.randomUUID(),
-  recordedAt: new Date().toISOString(),
-  status: 'pending',
-  // ... all form fields
-};
-await localDb.customers.add(pendingCustomer);
+// ── Offline action queue ─────────────────────────────────────────────
 
-// 2. On reconnect — collect and push
-async function syncPending() {
-  const pending = await localDb.customers.where({ status: 'pending' }).toArray();
+// When the driver takes an action offline, push to the queue:
+async function queueAction(type, payload) {
+  const action = {
+    type,
+    clientId: crypto.randomUUID(),
+    occurredAt: new Date().toISOString(),
+    payload,
+    status: 'pending'
+  };
+  await localDb.queue.add(action);
+  return action.clientId;  // return to caller so they can reference it
+}
+
+// Example — register a new customer offline:
+const customerClientId = await queueAction('RegisterCustomer', {
+  businessName: 'Koforidua Pharmacy',
+  primaryPhoneNumber: '0244123456',
+  customerType: 'RetailPharmacy',
+  representative: { firstName: 'Ama', lastName: 'Boateng',
+    relationshipType: 'Owner', primaryPhoneNumber: '0244123456' },
+  gps: await getGps()
+});
+
+// Example — immediately add a walk-in stop for that offline customer:
+const stopClientId = await queueAction('AddWalkInStop', {
+  trekId: currentTrekId,
+  customerClientId,   // references the customer registered above
+  sequence: nextSequence()
+});
+
+// Example — record an unplanned sale at that offline stop:
+await queueAction('RecordUnplannedSale', {
+  stopClientId,       // references the stop added above
+  productId: selectedProductId,
+  basicQtyDelivered: 10,
+  paymentMethod: 'Cash',
+  amtPaid: 250.00,
+  balance: 0.00
+});
+
+// ── Sync on reconnect ────────────────────────────────────────────────
+
+async function syncOfflineQueue() {
+  const pending = await localDb.queue.where({ status: 'pending' }).toArray();
   if (!pending.length) return;
 
-  const response = await fetch('/api/v1/customers/sync', {
+  const response = await fetch(`/api/v1/treks/driver/${token}/sync`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`
-    },
-    body: JSON.stringify({ items: pending })
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ actions: pending })
   });
 
   const { results } = await response.json();
 
   for (const result of results) {
     if (result.status === 'Created' || result.status === 'AlreadySynced') {
-      await localDb.customers.update(result.clientGeneratedId, {
-        status: 'synced',
-        customerId: result.customerId,
-        customerCode: result.customerCode
-      });
+      await localDb.queue.update(result.clientId, { status: 'synced', serverId: result.serverId });
     } else {
-      await localDb.customers.update(result.clientGeneratedId, {
-        status: 'failed',
-        syncError: result.error
-      });
+      await localDb.queue.update(result.clientId, { status: 'conflict', reason: result.reason });
     }
   }
+
+  // Re-seed the local trek copy with server-resolved IDs
+  const trek = await fetch(`/api/v1/treks/driver/${token}/offline/trek`).then(r => r.json());
+  await localDb.trek.put(trek);
+
+  localStorage.setItem('lastSyncedAt', new Date().toISOString());
 }
 
-// 3. Listen for reconnection
-window.addEventListener('online', syncPending);
+window.addEventListener('online', syncOfflineQueue);
 ```
+
+---
 
 ## Notes
 
-- **Token expiry** — if the device is offline for a long time, the JWT will expire. Detect a `401` response on sync and redirect to login before retrying.
-- **Portrait upload** — `POST /api/v1/customers/{customerId}/people/{personId}/portrait` requires the server-assigned `customerId` and `personId`. Queue portrait uploads separately and run them after the sync batch completes.
-- **Batch size** — there is no enforced limit, but keep batches under 100 items per request for predictable response times.
+- **No JWT required** — the driver token is the only credential. None of the driver portal endpoints check the `Authorization` header.
+- **Trek locked after Completion** — once a trek is `Completed`, returns and unplanned sales can no longer be added. Batch sync returns `Conflict` for actions targeting a completed trek.
+- **Batch size** — no enforced limit, but keep batches under 200 actions for predictable response times.
+- **Delta sync cadence** — call the `?since=` endpoints after every successful batch push to keep the local trek copy current. Store `lastSyncedAt` in localStorage.
+- **Conflicts** — a `Conflict` result does not fail the batch. Other actions in the same request are still processed. Surface conflicts to the driver with a clear message (e.g. "This customer's phone number is already registered — tap to link to the existing record").
