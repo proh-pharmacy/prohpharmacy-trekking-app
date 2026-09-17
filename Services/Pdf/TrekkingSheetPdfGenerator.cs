@@ -53,6 +53,8 @@ public static class TrekkingSheetPdfGenerator
             public string ProductName { get; set; } = string.Empty;
             public string? BasicUnitName { get; set; }
             public string? PackagingUnitName { get; set; }
+            public decimal BasicUnitPrice { get; set; }
+            public decimal? PackagingUnitPrice { get; set; }
             public decimal PlannedBasicQuantity { get; set; }
             public decimal? PlannedPackagingQuantity { get; set; }
             public decimal? BasicQtyDelivered { get; set; }
@@ -310,13 +312,15 @@ public static class TrekkingSheetPdfGenerator
                 table.ColumnsDefinition(columns =>
                 {
                     columns.RelativeColumn(0.4f);  // #
-                    columns.RelativeColumn(3.0f);  // Description
+                    columns.RelativeColumn(2.5f);  // Description
+                    columns.RelativeColumn(1.2f);  // Unit Price
+                    columns.RelativeColumn(1.0f);  // Subtotal
                     columns.RelativeColumn(0.9f);  // Planned
                     columns.RelativeColumn(1.0f);  // Delivered
                     columns.RelativeColumn(1.3f);  // Payment Method
                     columns.RelativeColumn(1.0f);  // Amt Paid
                     columns.RelativeColumn(1.0f);  // Balance
-                    columns.RelativeColumn(1.5f);  // Notes
+                    columns.RelativeColumn(1.2f);  // Notes
                 });
 
                 // Header Row
@@ -324,6 +328,8 @@ public static class TrekkingSheetPdfGenerator
                 {
                     HeaderCell(header, "#", alignCenter: true);
                     HeaderCell(header, "Description", alignCenter: false);
+                    HeaderCell(header, "Unit Price", alignCenter: true);
+                    HeaderCell(header, "Subtotal", alignCenter: true);
                     HeaderCell(header, "Planned", alignCenter: true);
                     HeaderCell(header, "Delivered", alignCenter: true);
                     HeaderCell(header, "Payment Method", alignCenter: true);
@@ -335,7 +341,7 @@ public static class TrekkingSheetPdfGenerator
                 // Product Rows
                 if (stop.Products.Count == 0)
                 {
-                    table.Cell().ColumnSpan(8)
+                    table.Cell().ColumnSpan(10)
                         .Background("#f8fbf9")
                         .BorderBottom(0.5f).BorderColor("#ffffff")
                         .MinHeight(20)
@@ -369,8 +375,21 @@ public static class TrekkingSheetPdfGenerator
                         var amtPaid = product.AmtPaid.HasValue ? $"GHS {product.AmtPaid:0.00}" : string.Empty;
                         var balance = product.Balance.HasValue ? $"GHS {product.Balance:0.00}" : string.Empty;
 
+                        var priceParts = new List<string>();
+                        if (product.BasicUnitPrice > 0)
+                            priceParts.Add($"GHS {product.BasicUnitPrice:0.00}{(string.IsNullOrWhiteSpace(product.BasicUnitName) ? string.Empty : $"/{product.BasicUnitName}")}");
+                        if (product.PackagingUnitPrice.HasValue && product.PackagingUnitPrice > 0)
+                            priceParts.Add($"GHS {product.PackagingUnitPrice:0.00}{(string.IsNullOrWhiteSpace(product.PackagingUnitName) ? string.Empty : $"/{product.PackagingUnitName}")}");
+                        var priceText = string.Join("\n", priceParts);
+
+                        var subtotal = (product.PlannedBasicQuantity * product.BasicUnitPrice)
+                                     + ((product.PlannedPackagingQuantity ?? 0) * (product.PackagingUnitPrice ?? 0));
+                        var subtotalText = subtotal > 0 ? $"GHS {subtotal:0.00}" : string.Empty;
+
                         BodyCell(table, itemIndex.ToString(), background, alignCenter: true);
                         BodyCell(table, product.ProductName, background, alignCenter: false);
+                        BodyCell(table, priceText, background, alignCenter: true);
+                        BodyCell(table, subtotalText, background, alignCenter: true);
                         BodyCell(table, plannedText, background, alignCenter: true);
                         BodyCell(table, deliveredText, background, alignCenter: true);
                         BodyCell(table, product.PaymentMethod ?? string.Empty, background, alignCenter: true);

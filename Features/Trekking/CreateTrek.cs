@@ -153,8 +153,8 @@ public static class CreateTrek
                 salesStaffName = salesStaff.FullName;
             }
 
-            var tripCount = await _db.TrekkingTrips.CountAsync(cancellationToken);
-            var trekNumber = $"TRK-{tripCount + 1:D5}";
+            var seq = await _db.Database.SqlQueryRaw<long>("SELECT nextval('\"TrekNumberSequence\"')").FirstAsync(cancellationToken);
+            var trekNumber = $"TRK-{seq:D5}";
 
             var trip = new TrekkingTrip
             {

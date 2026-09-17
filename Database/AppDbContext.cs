@@ -287,6 +287,8 @@ namespace prohpharmacy_trekking_app.Database
 
             // ── Trekking ──────────────────────────────────────────────────────────
 
+            modelBuilder.HasSequence<long>("TrekNumberSequence").StartsAt(1).IncrementsBy(1);
+
             modelBuilder.Entity<TrekkingTrip>(entity =>
             {
                 entity.HasKey(t => t.Id);

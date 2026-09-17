@@ -101,6 +101,8 @@ public static class SendTrekAssignmentEmail
                             ProductName = p.Product?.Name ?? string.Empty,
                             BasicUnitName = p.Product?.BasicUnit?.Name,
                             PackagingUnitName = p.Product?.PackagingUnit?.Name,
+                            BasicUnitPrice = p.BasicUnitPrice,
+                            PackagingUnitPrice = p.PackagingUnitPrice,
                             PlannedBasicQuantity = p.PlannedBasicQuantity,
                             PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                             BasicQtyDelivered = p.BasicQtyDelivered,

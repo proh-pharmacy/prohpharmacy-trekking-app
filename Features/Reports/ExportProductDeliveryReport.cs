@@ -46,7 +46,9 @@ public static class ExportProductDeliveryReport
                     p.ProductId,
                     ProductName = p.Product.Name,
                     ProductUnit = p.Product.BasicUnit.Name,
+                    PackagingUnitName = (string?)p.Product.PackagingUnit!.Name,
                     BasicQtyDelivered = p.BasicQtyDelivered ?? 0,
+                    PackagingQtyDelivered = p.PackagingQtyDelivered ?? 0,
                     AmtPaid = p.AmtPaid ?? 0,
                     Balance = p.Balance ?? 0,
                     TrekId = p.TrekkingTripStop.TrekkingTripId
@@ -58,8 +60,10 @@ public static class ExportProductDeliveryReport
                 .Select(g => new
                 {
                     ProductName = g.First().ProductName,
-                    Unit = g.First().ProductUnit,
-                    TotalQtyDelivered = g.Sum(r => r.BasicQtyDelivered),
+                    BasicUnit = g.First().ProductUnit,
+                    PackagingUnit = g.First().PackagingUnitName,
+                    TotalBasicQty = g.Sum(r => r.BasicQtyDelivered),
+                    TotalPkgQty = g.Sum(r => r.PackagingQtyDelivered),
                     TotalCollected = g.Sum(r => r.AmtPaid),
                     TotalOutstanding = g.Sum(r => r.Balance),
                     TreksCount = g.Select(r => r.TrekId).Distinct().Count()
@@ -69,7 +73,8 @@ public static class ExportProductDeliveryReport
 
             var totalCollected = items.Sum(i => i.TotalCollected);
             var totalOutstanding = items.Sum(i => i.TotalOutstanding);
-            var totalQty = items.Sum(i => i.TotalQtyDelivered);
+            var totalBasicQty = items.Sum(i => i.TotalBasicQty);
+            var totalPkgQty = items.Sum(i => i.TotalPkgQty);
 
             var brandGreen = Color.FromArgb(0, 191, 111);
             var headerText = Color.White;
@@ -78,15 +83,15 @@ public static class ExportProductDeliveryReport
 
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Product Delivery Report");
-            ws.Cells["A:G"].Style.Font.Name = "Calibri";
+            ws.Cells["A:I"].Style.Font.Name = "Calibri";
 
-            ws.Cells["A1:G1"].Merge = true;
+            ws.Cells["A1:I1"].Merge = true;
             ws.Cells["A1"].Value = "Proh Pharmacy — Product Delivery Report";
             ws.Cells["A1"].Style.Font.Bold = true;
             ws.Cells["A1"].Style.Font.Size = 14;
             ws.Cells["A1"].Style.Font.Color.SetColor(Color.FromArgb(30, 41, 59));
 
-            ws.Cells["A2:G2"].Merge = true;
+            ws.Cells["A2:I2"].Merge = true;
             var periodLabel = (request.From, request.To) switch
             {
                 ({ } f, { } t) => $"Period: {f:dd MMM yyyy} — {t:dd MMM yyyy}",
@@ -98,12 +103,12 @@ public static class ExportProductDeliveryReport
             ws.Cells["A2"].Style.Font.Size = 10;
             ws.Cells["A2"].Style.Font.Color.SetColor(Color.FromArgb(71, 85, 105));
 
-            ws.Cells["A3:G3"].Merge = true;
+            ws.Cells["A3:I3"].Merge = true;
             ws.Cells["A3"].Value = $"Generated: {DateTime.UtcNow:dd MMM yyyy HH:mm} UTC  |  Products: {items.Count}  |  Collected: GHS {totalCollected:#,##0.00}  |  Outstanding: GHS {totalOutstanding:#,##0.00}";
             ws.Cells["A3"].Style.Font.Size = 9;
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
-            var headers = new[] { "#", "Product Name", "Unit", "Qty Delivered", "Collected (GHS)", "Outstanding (GHS)", "Treks" };
+            var headers = new[] { "#", "Product Name", "Basic Unit", "Basic Qty", "Pkg Unit", "Pkg Qty", "Collected (GHS)", "Outstanding (GHS)", "Treks" };
             int headerRow = 5;
 
             for (int c = 0; c < headers.Length; c++)
@@ -136,17 +141,20 @@ public static class ExportProductDeliveryReport
 
                 SetCell(1, i + 1);
                 SetCell(2, item.ProductName);
-                SetCell(3, item.Unit ?? "—");
-                SetCell(4, item.TotalQtyDelivered, isNumber: true);
+                SetCell(3, item.BasicUnit ?? "—");
+                SetCell(4, item.TotalBasicQty, isNumber: true);
                 ws.Cells[r, 4].Style.Numberformat.Format = "#,##0.###";
-                SetCell(5, item.TotalCollected, isNumber: true);
-                ws.Cells[r, 5].Style.Numberformat.Format = "#,##0.00";
-                SetCell(6, item.TotalOutstanding, isNumber: true, isBold: item.TotalOutstanding > 0);
-                ws.Cells[r, 6].Style.Numberformat.Format = "#,##0.00";
-                SetCell(7, item.TreksCount);
+                SetCell(5, item.PackagingUnit ?? "—");
+                SetCell(6, item.TotalPkgQty > 0 ? item.TotalPkgQty : (object)"—", isNumber: item.TotalPkgQty > 0);
+                if (item.TotalPkgQty > 0) ws.Cells[r, 6].Style.Numberformat.Format = "#,##0.###";
+                SetCell(7, item.TotalCollected, isNumber: true);
+                ws.Cells[r, 7].Style.Numberformat.Format = "#,##0.00";
+                SetCell(8, item.TotalOutstanding, isNumber: true, isBold: item.TotalOutstanding > 0);
+                ws.Cells[r, 8].Style.Numberformat.Format = "#,##0.00";
+                SetCell(9, item.TreksCount);
 
                 if (item.TotalOutstanding > 0)
-                    ws.Cells[r, 6].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
+                    ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
             }
 
             int totalsRow = headerRow + 1 + items.Count;
@@ -170,27 +178,34 @@ public static class ExportProductDeliveryReport
                     cell.Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
             }
 
-            var qtyCell = ws.Cells[totalsRow, 4];
-            qtyCell.Value = totalQty;
-            qtyCell.Style.Font.Bold = true;
-            qtyCell.Style.Numberformat.Format = "#,##0.###";
-            qtyCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-            qtyCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-            qtyCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
-            qtyCell.Style.Border.BorderAround(ExcelBorderStyle.Medium, brandGreen);
+            void TotalQtyCell(int col, decimal value)
+            {
+                var cell = ws.Cells[totalsRow, col];
+                cell.Value = value;
+                cell.Style.Font.Bold = true;
+                cell.Style.Numberformat.Format = "#,##0.###";
+                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                cell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                cell.Style.Border.BorderAround(ExcelBorderStyle.Medium, brandGreen);
+            }
 
-            TotalCell(5, totalCollected);
-            TotalCell(6, totalOutstanding, applyRedIfPositive: true);
-
-            ws.Cells[totalsRow, 7].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
+            ws.Cells[totalsRow, 5].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
+            TotalQtyCell(4, totalBasicQty);
+            TotalQtyCell(6, totalPkgQty);
+            TotalCell(7, totalCollected);
+            TotalCell(8, totalOutstanding, applyRedIfPositive: true);
+            ws.Cells[totalsRow, 9].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
 
             ws.Column(1).Width = 5;
-            ws.Column(2).Width = 34;
+            ws.Column(2).Width = 32;
             ws.Column(3).Width = 12;
-            ws.Column(4).Width = 16;
-            ws.Column(5).Width = 20;
-            ws.Column(6).Width = 20;
-            ws.Column(7).Width = 8;
+            ws.Column(4).Width = 14;
+            ws.Column(5).Width = 12;
+            ws.Column(6).Width = 14;
+            ws.Column(7).Width = 20;
+            ws.Column(8).Width = 20;
+            ws.Column(9).Width = 8;
 
             ws.Row(1).Height = 22;
             ws.View.FreezePanes(headerRow + 1, 1);

@@ -38,8 +38,10 @@ public static class GetProductDeliveryReport
     {
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
-        public string? Unit { get; set; }
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
         public decimal TotalQtyDelivered { get; set; }
+        public decimal TotalPackagingQtyDelivered { get; set; }
         public decimal TotalCollected { get; set; }
         public decimal TotalOutstanding { get; set; }
         public int TreksCount { get; set; }
@@ -69,7 +71,9 @@ public static class GetProductDeliveryReport
                     p.ProductId,
                     ProductName = p.Product.Name,
                     ProductUnit = p.Product.BasicUnit.Name,
+                    PackagingUnitName = (string?)p.Product.PackagingUnit!.Name,
                     BasicQtyDelivered = p.BasicQtyDelivered ?? 0,
+                    PackagingQtyDelivered = p.PackagingQtyDelivered ?? 0,
                     AmtPaid = p.AmtPaid ?? 0,
                     Balance = p.Balance ?? 0,
                     TrekId = p.TrekkingTripStop.TrekkingTripId
@@ -82,8 +86,10 @@ public static class GetProductDeliveryReport
                 {
                     ProductId = g.Key,
                     ProductName = g.First().ProductName,
-                    Unit = g.First().ProductUnit,
+                    BasicUnitName = g.First().ProductUnit,
+                    PackagingUnitName = g.First().PackagingUnitName,
                     TotalQtyDelivered = g.Sum(r => r.BasicQtyDelivered),
+                    TotalPackagingQtyDelivered = g.Sum(r => r.PackagingQtyDelivered),
                     TotalCollected = g.Sum(r => r.AmtPaid),
                     TotalOutstanding = g.Sum(r => r.Balance),
                     TreksCount = g.Select(r => r.TrekId).Distinct().Count()
