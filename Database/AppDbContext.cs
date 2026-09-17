@@ -44,6 +44,7 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<TrekkingTrip> TrekkingTrips => Set<TrekkingTrip>();
         public DbSet<TrekkingTripStop> TrekkingTripStops => Set<TrekkingTripStop>();
         public DbSet<TrekkingTripStopProduct> TrekkingTripStopProducts => Set<TrekkingTripStopProduct>();
+        public DbSet<TrekkingTripStopReturn> TrekkingTripStopReturns => Set<TrekkingTripStopReturn>();
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
@@ -225,7 +226,7 @@ namespace prohpharmacy_trekking_app.Database
                     .HasForeignKey(l => l.CustomerAccountId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasOne(l => l.Region).WithMany().HasForeignKey(l => l.RegionId).OnDelete(DeleteBehavior.Restrict);
-                entity.HasOne(l => l.District).WithMany().HasForeignKey(l => l.DistrictId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.District).WithMany().HasForeignKey(l => l.DistrictId).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
                 entity.HasOne(l => l.CapturedBy).WithMany().HasForeignKey(l => l.CapturedByStaffId).OnDelete(DeleteBehavior.Restrict);
             });
 
@@ -356,6 +357,36 @@ namespace prohpharmacy_trekking_app.Database
                     .WithMany()
                     .HasForeignKey(p => p.ProductId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<TrekkingTripStopReturn>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.BasicQtyReturned).HasPrecision(10, 3).IsRequired();
+                entity.Property(r => r.PackagingQtyReturned).HasPrecision(10, 3);
+                entity.Property(r => r.BasicUnitPrice).HasPrecision(14, 2).IsRequired();
+                entity.Property(r => r.PackagingUnitPrice).HasPrecision(14, 2);
+                entity.Property(r => r.RefundAmount).HasPrecision(14, 2);
+                entity.Property(r => r.RefundMethod).HasConversion<string>().HasMaxLength(30);
+                entity.Property(r => r.Reason).HasMaxLength(500);
+                entity.Property(r => r.Latitude).HasPrecision(9, 6);
+                entity.Property(r => r.Longitude).HasPrecision(9, 6);
+                entity.Property(r => r.GpsAccuracyMetres).HasPrecision(8, 2);
+                entity.HasOne(r => r.TrekkingTripStop)
+                    .WithMany(s => s.Returns)
+                    .HasForeignKey(r => r.TrekkingTripStopId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(r => r.Product)
+                    .WithMany()
+                    .HasForeignKey(r => r.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.RecordedBy)
+                    .WithMany()
+                    .HasForeignKey(r => r.RecordedByStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(r => r.ClientGeneratedId).IsUnique()
+                    .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
+                entity.HasIndex(r => r.TrekkingTripStopId);
             });
 
             // ── Staff ─────────────────────────────────────────────────────────────

@@ -47,6 +47,14 @@ public static class GetTrek
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.PackagingUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken);
 
@@ -76,6 +84,7 @@ public static class GetTrek
             {
                 StopId = stop.Id,
                 Sequence = stop.Sequence,
+                IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,
                 CustomerName = stop.CustomerAccount?.BusinessName ?? string.Empty,
                 CustomerCode = stop.CustomerAccount?.CustomerCode ?? string.Empty,
@@ -104,8 +113,25 @@ public static class GetTrek
                     PaymentMethod = p.PaymentMethod?.ToString(),
                     AmtPaid = p.AmtPaid,
                     Balance = p.Balance,
+                    IsUnplanned = p.IsUnplanned,
                     Notes = p.Notes,
                     DeliveredAt = p.DeliveredAt
+                }).ToList(),
+                Returns = stop.Returns.Select(r => new TrekStopReturnResponse
+                {
+                    ReturnId = r.Id,
+                    ProductId = r.ProductId,
+                    ProductName = r.Product?.Name ?? string.Empty,
+                    BasicUnitName = r.Product?.BasicUnit?.Name,
+                    PackagingUnitName = r.Product?.PackagingUnit?.Name,
+                    BasicQtyReturned = r.BasicQtyReturned,
+                    PackagingQtyReturned = r.PackagingQtyReturned,
+                    BasicUnitPrice = r.BasicUnitPrice,
+                    PackagingUnitPrice = r.PackagingUnitPrice,
+                    RefundAmount = r.RefundAmount,
+                    RefundMethod = r.RefundMethod?.ToString(),
+                    Reason = r.Reason,
+                    RecordedAt = r.RecordedAt
                 }).ToList()
             };
         }

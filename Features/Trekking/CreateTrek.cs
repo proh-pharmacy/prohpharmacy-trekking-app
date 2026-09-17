@@ -49,6 +49,7 @@ public static class CreateTrek
     {
         public Guid StopId { get; set; }
         public int Sequence { get; set; }
+        public bool IsWalkIn { get; set; }
         public Guid CustomerAccountId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
@@ -62,6 +63,7 @@ public static class CreateTrek
         public string? PrimaryContactPhone { get; set; }
         public string? Notes { get; set; }
         public List<TrekStopProductResponse> Products { get; set; } = [];
+        public List<TrekStopReturnResponse> Returns { get; set; } = [];
     }
 
     public class TrekStopProductResponse
@@ -80,8 +82,26 @@ public static class CreateTrek
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
+        public bool IsUnplanned { get; set; }
         public string? Notes { get; set; }
         public DateTime? DeliveredAt { get; set; }
+    }
+
+    public class TrekStopReturnResponse
+    {
+        public Guid ReturnId { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
+        public decimal BasicQtyReturned { get; set; }
+        public decimal? PackagingQtyReturned { get; set; }
+        public decimal BasicUnitPrice { get; set; }
+        public decimal? PackagingUnitPrice { get; set; }
+        public decimal? RefundAmount { get; set; }
+        public string? RefundMethod { get; set; }
+        public string? Reason { get; set; }
+        public DateTime RecordedAt { get; set; }
     }
 
     public class Validator : AbstractValidator<Command>

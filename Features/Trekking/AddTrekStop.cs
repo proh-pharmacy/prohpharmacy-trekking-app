@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Trekking.Entities;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Trekking.CreateTrek;
 
@@ -111,6 +112,7 @@ public static class AddTrekStop
                 TrekkingTripId = request.TrekId,
                 CustomerAccountId = request.CustomerAccountId,
                 Sequence = request.Sequence,
+                IsWalkIn = trip.Status == TrekStatus.InProgress,
                 Notes = request.Notes?.Trim(),
                 Products = stopProducts
             };
@@ -125,6 +127,7 @@ public static class AddTrekStop
             {
                 StopId = stop.Id,
                 Sequence = stop.Sequence,
+                IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,
                 CustomerName = customer.BusinessName,
                 CustomerCode = customer.CustomerCode,
@@ -156,6 +159,7 @@ public static class AddTrekStop
                         PaymentMethod = p.PaymentMethod?.ToString(),
                         AmtPaid = p.AmtPaid,
                         Balance = p.Balance,
+                        IsUnplanned = p.IsUnplanned,
                         Notes = p.Notes,
                         DeliveredAt = p.DeliveredAt
                     };

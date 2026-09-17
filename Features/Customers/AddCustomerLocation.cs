@@ -34,8 +34,8 @@ public static class AddCustomerLocation
         public string LocationType { get; set; } = string.Empty;
         public Guid RegionId { get; set; }
         public string RegionName { get; set; } = string.Empty;
-        public Guid DistrictId { get; set; }
-        public string DistrictName { get; set; } = string.Empty;
+        public Guid? DistrictId { get; set; }
+        public string? DistrictName { get; set; }
         public string LandmarkAndDirections { get; set; } = string.Empty;
         public string? StreetAddress { get; set; }
         public decimal? Latitude { get; set; }

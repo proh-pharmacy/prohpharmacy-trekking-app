@@ -17,6 +17,7 @@ public class TrekkingTripStopProduct
     public PaymentMethod? PaymentMethod { get; set; }
     public decimal? AmtPaid { get; set; }
     public decimal? Balance { get; set; }
+    public bool IsUnplanned { get; set; }
     public string? Notes { get; set; }
     public DateTime? DeliveredAt { get; set; }
 

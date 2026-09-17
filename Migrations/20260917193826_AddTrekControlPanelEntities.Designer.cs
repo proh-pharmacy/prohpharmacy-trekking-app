@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -12,9 +13,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917193826_AddTrekControlPanelEntities")]
+    partial class AddTrekControlPanelEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -137,7 +140,7 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Property<Guid>("CustomerAccountId")
                         .HasColumnType("uuid");
 
-                    b.Property<Guid?>("DistrictId")
+                    b.Property<Guid>("DistrictId")
                         .HasColumnType("uuid");
 
                     b.Property<bool>("IsPrimary")
@@ -1290,7 +1293,8 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.District", "District")
                         .WithMany()
                         .HasForeignKey("DistrictId")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Region", "Region")
                         .WithMany()

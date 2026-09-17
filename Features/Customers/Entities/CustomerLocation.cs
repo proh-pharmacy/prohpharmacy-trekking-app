@@ -10,7 +10,7 @@ public class CustomerLocation
     public Guid CustomerAccountId { get; set; }
     public LocationType LocationType { get; set; } = LocationType.BusinessPremises;
     public Guid RegionId { get; set; }
-    public Guid DistrictId { get; set; }
+    public Guid? DistrictId { get; set; }
     public string? StreetAddress { get; set; }
     public string? LandmarkAndDirections { get; set; }
     public decimal? Latitude { get; set; }
@@ -24,6 +24,6 @@ public class CustomerLocation
 
     public CustomerAccount CustomerAccount { get; set; } = null!;
     public Region Region { get; set; } = null!;
-    public District District { get; set; } = null!;
+    public District? District { get; set; }
     public StaffMember CapturedBy { get; set; } = null!;
 }

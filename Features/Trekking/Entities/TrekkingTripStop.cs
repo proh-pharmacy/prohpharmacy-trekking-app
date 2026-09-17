@@ -8,9 +8,11 @@ public class TrekkingTripStop
     public Guid TrekkingTripId { get; set; }
     public Guid CustomerAccountId { get; set; }
     public int Sequence { get; set; }
+    public bool IsWalkIn { get; set; }
     public string? Notes { get; set; }
 
     public TrekkingTrip TrekkingTrip { get; set; } = null!;
     public CustomerAccount CustomerAccount { get; set; } = null!;
     public ICollection<TrekkingTripStopProduct> Products { get; set; } = [];
+    public ICollection<TrekkingTripStopReturn> Returns { get; set; } = [];
 }

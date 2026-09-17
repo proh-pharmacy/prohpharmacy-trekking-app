@@ -33,6 +33,7 @@ public static class GetTrekByDriverToken
     {
         public Guid StopId { get; set; }
         public int Sequence { get; set; }
+        public bool IsWalkIn { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
         public string? PrimaryPhoneNumber { get; set; }
@@ -45,6 +46,7 @@ public static class GetTrekByDriverToken
         public string? PrimaryContactPhone { get; set; }
         public string? Notes { get; set; }
         public List<DriverProductResponse> Products { get; set; } = [];
+        public List<DriverReturnResponse> Returns { get; set; } = [];
     }
 
     public class DriverProductResponse
@@ -62,8 +64,26 @@ public static class GetTrekByDriverToken
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
+        public bool IsUnplanned { get; set; }
         public string? Notes { get; set; }
         public DateTime? DeliveredAt { get; set; }
+    }
+
+    public class DriverReturnResponse
+    {
+        public Guid ReturnId { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
+        public decimal BasicQtyReturned { get; set; }
+        public decimal? PackagingQtyReturned { get; set; }
+        public decimal BasicUnitPrice { get; set; }
+        public decimal? PackagingUnitPrice { get; set; }
+        public decimal? RefundAmount { get; set; }
+        public string? RefundMethod { get; set; }
+        public string? Reason { get; set; }
+        public DateTime RecordedAt { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db)
@@ -94,6 +114,14 @@ public static class GetTrekByDriverToken
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.PackagingUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
@@ -120,6 +148,7 @@ public static class GetTrekByDriverToken
                     {
                         StopId = s.Id,
                         Sequence = s.Sequence,
+                        IsWalkIn = s.IsWalkIn,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
@@ -146,8 +175,25 @@ public static class GetTrekByDriverToken
                             PaymentMethod = p.PaymentMethod?.ToString(),
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,
+                            IsUnplanned = p.IsUnplanned,
                             Notes = p.Notes,
                             DeliveredAt = p.DeliveredAt
+                        }).ToList(),
+                        Returns = s.Returns.Select(r => new DriverReturnResponse
+                        {
+                            ReturnId = r.Id,
+                            ProductId = r.ProductId,
+                            ProductName = r.Product?.Name ?? string.Empty,
+                            BasicUnitName = r.Product?.BasicUnit?.Name,
+                            PackagingUnitName = r.Product?.PackagingUnit?.Name,
+                            BasicQtyReturned = r.BasicQtyReturned,
+                            PackagingQtyReturned = r.PackagingQtyReturned,
+                            BasicUnitPrice = r.BasicUnitPrice,
+                            PackagingUnitPrice = r.PackagingUnitPrice,
+                            RefundAmount = r.RefundAmount,
+                            RefundMethod = r.RefundMethod?.ToString(),
+                            Reason = r.Reason,
+                            RecordedAt = r.RecordedAt
                         }).ToList()
                     };
                 }).ToList()
