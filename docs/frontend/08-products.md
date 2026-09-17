@@ -25,6 +25,7 @@ Every product has a **basic unit** (required) and an optional **packaging unit**
 | `POST` | `api/v1/products` | Create a product |
 | `POST` | `api/v1/products/import` | Bulk import products from Excel |
 | `PUT` | `api/v1/products/{id}` | Update a product |
+| `PATCH` | `api/v1/products/{id}/packaging-unit` | Set or clear the packaging unit |
 | `PATCH` | `api/v1/products/{id}/status` | Toggle active / inactive |
 
 ---
@@ -187,6 +188,34 @@ Same fields and rules as POST.
 
 ---
 
+## PATCH /api/v1/products/{id}/packaging-unit
+
+Sets or clears the packaging unit on a product without doing a full update.
+
+### Request body
+
+```json
+{
+  "packagingUnitId": "<unit-guid>",
+  "packagingUnitPrice": 60.00
+}
+```
+
+| Field | Required | Constraints |
+|---|---|---|
+| `packagingUnitId` | No | Must exist in units table, must differ from the product's `basicUnitId` |
+| `packagingUnitPrice` | Conditional | Required when `packagingUnitId` is provided, >= 0 |
+
+Send both fields as `null` (or omit them) to clear the packaging unit.
+
+### Response `200 OK` — `ProductResponse`
+
+### Errors
+- `404` — product not found, or packaging unit not found
+- `422` — validation error, or packaging unit is the same as the basic unit
+
+---
+
 ## PATCH /api/v1/products/{id}/status
 
 No request body. Toggles `isActive` between `true` and `false`.
@@ -200,7 +229,9 @@ No request body. Toggles `isActive` between `true` and `false`.
 
 ## POST /api/v1/products/import
 
-Bulk-creates products from an Excel file. The user specifies which column header in their file maps to each field — so the file layout is flexible and not fixed. This operation is **non-destructive**: existing products are never modified or deleted.
+Bulk-imports products from an Excel file. The user specifies which column header in their file maps to each field — so the file layout is flexible and not fixed.
+
+By default the import is **non-destructive**: existing products are skipped. Set `allowUpdate=true` to upsert instead — existing products will have their units and prices updated from the file.
 
 ### Request
 
@@ -213,7 +244,8 @@ Bulk-creates products from an Excel file. The user specifies which column header
 | `basicUnitColumn` | string | Yes | Exact header text for the basic unit name, e.g. `"Unit"` |
 | `basicUnitPriceColumn` | string | No | Exact header text for the basic unit price, e.g. `"Unit Price"` — defaults to `0` if omitted |
 | `packagingUnitColumn` | string | No | Exact header text for the packaging unit name, e.g. `"Package"` |
-| `packagingUnitPriceColumn` | string | No | Exact header text for the packaging unit price, e.g. `"Package Price"` — defaults to `0` if omitted |
+| `packagingUnitPriceColumn` | string | No | Exact header text for the packaging unit price, e.g. `"Package Price"` |
+| `allowUpdate` | boolean | No | `true` = update existing products with values from the file. Default: `false` (skip duplicates) |
 
 Header matching is **case-insensitive**.
 
@@ -222,30 +254,35 @@ Header matching is **case-insensitive**.
 1. Row 1 is treated as the header row. The specified column headers are located by text match.
 2. Every row from row 2 onwards is processed. Blank product name rows are silently skipped.
 3. Rows missing a basic unit name are skipped and added to `skippedNames`.
-4. **If a product with the same name already exists** (case-insensitive) → skipped, name added to `skippedNames`.
-5. **If the same product name appears more than once in the file** → only the first occurrence is imported.
+4. **If a product with the same name already exists** (case-insensitive):
+   - `allowUpdate=false` (default) → skipped, name added to `skippedNames`
+   - `allowUpdate=true` → updated: `basicUnitId`, `basicUnitPrice`, and (if `packagingUnitColumn` was supplied) `packagingUnitId`/`packagingUnitPrice`
+5. **If the same product name appears more than once in the file** → only the first occurrence is imported/updated.
 6. **If the unit name does not exist in the Units table** → it is created automatically.
 7. If the price cell is blank or non-numeric, it defaults to `0`.
-8. All inserts are committed in a single database round-trip at the end.
+8. All changes are committed in a single database round-trip at the end.
+
+> **Packaging unit when updating:** if `packagingUnitColumn` is not supplied in the request, the existing product's packaging unit is left unchanged. If it is supplied and the cell is blank, the packaging unit is cleared.
 
 ### Response `200 OK`
 
 ```json
 {
-  "imported": 42,
-  "skipped": 5,
-  "unitsCreated": 3,
+  "imported": 38,
+  "updated": 4,
+  "skipped": 3,
+  "unitsCreated": 2,
   "skippedNames": [
-    "Amoxicillin 500mg",
-    "Paracetamol 500mg"
+    "Amoxicillin 500mg"
   ]
 }
 ```
 
 | Field | Description |
 |---|---|
-| `imported` | Number of new products successfully created |
-| `skipped` | Number of rows skipped (duplicate name or missing basic unit) |
+| `imported` | Number of new products created |
+| `updated` | Number of existing products updated (only > 0 when `allowUpdate=true`) |
+| `skipped` | Number of rows skipped (duplicate when not updating, or missing basic unit) |
 | `unitsCreated` | Number of new units auto-created from the file |
 | `skippedNames` | Full list of product names that were skipped |
 
@@ -258,6 +295,6 @@ Header matching is **case-insensitive**.
 
 ### Usage notes
 
-- Build a two-step UI: first let the user upload the file and read the headers client-side from row 1, then present dropdowns — required ones for product name, basic unit, and basic unit price; optional ones for packaging unit and packaging unit price — pre-populated with the detected headers. Submit the file and the chosen values.
+- Build a two-step UI: first let the user upload the file and read the headers client-side from row 1, then present dropdowns — required ones for product name and basic unit; optional ones for basic unit price, packaging unit, and packaging unit price — pre-populated with the detected headers. Add a checkbox for "Update existing products". Submit the file and the chosen values.
 - Show `skippedNames` after import so the user knows which rows were ignored.
 - Units created during import are immediately available in `GET /api/v1/units`.

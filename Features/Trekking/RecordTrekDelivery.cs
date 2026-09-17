@@ -20,7 +20,8 @@ public static class RecordTrekDelivery
     public class ProductRecord
     {
         public Guid StopProductId { get; set; }
-        public decimal? QtyDelivered { get; set; }
+        public decimal? BasicQtyDelivered { get; set; }
+        public decimal? PackagingQtyDelivered { get; set; }
         public PaymentMethod? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
@@ -66,7 +67,8 @@ public static class RecordTrekDelivery
             {
                 if (!productMap.TryGetValue(record.StopProductId, out var product)) continue;
 
-                product.QtyDelivered = record.QtyDelivered;
+                product.BasicQtyDelivered = record.BasicQtyDelivered;
+                product.PackagingQtyDelivered = record.PackagingQtyDelivered;
                 product.PaymentMethod = record.PaymentMethod;
                 product.AmtPaid = record.AmtPaid;
                 product.Balance = record.Balance;

@@ -24,8 +24,9 @@ public static class ExportTrekkingSheet
         public async Task<Result<TrekkingSheetPdfGenerator.TrekkingSheetData>> Handle(Query request, CancellationToken cancellationToken)
         {
             var trip = await _db.TrekkingTrips
-                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .Include(t => t.Driver)
+                .Include(t => t.SalesStaff)
                 .Include(t => t.Vehicle)
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
@@ -41,6 +42,10 @@ public static class ExportTrekkingSheet
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken);
 
@@ -53,8 +58,9 @@ public static class ExportTrekkingSheet
                 TrekNumber = trip.TrekNumber,
                 ScheduledDate = trip.ScheduledDate,
                 DriverName = trip.Driver?.FullName ?? string.Empty,
+                SalesStaffName = trip.SalesStaff?.FullName,
                 VehicleDisplayName = trip.Vehicle?.DisplayName ?? string.Empty,
-                BranchName = trip.Branch?.Name ?? string.Empty,
+                BranchName = trip.Region?.Name ?? string.Empty,
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var primaryLocation = s.CustomerAccount?.Locations.FirstOrDefault();
@@ -74,9 +80,12 @@ public static class ExportTrekkingSheet
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
-                            Unit = p.Product?.BasicUnit?.Name,
-                            PlannedQuantity = p.PlannedQuantity,
-                            QtyDelivered = p.QtyDelivered,
+                            BasicUnitName = p.Product?.BasicUnit?.Name,
+                            PackagingUnitName = p.Product?.PackagingUnit?.Name,
+                            PlannedBasicQuantity = p.PlannedBasicQuantity,
+                            PlannedPackagingQuantity = p.PlannedPackagingQuantity,
+                            BasicQtyDelivered = p.BasicQtyDelivered,
+                            PackagingQtyDelivered = p.PackagingQtyDelivered,
                             PaymentMethod = p.PaymentMethod?.ToString(),
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,

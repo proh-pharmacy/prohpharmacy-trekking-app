@@ -293,6 +293,10 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(t => t.TrekNumber).HasMaxLength(20).IsRequired();
                 entity.Property(t => t.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
                 entity.Property(t => t.Notes).HasMaxLength(500);
+                entity.HasOne(t => t.Region)
+                    .WithMany()
+                    .HasForeignKey(t => t.RegionId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(t => t.Branch)
                     .WithMany()
                     .HasForeignKey(t => t.BranchId)
@@ -300,6 +304,10 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasOne(t => t.Driver)
                     .WithMany()
                     .HasForeignKey(t => t.DriverStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(t => t.SalesStaff)
+                    .WithMany()
+                    .HasForeignKey(t => t.SalesStaffId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(t => t.Vehicle)
                     .WithMany()
@@ -328,8 +336,10 @@ namespace prohpharmacy_trekking_app.Database
             modelBuilder.Entity<TrekkingTripStopProduct>(entity =>
             {
                 entity.HasKey(p => p.Id);
-                entity.Property(p => p.PlannedQuantity).HasPrecision(10, 3);
-                entity.Property(p => p.QtyDelivered).HasPrecision(10, 3);
+                entity.Property(p => p.PlannedBasicQuantity).HasPrecision(10, 3);
+                entity.Property(p => p.PlannedPackagingQuantity).HasPrecision(10, 3);
+                entity.Property(p => p.BasicQtyDelivered).HasPrecision(10, 3);
+                entity.Property(p => p.PackagingQtyDelivered).HasPrecision(10, 3);
                 entity.Property(p => p.AmtPaid).HasPrecision(14, 2);
                 entity.Property(p => p.Balance).HasPrecision(14, 2);
                 entity.Property(p => p.PaymentMethod).HasConversion<string>().HasMaxLength(30);

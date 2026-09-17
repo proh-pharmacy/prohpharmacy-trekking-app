@@ -18,6 +18,7 @@ public static class ExportTrekReport
     {
         public DateOnly? From { get; set; }
         public DateOnly? To { get; set; }
+        public Guid? RegionId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? DriverId { get; set; }
         public string? Status { get; set; }
@@ -29,7 +30,7 @@ public static class ExportTrekReport
         {
             var query = db.TrekkingTrips
                 .Include(t => t.Driver)
-                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .Include(t => t.Stops).ThenInclude(s => s.Products)
                 .AsNoTracking();
 
@@ -37,6 +38,8 @@ public static class ExportTrekReport
                 query = query.Where(t => t.ScheduledDate >= request.From.Value);
             if (request.To.HasValue)
                 query = query.Where(t => t.ScheduledDate <= request.To.Value);
+            if (request.RegionId.HasValue)
+                query = query.Where(t => t.RegionId == request.RegionId.Value);
             if (request.BranchId.HasValue)
                 query = query.Where(t => t.BranchId == request.BranchId.Value);
             if (request.DriverId.HasValue)
@@ -52,7 +55,7 @@ public static class ExportTrekReport
                 t.TrekNumber,
                 t.ScheduledDate,
                 DriverName = $"{t.Driver.FirstName} {t.Driver.LastName}",
-                BranchName = t.Branch.Name,
+                RegionName = t.Region?.Name ?? string.Empty,
                 t.Status,
                 StopsCount = t.Stops.Count,
                 TotalCollected = t.Stops.Sum(s => s.Products.Sum(p => p.AmtPaid ?? 0)),
@@ -97,7 +100,7 @@ public static class ExportTrekReport
             ws.Cells["A3"].Style.Font.Size = 9;
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
-            var headers = new[] { "#", "Trek No.", "Scheduled Date", "Driver", "Branch", "Status", "Stops", "Collected (GHS)", "Outstanding (GHS)" };
+            var headers = new[] { "#", "Trek No.", "Scheduled Date", "Driver", "Region", "Status", "Stops", "Collected (GHS)", "Outstanding (GHS)" };
             int headerRow = 5;
 
             for (int c = 0; c < headers.Length; c++)
@@ -135,7 +138,7 @@ public static class ExportTrekReport
                 SetCell(2, item.TrekNumber);
                 SetCell(3, item.ScheduledDate.ToString("dd MMM yyyy"));
                 SetCell(4, item.DriverName);
-                SetCell(5, item.BranchName);
+                SetCell(5, item.RegionName);
 
                 var statusCell = ws.Cells[r, 6];
                 statusCell.Value = item.Status.ToString();
@@ -216,6 +219,7 @@ public class ExportTrekReportEndpoint : ICarterModule
             HttpContext ctx,
             [FromQuery] DateOnly? from,
             [FromQuery] DateOnly? to,
+            [FromQuery] Guid? regionId,
             [FromQuery] Guid? branchId,
             [FromQuery] Guid? driverId,
             [FromQuery] string? status) =>
@@ -224,6 +228,7 @@ public class ExportTrekReportEndpoint : ICarterModule
             {
                 From = from,
                 To = to,
+                RegionId = regionId,
                 BranchId = branchId,
                 DriverId = driverId,
                 Status = status

@@ -50,6 +50,10 @@ public static class SendTrekAssignmentEmail
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .FirstOrDefaultAsync(t => t.Id == request.TrekId, cancellationToken);
 
             if (trip is null)
@@ -75,7 +79,7 @@ public static class SendTrekAssignmentEmail
                 ScheduledDate = trip.ScheduledDate,
                 DriverName = trip.Driver?.FullName ?? string.Empty,
                 VehicleDisplayName = trip.Vehicle?.DisplayName ?? string.Empty,
-                BranchName = trip.Branch?.Name ?? string.Empty,
+                BranchName = trip.Region?.Name ?? string.Empty,
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var loc = s.CustomerAccount?.Locations.FirstOrDefault();
@@ -95,9 +99,12 @@ public static class SendTrekAssignmentEmail
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
-                            Unit = p.Product?.BasicUnit?.Name,
-                            PlannedQuantity = p.PlannedQuantity,
-                            QtyDelivered = p.QtyDelivered,
+                            BasicUnitName = p.Product?.BasicUnit?.Name,
+                            PackagingUnitName = p.Product?.PackagingUnit?.Name,
+                            PlannedBasicQuantity = p.PlannedBasicQuantity,
+                            PlannedPackagingQuantity = p.PlannedPackagingQuantity,
+                            BasicQtyDelivered = p.BasicQtyDelivered,
+                            PackagingQtyDelivered = p.PackagingQtyDelivered,
                             PaymentMethod = p.PaymentMethod?.ToString(),
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,
@@ -119,7 +126,7 @@ public static class SendTrekAssignmentEmail
                 TrekNumber = trip.TrekNumber,
                 ScheduledDate = trip.ScheduledDate.ToString("dd MMM yyyy"),
                 DriverName = trip.Driver?.FullName ?? string.Empty,
-                BranchName = trip.Branch?.Name ?? string.Empty,
+                BranchName = trip.Region?.Name ?? string.Empty,
                 DriverLinkUrl = driverLinkUrl,
                 AppName = appName,
                 SupportEmail = supportEmail

@@ -21,7 +21,9 @@ public static class GetTrekByDriverToken
         public DateOnly ScheduledDate { get; set; }
         public string DriverName { get; set; } = string.Empty;
         public string VehicleDisplayName { get; set; } = string.Empty;
-        public string BranchName { get; set; } = string.Empty;
+        public string RegionName { get; set; } = string.Empty;
+        public Guid? SalesStaffId { get; set; }
+        public string? SalesStaffName { get; set; }
         public string Status { get; set; } = string.Empty;
         public bool IsLocked { get; set; }
         public List<DriverStopResponse> Stops { get; set; } = [];
@@ -49,9 +51,12 @@ public static class GetTrekByDriverToken
     {
         public Guid StopProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
-        public string? Unit { get; set; }
-        public decimal PlannedQuantity { get; set; }
-        public decimal? QtyDelivered { get; set; }
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
+        public decimal PlannedBasicQuantity { get; set; }
+        public decimal? PlannedPackagingQuantity { get; set; }
+        public decimal? BasicQtyDelivered { get; set; }
+        public decimal? PackagingQtyDelivered { get; set; }
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
@@ -65,8 +70,9 @@ public static class GetTrekByDriverToken
         public async Task<Result<DriverTrekResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var trip = await db.TrekkingTrips
-                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .Include(t => t.Driver)
+                .Include(t => t.SalesStaff)
                 .Include(t => t.Vehicle)
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
@@ -82,6 +88,10 @@ public static class GetTrekByDriverToken
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
@@ -95,7 +105,9 @@ public static class GetTrekByDriverToken
                 ScheduledDate = trip.ScheduledDate,
                 DriverName = trip.Driver?.FullName ?? string.Empty,
                 VehicleDisplayName = trip.Vehicle?.DisplayName ?? string.Empty,
-                BranchName = trip.Branch?.Name ?? string.Empty,
+                RegionName = trip.Region?.Name ?? string.Empty,
+                SalesStaffId = trip.SalesStaffId,
+                SalesStaffName = trip.SalesStaff?.FullName,
                 Status = trip.Status.ToString(),
                 IsLocked = trip.Status == Enums.TrekStatus.Completed,
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
@@ -121,9 +133,12 @@ public static class GetTrekByDriverToken
                         {
                             StopProductId = p.Id,
                             ProductName = p.Product?.Name ?? string.Empty,
-                            Unit = p.Product?.BasicUnit?.Name,
-                            PlannedQuantity = p.PlannedQuantity,
-                            QtyDelivered = p.QtyDelivered,
+                            BasicUnitName = p.Product?.BasicUnit?.Name,
+                            PackagingUnitName = p.Product?.PackagingUnit?.Name,
+                            PlannedBasicQuantity = p.PlannedBasicQuantity,
+                            PlannedPackagingQuantity = p.PlannedPackagingQuantity,
+                            BasicQtyDelivered = p.BasicQtyDelivered,
+                            PackagingQtyDelivered = p.PackagingQtyDelivered,
                             PaymentMethod = p.PaymentMethod?.ToString(),
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,

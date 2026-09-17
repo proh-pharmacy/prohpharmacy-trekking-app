@@ -48,7 +48,8 @@ public static class RecordTrekDeliveryByToken
             {
                 if (!productMap.TryGetValue(record.StopProductId, out var product)) continue;
 
-                product.QtyDelivered = record.QtyDelivered;
+                product.BasicQtyDelivered = record.BasicQtyDelivered;
+                product.PackagingQtyDelivered = record.PackagingQtyDelivered;
                 product.PaymentMethod = record.PaymentMethod;
                 product.AmtPaid = record.AmtPaid;
                 product.Balance = record.Balance;

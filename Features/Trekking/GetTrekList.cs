@@ -18,6 +18,7 @@ public static class GetTrekList
         public string? Sort { get; set; }
         public int? PageNumber { get; set; }
         public int? PageSize { get; set; }
+        public Guid? RegionId { get; set; }
         public Guid? BranchId { get; set; }
         public string? Status { get; set; }
         public DateOnly? ScheduledDate { get; set; }
@@ -32,10 +33,15 @@ public static class GetTrekList
         public async Task<Result<object>> Handle(Query request, CancellationToken cancellationToken)
         {
             var query = _db.TrekkingTrips
+                .Include(t => t.Region)
                 .Include(t => t.Branch)
                 .Include(t => t.Driver)
+                .Include(t => t.SalesStaff)
                 .Include(t => t.Vehicle)
                 .AsNoTracking();
+
+            if (request.RegionId.HasValue)
+                query = query.Where(t => t.RegionId == request.RegionId.Value);
 
             if (request.BranchId.HasValue)
                 query = query.Where(t => t.BranchId == request.BranchId.Value);
@@ -60,8 +66,10 @@ public static class GetTrekList
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(t => (object)CreateTrek.Handler.ToResponse(
                     t,
-                    t.Branch?.Name ?? string.Empty,
+                    t.Region?.Name ?? string.Empty,
+                    t.Branch?.Name,
                     t.Driver?.FullName ?? string.Empty,
+                    t.SalesStaff?.FullName,
                     t.Vehicle?.DisplayName ?? string.Empty,
                     []));
 
@@ -80,6 +88,7 @@ public class GetTrekListEndpoint : ICarterModule
             [FromQuery] string? sort,
             [FromQuery] int? pageNumber,
             [FromQuery] int? pageSize,
+            [FromQuery] Guid? regionId,
             [FromQuery] Guid? branchId,
             [FromQuery] string? status,
             [FromQuery] DateOnly? scheduledDate) =>
@@ -90,6 +99,7 @@ public class GetTrekListEndpoint : ICarterModule
                 Sort = sort,
                 PageNumber = pageNumber,
                 PageSize = pageSize,
+                RegionId = regionId,
                 BranchId = branchId,
                 Status = status,
                 ScheduledDate = scheduledDate
@@ -100,7 +110,7 @@ public class GetTrekListEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("List / search trekking trips")
-        .WithDescription("Filter by branchId, status (Draft|Scheduled|InProgress|Completed|Cancelled), or scheduledDate. Search by trek number or driver name.")
+        .WithDescription("Filter by regionId, branchId, status (Draft|Scheduled|InProgress|Completed|Cancelled), or scheduledDate. Search by trek number or driver name.")
         .Produces<Paginator.PaginatedData<TrekResponse>>(200)
         .RequireAuthorization();
     }

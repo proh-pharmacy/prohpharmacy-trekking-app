@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -12,9 +13,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917144201_AddRegionAndSalesStaffToTrek")]
+    partial class AddRegionAndSalesStaffToTrek
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1084,10 +1087,6 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasPrecision(14, 2)
                         .HasColumnType("numeric(14,2)");
 
-                    b.Property<decimal?>("BasicQtyDelivered")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
                     b.Property<DateTime?>("DeliveredAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -1095,24 +1094,20 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("character varying(500)");
 
-                    b.Property<decimal?>("PackagingQtyDelivered")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
                     b.Property<string>("PaymentMethod")
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<decimal>("PlannedBasicQuantity")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<decimal?>("PlannedPackagingQuantity")
+                    b.Property<decimal>("PlannedQuantity")
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)");
 
                     b.Property<Guid>("ProductId")
                         .HasColumnType("uuid");
+
+                    b.Property<decimal?>("QtyDelivered")
+                        .HasPrecision(10, 3)
+                        .HasColumnType("numeric(10,3)");
 
                     b.Property<Guid>("TrekkingTripStopId")
                         .HasColumnType("uuid");

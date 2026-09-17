@@ -28,7 +28,7 @@ public static class ExportProductDeliveryReport
         {
             var query = db.TrekkingTripStopProducts
                 .Where(p => p.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Completed
-                         && p.QtyDelivered != null && p.QtyDelivered > 0)
+                         && (p.BasicQtyDelivered > 0 || p.PackagingQtyDelivered > 0))
                 .AsNoTracking();
 
             if (request.From.HasValue)
@@ -46,7 +46,7 @@ public static class ExportProductDeliveryReport
                     p.ProductId,
                     ProductName = p.Product.Name,
                     ProductUnit = p.Product.BasicUnit.Name,
-                    QtyDelivered = p.QtyDelivered ?? 0,
+                    BasicQtyDelivered = p.BasicQtyDelivered ?? 0,
                     AmtPaid = p.AmtPaid ?? 0,
                     Balance = p.Balance ?? 0,
                     TrekId = p.TrekkingTripStop.TrekkingTripId
@@ -59,7 +59,7 @@ public static class ExportProductDeliveryReport
                 {
                     ProductName = g.First().ProductName,
                     Unit = g.First().ProductUnit,
-                    TotalQtyDelivered = g.Sum(r => r.QtyDelivered),
+                    TotalQtyDelivered = g.Sum(r => r.BasicQtyDelivered),
                     TotalCollected = g.Sum(r => r.AmtPaid),
                     TotalOutstanding = g.Sum(r => r.Balance),
                     TreksCount = g.Select(r => r.TrekId).Distinct().Count()

@@ -8,8 +8,10 @@ public class TrekkingTripStopProduct
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TrekkingTripStopId { get; set; }
     public Guid ProductId { get; set; }
-    public decimal PlannedQuantity { get; set; }
-    public decimal? QtyDelivered { get; set; }
+    public decimal PlannedBasicQuantity { get; set; }
+    public decimal? PlannedPackagingQuantity { get; set; }
+    public decimal? BasicQtyDelivered { get; set; }
+    public decimal? PackagingQtyDelivered { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
     public decimal? AmtPaid { get; set; }
     public decimal? Balance { get; set; }

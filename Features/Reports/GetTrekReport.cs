@@ -15,6 +15,7 @@ public static class GetTrekReport
     {
         public DateOnly? From { get; set; }
         public DateOnly? To { get; set; }
+        public Guid? RegionId { get; set; }
         public Guid? BranchId { get; set; }
         public Guid? DriverId { get; set; }
         public string? Status { get; set; }
@@ -45,7 +46,7 @@ public static class GetTrekReport
         public string TrekNumber { get; set; } = string.Empty;
         public DateOnly ScheduledDate { get; set; }
         public string DriverName { get; set; } = string.Empty;
-        public string BranchName { get; set; } = string.Empty;
+        public string RegionName { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public int StopsCount { get; set; }
         public decimal TotalCollected { get; set; }
@@ -58,7 +59,7 @@ public static class GetTrekReport
         {
             var query = db.TrekkingTrips
                 .Include(t => t.Driver)
-                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .Include(t => t.Stops).ThenInclude(s => s.Products)
                 .AsNoTracking();
 
@@ -66,6 +67,8 @@ public static class GetTrekReport
                 query = query.Where(t => t.ScheduledDate >= request.From.Value);
             if (request.To.HasValue)
                 query = query.Where(t => t.ScheduledDate <= request.To.Value);
+            if (request.RegionId.HasValue)
+                query = query.Where(t => t.RegionId == request.RegionId.Value);
             if (request.BranchId.HasValue)
                 query = query.Where(t => t.BranchId == request.BranchId.Value);
             if (request.DriverId.HasValue)
@@ -82,7 +85,7 @@ public static class GetTrekReport
                 TrekNumber = t.TrekNumber,
                 ScheduledDate = t.ScheduledDate,
                 DriverName = $"{t.Driver.FirstName} {t.Driver.LastName}",
-                BranchName = t.Branch.Name,
+                RegionName = t.Region?.Name ?? string.Empty,
                 Status = t.Status.ToString(),
                 StopsCount = t.Stops.Count,
                 TotalCollected = t.Stops.Sum(s => s.Products.Sum(p => p.AmtPaid ?? 0)),
@@ -95,7 +98,7 @@ public static class GetTrekReport
                 items = items.Where(i =>
                     i.TrekNumber.ToLower().Contains(s) ||
                     i.DriverName.ToLower().Contains(s) ||
-                    i.BranchName.ToLower().Contains(s)).ToList();
+                    i.RegionName.ToLower().Contains(s)).ToList();
             }
 
             var totalCollected = items.Sum(i => i.TotalCollected);
@@ -144,6 +147,7 @@ public class GetTrekReportEndpoint : ICarterModule
             ISender sender,
             [FromQuery] DateOnly? from,
             [FromQuery] DateOnly? to,
+            [FromQuery] Guid? regionId,
             [FromQuery] Guid? branchId,
             [FromQuery] Guid? driverId,
             [FromQuery] string? status,
@@ -156,6 +160,7 @@ public class GetTrekReportEndpoint : ICarterModule
             {
                 From = from,
                 To = to,
+                RegionId = regionId,
                 BranchId = branchId,
                 DriverId = driverId,
                 Status = status,

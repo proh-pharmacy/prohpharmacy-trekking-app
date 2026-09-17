@@ -29,7 +29,8 @@ Trek-level summary with per-trek collection and outstanding totals.
 |---|---|---|
 | `from` | `date?` | Filter by `ScheduledDate` (inclusive), e.g. `2026-01-01` |
 | `to` | `date?` | Filter by `ScheduledDate` (inclusive) |
-| `branchId` | `guid?` | Filter by branch |
+| `regionId` | `guid?` | Filter by trek region |
+| `branchId` | `guid?` | Filter by trek branch |
 | `driverId` | `guid?` | Filter by driver (staff ID) |
 | `status` | `string?` | `Draft`, `Scheduled`, `InProgress`, `Completed`, or `Cancelled` |
 | `search` | `string?` | Search by trek number, driver name, or branch name |
@@ -57,7 +58,7 @@ Trek-level summary with per-trek collection and outstanding totals.
       "trekNumber": "TRK-00042",
       "scheduledDate": "2026-09-10",
       "driverName": "Kwame Asante",
-      "branchName": "Tema Branch",
+      "regionName": "Greater Accra Region",
       "status": "Completed",
       "stopsCount": 8,
       "totalCollected": 3200.00,
@@ -87,7 +88,8 @@ Downloads a styled `.xlsx` trek performance report. Accepts the same filters as 
 |---|---|---|
 | `from` | `date?` | Filter by `ScheduledDate` |
 | `to` | `date?` | Filter by `ScheduledDate` |
-| `branchId` | `guid?` | Filter by branch |
+| `regionId` | `guid?` | Filter by trek region |
+| `branchId` | `guid?` | Filter by trek branch |
 | `driverId` | `guid?` | Filter by driver |
 | `status` | `string?` | Filter by status |
 

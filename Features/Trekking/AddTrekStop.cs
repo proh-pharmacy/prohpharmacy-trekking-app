@@ -24,7 +24,8 @@ public static class AddTrekStop
     public class StopProductInput
     {
         public Guid ProductId { get; set; }
-        public decimal PlannedQuantity { get; set; }
+        public decimal? PlannedBasicQuantity { get; set; }
+        public decimal? PlannedPackagingQuantity { get; set; }
     }
 
     public class Validator : AbstractValidator<Command>
@@ -37,7 +38,12 @@ public static class AddTrekStop
             RuleForEach(x => x.Products).ChildRules(p =>
             {
                 p.RuleFor(x => x.ProductId).NotEmpty();
-                p.RuleFor(x => x.PlannedQuantity).GreaterThan(0);
+                p.RuleFor(x => x.PlannedBasicQuantity).GreaterThanOrEqualTo(0).When(x => x.PlannedBasicQuantity.HasValue);
+                p.RuleFor(x => x.PlannedPackagingQuantity).GreaterThanOrEqualTo(0).When(x => x.PlannedPackagingQuantity.HasValue);
+                p.RuleFor(x => x)
+                    .Must(x => (x.PlannedBasicQuantity.HasValue && x.PlannedBasicQuantity > 0) ||
+                               (x.PlannedPackagingQuantity.HasValue && x.PlannedPackagingQuantity > 0))
+                    .WithMessage("At least one planned quantity must be greater than 0.");
             });
         }
     }
@@ -75,6 +81,7 @@ public static class AddTrekStop
             var productIds = request.Products.Select(p => p.ProductId).Distinct().ToList();
             var products = await _db.Products
                 .Include(p => p.BasicUnit)
+                .Include(p => p.PackagingUnit)
                 .Where(p => productIds.Contains(p.Id))
                 .ToListAsync(cancellationToken);
 
@@ -82,23 +89,33 @@ public static class AddTrekStop
             if (missingProductId != Guid.Empty)
                 return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError($"Product {missingProductId} not found."));
 
+            var productDict = products.ToDictionary(p => p.Id);
+
+            var stopProducts = new List<TrekkingTripStopProduct>();
+            foreach (var input in request.Products)
+            {
+                if (!productDict.TryGetValue(input.ProductId, out var product)) continue;
+                var hasPackaging = product.PackagingUnitId.HasValue;
+                stopProducts.Add(new TrekkingTripStopProduct
+                {
+                    ProductId = input.ProductId,
+                    PlannedBasicQuantity = input.PlannedBasicQuantity ?? 0,
+                    PlannedPackagingQuantity = hasPackaging ? input.PlannedPackagingQuantity : null
+                });
+            }
+
             var stop = new TrekkingTripStop
             {
                 TrekkingTripId = request.TrekId,
                 CustomerAccountId = request.CustomerAccountId,
                 Sequence = request.Sequence,
                 Notes = request.Notes?.Trim(),
-                Products = request.Products.Select(p => new TrekkingTripStopProduct
-                {
-                    ProductId = p.ProductId,
-                    PlannedQuantity = p.PlannedQuantity
-                }).ToList()
+                Products = stopProducts
             };
 
             _db.TrekkingTripStops.Add(stop);
             await _db.SaveChangesAsync(cancellationToken);
 
-            var productDict = products.ToDictionary(p => p.Id);
             var primaryLocation = customer.Locations.FirstOrDefault();
             var primaryContact = customer.People.FirstOrDefault();
 
@@ -118,19 +135,26 @@ public static class AddTrekStop
                 PrimaryContactName = primaryContact?.FullName,
                 PrimaryContactPhone = primaryContact?.PrimaryPhoneNumber,
                 Notes = stop.Notes,
-                Products = stop.Products.Select(p => new TrekStopProductResponse
+                Products = stop.Products.Select(p =>
                 {
-                    StopProductId = p.Id,
-                    ProductId = p.ProductId,
-                    ProductName = productDict.TryGetValue(p.ProductId, out var prod) ? prod.Name : string.Empty,
-                    Unit = productDict.TryGetValue(p.ProductId, out var prod2) ? prod2.BasicUnit?.Name : null,
-                    PlannedQuantity = p.PlannedQuantity,
-                    QtyDelivered = p.QtyDelivered,
-                    PaymentMethod = p.PaymentMethod?.ToString(),
-                    AmtPaid = p.AmtPaid,
-                    Balance = p.Balance,
-                    Notes = p.Notes,
-                    DeliveredAt = p.DeliveredAt
+                    productDict.TryGetValue(p.ProductId, out var prod);
+                    return new TrekStopProductResponse
+                    {
+                        StopProductId = p.Id,
+                        ProductId = p.ProductId,
+                        ProductName = prod?.Name ?? string.Empty,
+                        BasicUnitName = prod?.BasicUnit?.Name,
+                        PackagingUnitName = prod?.PackagingUnit?.Name,
+                        PlannedBasicQuantity = p.PlannedBasicQuantity,
+                        PlannedPackagingQuantity = p.PlannedPackagingQuantity,
+                        BasicQtyDelivered = p.BasicQtyDelivered,
+                        PackagingQtyDelivered = p.PackagingQtyDelivered,
+                        PaymentMethod = p.PaymentMethod?.ToString(),
+                        AmtPaid = p.AmtPaid,
+                        Balance = p.Balance,
+                        Notes = p.Notes,
+                        DeliveredAt = p.DeliveredAt
+                    };
                 }).ToList()
             };
 

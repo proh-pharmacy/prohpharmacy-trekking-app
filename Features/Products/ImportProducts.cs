@@ -20,11 +20,13 @@ public static class ImportProducts
         public string? BasicUnitPriceColumn { get; set; }
         public string? PackagingUnitColumn { get; set; }
         public string? PackagingUnitPriceColumn { get; set; }
+        public bool AllowUpdate { get; set; } = false;
     }
 
     public class ImportResult
     {
         public int Imported { get; set; }
+        public int Updated { get; set; }
         public int Skipped { get; set; }
         public int UnitsCreated { get; set; }
         public List<string> SkippedNames { get; set; } = [];
@@ -103,7 +105,9 @@ public static class ImportProducts
                 var productName = ws.Cells[r, productNameCol].Text.Trim();
                 if (string.IsNullOrWhiteSpace(productName)) continue;
 
-                if (existingProductNames.Contains(productName.ToLower()))
+                bool isExisting = existingProductNames.Contains(productName.ToLower());
+
+                if (isExisting && !request.AllowUpdate)
                 {
                     result.Skipped++;
                     result.SkippedNames.Add(productName);
@@ -149,30 +153,53 @@ public static class ImportProducts
                         if (packagingUnit.Id != basicUnit.Id)
                         {
                             packagingUnitId = packagingUnit.Id;
-                            if (packagingUnitPriceCol != -1)
-                                decimal.TryParse(ws.Cells[r, packagingUnitPriceCol].Text.Trim(), out var parsedPackagingPrice);
                             packagingUnitPrice = packagingUnitPriceCol != -1 &&
                                 decimal.TryParse(ws.Cells[r, packagingUnitPriceCol].Text.Trim(), out var p) ? p : null;
                         }
                     }
                 }
 
-                db.Products.Add(new Product
+                if (isExisting)
                 {
-                    Name = productName,
-                    BasicUnitId = basicUnit.Id,
-                    BasicUnitPrice = basicUnitPrice,
-                    PackagingUnitId = packagingUnitId,
-                    PackagingUnitPrice = packagingUnitPrice,
-                    IsActive = true,
-                    CreatedAt = now
-                });
+                    var existingProduct = await db.Products
+                        .FirstOrDefaultAsync(p => p.Name.ToLower() == productName.ToLower(), cancellationToken);
 
-                existingProductNames.Add(productName.ToLower());
-                result.Imported++;
+                    if (existingProduct is null)
+                    {
+                        result.Skipped++;
+                        result.SkippedNames.Add(productName);
+                        continue;
+                    }
+
+                    existingProduct.BasicUnitId = basicUnit.Id;
+                    existingProduct.BasicUnitPrice = basicUnitPrice;
+                    if (packagingUnitCol != -1)
+                    {
+                        existingProduct.PackagingUnitId = packagingUnitId;
+                        existingProduct.PackagingUnitPrice = packagingUnitPrice;
+                    }
+                    existingProduct.UpdatedAt = now;
+                    result.Updated++;
+                }
+                else
+                {
+                    db.Products.Add(new Product
+                    {
+                        Name = productName,
+                        BasicUnitId = basicUnit.Id,
+                        BasicUnitPrice = basicUnitPrice,
+                        PackagingUnitId = packagingUnitId,
+                        PackagingUnitPrice = packagingUnitPrice,
+                        IsActive = true,
+                        CreatedAt = now
+                    });
+
+                    existingProductNames.Add(productName.ToLower());
+                    result.Imported++;
+                }
             }
 
-            if (result.Imported > 0 || result.UnitsCreated > 0)
+            if (result.Imported > 0 || result.Updated > 0 || result.UnitsCreated > 0)
                 await db.SaveChangesAsync(cancellationToken);
 
             return Result.Success(result);
@@ -196,6 +223,7 @@ public class ImportProductsEndpoint : ICarterModule
             var basicUnitPriceColumn = form["basicUnitPriceColumn"].FirstOrDefault()?.Trim();
             var packagingUnitColumn = form["packagingUnitColumn"].FirstOrDefault()?.Trim();
             var packagingUnitPriceColumn = form["packagingUnitPriceColumn"].FirstOrDefault()?.Trim();
+            bool.TryParse(form["allowUpdate"].FirstOrDefault(), out var allowUpdate);
 
             if (file is null || file.Length == 0)
                 return Results.UnprocessableEntity(Error.BadRequest("No file provided."));
@@ -220,7 +248,8 @@ var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
                 BasicUnitColumn = basicUnitColumn,
                 BasicUnitPriceColumn = string.IsNullOrWhiteSpace(basicUnitPriceColumn) ? null : basicUnitPriceColumn,
                 PackagingUnitColumn = string.IsNullOrWhiteSpace(packagingUnitColumn) ? null : packagingUnitColumn,
-                PackagingUnitPriceColumn = string.IsNullOrWhiteSpace(packagingUnitPriceColumn) ? null : packagingUnitPriceColumn
+                PackagingUnitPriceColumn = string.IsNullOrWhiteSpace(packagingUnitPriceColumn) ? null : packagingUnitPriceColumn,
+                AllowUpdate = allowUpdate
             });
 
             return result.IsFailure
@@ -233,11 +262,11 @@ var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
         .WithSummary("Bulk import products from Excel")
         .WithDescription(
             "Upload an .xlsx/.xls file and specify which column headers map to each field. " +
-            "Required form fields: `file`, `productNameColumn`, `basicUnitColumn`, `basicUnitPriceColumn`. " +
-            "Optional form fields: `packagingUnitColumn`, `packagingUnitPriceColumn`. " +
+            "Required form fields: `file`, `productNameColumn`, `basicUnitColumn`. " +
+            "Optional form fields: `basicUnitPriceColumn`, `packagingUnitColumn`, `packagingUnitPriceColumn`, `allowUpdate`. " +
+            "Set `allowUpdate=true` to update existing products instead of skipping them. " +
             "Units that do not yet exist are created automatically. " +
-            "Rows missing a product name or basic unit are skipped. " +
-            "Duplicate product names (case-insensitive) are skipped.")
+            "Rows missing a product name or basic unit are skipped.")
         .Produces<ImportProducts.ImportResult>(200)
         .Produces<Error>(422)
         .RequireAuthorization();

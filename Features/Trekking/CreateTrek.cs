@@ -15,9 +15,11 @@ public static class CreateTrek
 {
     public class Command : IRequest<Result<TrekResponse>>
     {
-        public Guid BranchId { get; set; }
+        public Guid RegionId { get; set; }
+        public Guid? BranchId { get; set; }
         public DateOnly ScheduledDate { get; set; }
         public Guid VehicleId { get; set; }
+        public Guid? SalesStaffId { get; set; }
         public string? Notes { get; set; }
     }
 
@@ -25,10 +27,14 @@ public static class CreateTrek
     {
         public Guid Id { get; set; }
         public string TrekNumber { get; set; } = string.Empty;
-        public Guid BranchId { get; set; }
-        public string BranchName { get; set; } = string.Empty;
+        public Guid RegionId { get; set; }
+        public string RegionName { get; set; } = string.Empty;
+        public Guid? BranchId { get; set; }
+        public string? BranchName { get; set; }
         public Guid DriverStaffId { get; set; }
         public string DriverName { get; set; } = string.Empty;
+        public Guid? SalesStaffId { get; set; }
+        public string? SalesStaffName { get; set; }
         public Guid VehicleId { get; set; }
         public string VehicleDisplayName { get; set; } = string.Empty;
         public DateOnly ScheduledDate { get; set; }
@@ -63,9 +69,12 @@ public static class CreateTrek
         public Guid StopProductId { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
-        public string? Unit { get; set; }
-        public decimal PlannedQuantity { get; set; }
-        public decimal? QtyDelivered { get; set; }
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
+        public decimal PlannedBasicQuantity { get; set; }
+        public decimal? PlannedPackagingQuantity { get; set; }
+        public decimal? BasicQtyDelivered { get; set; }
+        public decimal? PackagingQtyDelivered { get; set; }
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
@@ -77,7 +86,7 @@ public static class CreateTrek
     {
         public Validator()
         {
-            RuleFor(x => x.BranchId).NotEmpty();
+            RuleFor(x => x.RegionId).NotEmpty();
             RuleFor(x => x.ScheduledDate).NotEmpty();
             RuleFor(x => x.VehicleId).NotEmpty();
             RuleFor(x => x.Notes).MaximumLength(500).When(x => x.Notes is not null);
@@ -103,9 +112,18 @@ public static class CreateTrek
             if (!validation.IsValid)
                 return Result.Failure<TrekResponse>(Error.ValidationError(validation));
 
-            var branch = await _db.Branches.FindAsync([request.BranchId], cancellationToken);
-            if (branch is null)
-                return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Branch not found."));
+            var region = await _db.Regions.FindAsync([request.RegionId], cancellationToken);
+            if (region is null)
+                return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Region not found."));
+
+            string? branchName = null;
+            if (request.BranchId.HasValue)
+            {
+                var branch = await _db.Branches.FindAsync([request.BranchId.Value], cancellationToken);
+                if (branch is null)
+                    return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Branch not found."));
+                branchName = branch.Name;
+            }
 
             var vehicle = await _db.Vehicles
                 .Include(v => v.StaffAssignments.Where(a => a.UnassignedAt == null))
@@ -124,15 +142,26 @@ public static class CreateTrek
             if (userId is null)
                 return Result.Failure<TrekResponse>(Error.BadRequest("Unable to determine authenticated user."));
 
+            string? salesStaffName = null;
+            if (request.SalesStaffId.HasValue)
+            {
+                var salesStaff = await _db.StaffMembers.FindAsync([request.SalesStaffId.Value], cancellationToken);
+                if (salesStaff is null)
+                    return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Sales staff member not found."));
+                salesStaffName = salesStaff.FullName;
+            }
+
             var tripCount = await _db.TrekkingTrips.CountAsync(cancellationToken);
             var trekNumber = $"TRK-{tripCount + 1:D5}";
 
             var trip = new TrekkingTrip
             {
                 TrekNumber = trekNumber,
+                RegionId = request.RegionId,
                 BranchId = request.BranchId,
                 ScheduledDate = request.ScheduledDate,
                 DriverStaffId = driver.Id,
+                SalesStaffId = request.SalesStaffId,
                 VehicleId = request.VehicleId,
                 Status = TrekStatus.Draft,
                 Notes = request.Notes?.Trim(),
@@ -143,22 +172,28 @@ public static class CreateTrek
             _db.TrekkingTrips.Add(trip);
             await _db.SaveChangesAsync(cancellationToken);
 
-            return Result.Success(ToResponse(trip, branch.Name, driver.FullName, vehicle.DisplayName, []));
+            return Result.Success(ToResponse(trip, region.Name, branchName, driver.FullName, salesStaffName, vehicle.DisplayName, []));
         }
 
         internal static TrekResponse ToResponse(
             TrekkingTrip trip,
-            string branchName,
+            string regionName,
+            string? branchName,
             string driverName,
+            string? salesStaffName,
             string vehicleDisplayName,
             List<TrekStopResponse> stops) => new()
         {
             Id = trip.Id,
             TrekNumber = trip.TrekNumber,
+            RegionId = trip.RegionId,
+            RegionName = regionName,
             BranchId = trip.BranchId,
             BranchName = branchName,
             DriverStaffId = trip.DriverStaffId,
             DriverName = driverName,
+            SalesStaffId = trip.SalesStaffId,
+            SalesStaffName = salesStaffName,
             VehicleId = trip.VehicleId,
             VehicleDisplayName = vehicleDisplayName,
             ScheduledDate = trip.ScheduledDate,

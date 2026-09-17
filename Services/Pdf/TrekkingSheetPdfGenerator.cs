@@ -28,6 +28,7 @@ public static class TrekkingSheetPdfGenerator
         public string TrekNumber { get; set; } = string.Empty;
         public DateOnly ScheduledDate { get; set; }
         public string DriverName { get; set; } = string.Empty;
+        public string? SalesStaffName { get; set; }
         public string VehicleDisplayName { get; set; } = string.Empty;
         public string BranchName { get; set; } = string.Empty;
         public List<StopData> Stops { get; set; } = [];
@@ -50,9 +51,12 @@ public static class TrekkingSheetPdfGenerator
         public class ProductData
         {
             public string ProductName { get; set; } = string.Empty;
-            public string? Unit { get; set; }
-            public decimal PlannedQuantity { get; set; }
-            public decimal? QtyDelivered { get; set; }
+            public string? BasicUnitName { get; set; }
+            public string? PackagingUnitName { get; set; }
+            public decimal PlannedBasicQuantity { get; set; }
+            public decimal? PlannedPackagingQuantity { get; set; }
+            public decimal? BasicQtyDelivered { get; set; }
+            public decimal? PackagingQtyDelivered { get; set; }
             public string? PaymentMethod { get; set; }
             public decimal? AmtPaid { get; set; }
             public decimal? Balance { get; set; }
@@ -154,7 +158,12 @@ public static class TrekkingSheetPdfGenerator
                             card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
                             InfoRow(card, "Vehicle:", data.VehicleDisplayName, 55);
                             card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                            InfoRow(card, "Branch:", data.BranchName, 55);
+                            InfoRow(card, "Region:", data.BranchName, 55);
+                            if (!string.IsNullOrWhiteSpace(data.SalesStaffName))
+                            {
+                                card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+                                InfoRow(card, "Sales Staff:", data.SalesStaffName, 55);
+                            }
                         });
                 });
 
@@ -342,19 +351,28 @@ public static class TrekkingSheetPdfGenerator
                     foreach (var product in stop.Products)
                     {
                         var background = itemIndex % 2 == 1 ? "#eef7f3" : "#f8fbf9";
-                        var unitSuffix = string.IsNullOrWhiteSpace(product.Unit) ? string.Empty : $" {product.Unit}";
 
-                        var qtyDelivered = product.QtyDelivered.HasValue
-                            ? $"{product.QtyDelivered:0.###}{unitSuffix}" : string.Empty;
-                        var amtPaid = product.AmtPaid.HasValue
-                            ? $"GHS {product.AmtPaid:0.00}" : string.Empty;
-                        var balance = product.Balance.HasValue
-                            ? $"GHS {product.Balance:0.00}" : string.Empty;
+                        var plannedParts = new List<string>();
+                        if (product.PlannedBasicQuantity > 0)
+                            plannedParts.Add($"{product.PlannedBasicQuantity:0.###}{(string.IsNullOrWhiteSpace(product.BasicUnitName) ? string.Empty : $" {product.BasicUnitName}")}");
+                        if (product.PlannedPackagingQuantity.HasValue && product.PlannedPackagingQuantity > 0)
+                            plannedParts.Add($"{product.PlannedPackagingQuantity:0.###}{(string.IsNullOrWhiteSpace(product.PackagingUnitName) ? string.Empty : $" {product.PackagingUnitName}")}");
+                        var plannedText = string.Join("\n", plannedParts);
+
+                        var deliveredParts = new List<string>();
+                        if (product.BasicQtyDelivered.HasValue)
+                            deliveredParts.Add($"{product.BasicQtyDelivered:0.###}{(string.IsNullOrWhiteSpace(product.BasicUnitName) ? string.Empty : $" {product.BasicUnitName}")}");
+                        if (product.PackagingQtyDelivered.HasValue)
+                            deliveredParts.Add($"{product.PackagingQtyDelivered:0.###}{(string.IsNullOrWhiteSpace(product.PackagingUnitName) ? string.Empty : $" {product.PackagingUnitName}")}");
+                        var deliveredText = string.Join("\n", deliveredParts);
+
+                        var amtPaid = product.AmtPaid.HasValue ? $"GHS {product.AmtPaid:0.00}" : string.Empty;
+                        var balance = product.Balance.HasValue ? $"GHS {product.Balance:0.00}" : string.Empty;
 
                         BodyCell(table, itemIndex.ToString(), background, alignCenter: true);
                         BodyCell(table, product.ProductName, background, alignCenter: false);
-                        BodyCell(table, $"{product.PlannedQuantity:0.###}{unitSuffix}", background, alignCenter: true);
-                        BodyCell(table, qtyDelivered, background, alignCenter: true);
+                        BodyCell(table, plannedText, background, alignCenter: true);
+                        BodyCell(table, deliveredText, background, alignCenter: true);
                         BodyCell(table, product.PaymentMethod ?? string.Empty, background, alignCenter: true);
                         BodyCell(table, amtPaid, background, alignCenter: true);
                         BodyCell(table, balance, background, alignCenter: true);

@@ -24,8 +24,10 @@ public static class GetTrek
         public async Task<Result<TrekResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var trip = await _db.TrekkingTrips
+                .Include(t => t.Region)
                 .Include(t => t.Branch)
                 .Include(t => t.Driver)
+                .Include(t => t.SalesStaff)
                 .Include(t => t.Vehicle)
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
                     .ThenInclude(s => s.CustomerAccount)
@@ -41,6 +43,10 @@ public static class GetTrek
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken);
 
@@ -54,8 +60,10 @@ public static class GetTrek
 
             return Result.Success(CreateTrek.Handler.ToResponse(
                 trip,
-                trip.Branch?.Name ?? string.Empty,
+                trip.Region?.Name ?? string.Empty,
+                trip.Branch?.Name,
                 trip.Driver?.FullName ?? string.Empty,
+                trip.SalesStaff?.FullName,
                 trip.Vehicle?.DisplayName ?? string.Empty,
                 stops));
         }
@@ -85,9 +93,12 @@ public static class GetTrek
                     StopProductId = p.Id,
                     ProductId = p.ProductId,
                     ProductName = p.Product?.Name ?? string.Empty,
-                    Unit = p.Product?.BasicUnit?.Name,
-                    PlannedQuantity = p.PlannedQuantity,
-                    QtyDelivered = p.QtyDelivered,
+                    BasicUnitName = p.Product?.BasicUnit?.Name,
+                    PackagingUnitName = p.Product?.PackagingUnit?.Name,
+                    PlannedBasicQuantity = p.PlannedBasicQuantity,
+                    PlannedPackagingQuantity = p.PlannedPackagingQuantity,
+                    BasicQtyDelivered = p.BasicQtyDelivered,
+                    PackagingQtyDelivered = p.PackagingQtyDelivered,
                     PaymentMethod = p.PaymentMethod?.ToString(),
                     AmtPaid = p.AmtPaid,
                     Balance = p.Balance,

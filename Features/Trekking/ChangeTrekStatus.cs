@@ -49,8 +49,10 @@ public static class ChangeTrekStatus
             try
             {
                 var trip = await _db.TrekkingTrips
+                    .Include(t => t.Region)
                     .Include(t => t.Branch)
                     .Include(t => t.Driver)
+                    .Include(t => t.SalesStaff)
                     .Include(t => t.Vehicle)
                     .Include(t => t.Stops)
                         .ThenInclude(s => s.Products)
@@ -72,8 +74,10 @@ public static class ChangeTrekStatus
 
                 return Result.Success(CreateTrek.Handler.ToResponse(
                     trip,
-                    trip.Branch?.Name ?? string.Empty,
+                    trip.Region?.Name ?? string.Empty,
+                    trip.Branch?.Name,
                     trip.Driver?.FullName ?? string.Empty,
+                    trip.SalesStaff?.FullName,
                     trip.Vehicle?.DisplayName ?? string.Empty,
                     []));
             }

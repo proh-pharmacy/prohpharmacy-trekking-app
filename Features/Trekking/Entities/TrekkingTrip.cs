@@ -9,9 +9,11 @@ public class TrekkingTrip
 {
     public Guid Id { get; set; } = Guid.NewGuid();
     public string TrekNumber { get; set; } = string.Empty;
-    public Guid BranchId { get; set; }
+    public Guid RegionId { get; set; }
+    public Guid? BranchId { get; set; }
     public DateOnly ScheduledDate { get; set; }
     public Guid DriverStaffId { get; set; }
+    public Guid? SalesStaffId { get; set; }
     public Guid VehicleId { get; set; }
     public TrekStatus Status { get; set; } = TrekStatus.Draft;
     public string? Notes { get; set; }
@@ -20,8 +22,10 @@ public class TrekkingTrip
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 
-    public Branch Branch { get; set; } = null!;
+    public Region Region { get; set; } = null!;
+    public Branch? Branch { get; set; }
     public StaffMember Driver { get; set; } = null!;
+    public StaffMember? SalesStaff { get; set; }
     public Vehicle Vehicle { get; set; } = null!;
     public ICollection<TrekkingTripStop> Stops { get; set; } = [];
 }

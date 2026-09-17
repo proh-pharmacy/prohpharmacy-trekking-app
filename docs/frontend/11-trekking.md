@@ -41,10 +41,14 @@ Used by create, get single, get list, and status change.
 {
   "id": "...",
   "trekNumber": "TRK-00001",
-  "branchId": "...",
-  "branchName": "Tema Branch",
+  "regionId": "...",
+  "regionName": "Greater Accra Region",
+  "branchId": null,
+  "branchName": null,
   "driverStaffId": "...",
   "driverName": "Kwame Asante",
+  "salesStaffId": null,
+  "salesStaffName": null,
   "vehicleId": "...",
   "vehicleDisplayName": "Sprinter Van 1",
   "scheduledDate": "2026-09-15",
@@ -73,9 +77,12 @@ Used by create, get single, get list, and status change.
           "stopProductId": "...",
           "productId": "...",
           "productName": "Paracetamol 500mg",
-          "basicUnitName": "Box",
-          "plannedQuantity": 10,
-          "qtyDelivered": null,
+          "basicUnitName": "Tab",
+          "packagingUnitName": "Box",
+          "plannedBasicQuantity": 10,
+          "plannedPackagingQuantity": 2,
+          "basicQtyDelivered": null,
+          "packagingQtyDelivered": null,
           "paymentMethod": null,
           "amtPaid": null,
           "balance": null,
@@ -98,18 +105,22 @@ Used by create, get single, get list, and status change.
 
 ```json
 {
+  "regionId": "<region-guid>",
   "branchId": "<branch-guid>",
   "scheduledDate": "2026-09-15",
   "vehicleId": "<vehicle-guid>",
+  "salesStaffId": "<staff-guid>",
   "notes": "Morning route"
 }
 ```
 
 | Field | Required | Constraints |
 |---|---|---|
-| `branchId` | Yes | Must exist |
+| `regionId` | Yes | The region this trek covers |
+| `branchId` | No | Optional branch association |
 | `scheduledDate` | Yes | `DateOnly` format (`YYYY-MM-DD`) |
 | `vehicleId` | Yes | Must have an active driver assigned |
+| `salesStaffId` | No | Optional sales/records staff on the trek |
 | `notes` | No | Max 500 chars |
 
 ### Notes
@@ -134,6 +145,7 @@ Used by create, get single, get list, and status change.
 | `sort` | `string` | e.g. `scheduledDate_desc`, `createdAt_asc` |
 | `pageNumber` | `int` | Default: 1 |
 | `pageSize` | `int` | Default: 20 |
+| `regionId` | `guid` | Filter by region |
 | `branchId` | `guid` | Filter by branch |
 | `status` | `string` | e.g. `Draft`, `InProgress` |
 | `scheduledDate` | `DateOnly` | Filter by exact scheduled date (`YYYY-MM-DD`) |
@@ -185,11 +197,12 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
   "products": [
     {
       "productId": "<product-guid>",
-      "plannedQuantity": 10
+      "plannedBasicQuantity": 10,
+      "plannedPackagingQuantity": 2
     },
     {
       "productId": "<product-guid>",
-      "plannedQuantity": 5
+      "plannedBasicQuantity": 5
     }
   ]
 }
@@ -201,8 +214,13 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 | `sequence` | Yes | Must be > 0 |
 | `products` | Yes | At least one item |
 | `products[].productId` | Yes | Must exist |
-| `products[].plannedQuantity` | Yes | Must be > 0 |
+| `products[].plannedBasicQuantity` | No | >= 0 when provided |
+| `products[].plannedPackagingQuantity` | No | >= 0 when provided; only stored if the product has a packaging unit |
 | `notes` | No | Max 500 chars |
+
+At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0 per product line.
+
+If the product has no packaging unit, `plannedPackagingQuantity` is silently ignored.
 
 ### Response `201 Created`
 
@@ -227,9 +245,12 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
       "stopProductId": "...",
       "productId": "...",
       "productName": "Paracetamol 500mg",
-      "unit": "Box",
-      "plannedQuantity": 10,
-      "qtyDelivered": null,
+      "basicUnitName": "Tab",
+      "packagingUnitName": "Box",
+      "plannedBasicQuantity": 10,
+      "plannedPackagingQuantity": 2,
+      "basicQtyDelivered": null,
+      "packagingQtyDelivered": null,
       "paymentMethod": null,
       "amtPaid": null,
       "balance": null,
@@ -239,6 +260,8 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
   ]
 }
 ```
+
+`packagingUnitName` and `plannedPackagingQuantity` are `null` when the product has no packaging unit.
 
 ### Errors
 - `404` — trek, customer, or product not found
@@ -266,7 +289,8 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
   "products": [
     {
       "stopProductId": "<stop-product-guid>",
-      "qtyDelivered": 8,
+      "basicQtyDelivered": 8,
+      "packagingQtyDelivered": 1,
       "paymentMethod": "Cash",
       "amtPaid": 240.00,
       "balance": 0.00,
@@ -279,7 +303,8 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 | Field | Required | Constraints |
 |---|---|---|
 | `stopProductId` | Yes | Must belong to this trek |
-| `qtyDelivered` | No | Decimal |
+| `basicQtyDelivered` | No | Decimal — units delivered (e.g. tablets) |
+| `packagingQtyDelivered` | No | Decimal — packages delivered (e.g. boxes). Only meaningful when the product has a packaging unit |
 | `paymentMethod` | No | See enum table |
 | `amtPaid` | No | Decimal |
 | `balance` | No | Decimal |
@@ -336,7 +361,9 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
   "scheduledDate": "2026-09-15",
   "driverName": "Kwame Asante",
   "vehicleDisplayName": "Sprinter Van 1",
-  "branchName": "Tema Branch",
+  "regionName": "Greater Accra Region",
+  "salesStaffId": null,
+  "salesStaffName": null,
   "status": "InProgress",
   "isLocked": false,
   "stops": [
@@ -358,9 +385,12 @@ Anonymous endpoint for the driver's mobile form. Returns real-time delivery stat
         {
           "stopProductId": "...",
           "productName": "Paracetamol 500mg",
-          "basicUnitName": "Box",
-          "plannedQuantity": 10,
-          "qtyDelivered": 8,
+          "basicUnitName": "Tab",
+          "packagingUnitName": "Box",
+          "plannedBasicQuantity": 10,
+          "plannedPackagingQuantity": 2,
+          "basicQtyDelivered": 8,
+          "packagingQtyDelivered": 1,
           "paymentMethod": "Cash",
           "amtPaid": 240.00,
           "balance": 0.00,

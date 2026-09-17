@@ -80,19 +80,27 @@ Creates a trek in `Draft` status. The driver is **automatically inferred** from 
 
 ```json
 {
+  "regionId": "<guid>",
   "branchId": "<guid>",
   "scheduledDate": "2026-09-10",
   "vehicleId": "<guid>",
+  "salesStaffId": "<guid>",
   "notes": "Collect payment for last month's outstanding balance at Stop 3"
 }
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `branchId` | Yes | |
+| `regionId` | Yes | The region this trek covers |
+| `branchId` | No | Optional branch association |
 | `scheduledDate` | Yes | `YYYY-MM-DD` |
 | `vehicleId` | Yes | Must have an active staff assignment — use `currentStaffId != null` to filter |
+| `salesStaffId` | No | Optional sales/records staff accompanying the driver |
 | `notes` | No | Max 500 chars |
+
+### Picking a vehicle
+
+Fetch `GET /api/v1/fleet/vehicles?regionId={regionId}` after the region is selected to show vehicles from that region. The backend does not enforce that the vehicle belongs to the selected region — any vehicle with an active driver is accepted.
 
 ### Response `201 Created`
 
@@ -100,10 +108,14 @@ Creates a trek in `Draft` status. The driver is **automatically inferred** from 
 {
   "id": "...",
   "trekNumber": "TRK-00001",
-  "branchId": "...",
-  "branchName": "Tema Branch",
+  "regionId": "...",
+  "regionName": "Greater Accra Region",
+  "branchId": null,
+  "branchName": null,
   "driverStaffId": "...",
   "driverName": "Kwame Asante",
+  "salesStaffId": null,
+  "salesStaffName": null,
   "vehicleId": "...",
   "vehicleDisplayName": "Sprinter Van 1",
   "scheduledDate": "2026-09-10",
@@ -116,37 +128,41 @@ Creates a trek in `Draft` status. The driver is **automatically inferred** from 
 ```
 
 ### Errors
-- `404` — branch or vehicle not found
+- `404` — region, branch (if provided), or vehicle not found
 - `422` — validation error, or vehicle has no active driver assigned
 
 ---
 
 ## PATCH /api/v1/treks/{id}
 
-Updates the branch, scheduled date, vehicle, and notes. The driver is re-inferred from the new vehicle's active staff assignment — same rule as create. Blocked if the trek is `Completed` or `Cancelled`.
+Updates the region, branch, scheduled date, vehicle, and notes. The driver is re-inferred from the new vehicle's active staff assignment — same rule as create. Blocked if the trek is `Completed` or `Cancelled`.
 
 ### Request body
 
 ```json
 {
+  "regionId": "<guid>",
   "branchId": "<guid>",
   "scheduledDate": "2026-09-11",
   "vehicleId": "<guid>",
+  "salesStaffId": "<guid>",
   "notes": "Updated route — skip Stop 2 if closed"
 }
 ```
 
 | Field | Required | Notes |
 |---|---|---|
-| `branchId` | Yes | |
+| `regionId` | Yes | |
+| `branchId` | No | Send `null` to clear |
 | `scheduledDate` | Yes | `YYYY-MM-DD` |
 | `vehicleId` | Yes | Must have an active staff assignment |
+| `salesStaffId` | No | Send `null` to remove the sales staff from the trek |
 | `notes` | No | Max 500 chars. Send `null` to clear |
 
-### Response `200 OK` — full `TrekResponse` with updated `driverName` reflected
+### Response `200 OK` — full `TrekResponse` with updated `regionName` and `driverName` reflected
 
 ### Errors
-- `404` — trek, branch, or vehicle not found
+- `404` — trek, region, branch (if provided), or vehicle not found
 - `422` — vehicle has no active driver, or trek is `Completed` / `Cancelled`
 
 ---
@@ -163,8 +179,8 @@ Adds a customer stop to the trek with the products to be delivered.
   "sequence": 1,
   "notes": "Call ahead before arriving",
   "products": [
-    { "productId": "<guid>", "plannedQuantity": 10 },
-    { "productId": "<guid>", "plannedQuantity": 5 }
+    { "productId": "<guid>", "plannedBasicQuantity": 10, "plannedPackagingQuantity": 2 },
+    { "productId": "<guid>", "plannedBasicQuantity": 5 }
   ]
 }
 ```
@@ -175,8 +191,11 @@ Adds a customer stop to the trek with the products to be delivered.
 | `sequence` | Yes | Order of the stop on the route (must be > 0) |
 | `products` | Yes | At least one product |
 | `products[].productId` | Yes | |
-| `products[].plannedQuantity` | Yes | Must be > 0 |
+| `products[].plannedBasicQuantity` | No | >= 0 when provided |
+| `products[].plannedPackagingQuantity` | No | >= 0; ignored if the product has no packaging unit |
 | `notes` | No | Max 500 chars |
+
+At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0 per product.
 
 ### Response `201 Created`
 
@@ -201,9 +220,12 @@ Adds a customer stop to the trek with the products to be delivered.
       "stopProductId": "...",
       "productId": "...",
       "productName": "Paracetamol 500mg",
-      "basicUnitName": "Box",
-      "plannedQuantity": 10,
-      "qtyDelivered": null,
+      "basicUnitName": "Tab",
+      "packagingUnitName": "Box",
+      "plannedBasicQuantity": 10,
+      "plannedPackagingQuantity": 2,
+      "basicQtyDelivered": null,
+      "packagingQtyDelivered": null,
       "paymentMethod": null,
       "amtPaid": null,
       "balance": null,
@@ -321,7 +343,7 @@ Each stop card on the sheet includes:
 |---|---|
 | Header | Stop sequence, customer name, customer code |
 | Left column | Scheduled date, phone number, street address, landmark & directions, district / region |
-| Right column | Branch, driver, vehicle, primary contact name and phone |
+| Right column | Region, driver, vehicle, sales staff (if assigned), primary contact name and phone |
 | Products table | Product name, unit, planned quantity (with a blank "Delivered" column for the driver to fill in by hand) |
 
 ### Errors
@@ -346,7 +368,9 @@ Fetches the full trek for the driver view.
   "scheduledDate": "2026-09-10",
   "driverName": "Kwame Asante",
   "vehicleDisplayName": "Sprinter Van 1",
-  "branchName": "Tema Branch",
+  "regionName": "Greater Accra Region",
+  "salesStaffId": null,
+  "salesStaffName": null,
   "status": "InProgress",
   "isLocked": false,
   "stops": [
@@ -368,9 +392,12 @@ Fetches the full trek for the driver view.
         {
           "stopProductId": "...",
           "productName": "Paracetamol 500mg",
-          "basicUnitName": "Box",
-          "plannedQuantity": 10,
-          "qtyDelivered": null,
+          "basicUnitName": "Tab",
+          "packagingUnitName": "Box",
+          "plannedBasicQuantity": 10,
+          "plannedPackagingQuantity": 2,
+          "basicQtyDelivered": null,
+          "packagingQtyDelivered": null,
           "paymentMethod": null,
           "amtPaid": null,
           "balance": null,
@@ -412,7 +439,8 @@ Driver submits delivery results for one or more products. Can be called multiple
   "products": [
     {
       "stopProductId": "...",
-      "qtyDelivered": 8,
+      "basicQtyDelivered": 8,
+      "packagingQtyDelivered": 1,
       "paymentMethod": "Cash",
       "amtPaid": 240.00,
       "balance": 60.00,
@@ -425,7 +453,8 @@ Driver submits delivery results for one or more products. Can be called multiple
 | Field | Notes |
 |---|---|
 | `stopProductId` | From `products[].stopProductId` in the driver view |
-| `qtyDelivered` | Actual quantity delivered (can differ from planned) |
+| `basicQtyDelivered` | Actual basic units delivered (e.g. tablets) |
+| `packagingQtyDelivered` | Actual packages delivered (e.g. boxes) — only meaningful when the product has a packaging unit |
 | `paymentMethod` | `Cash` `MobileMoney` `Credit` `Cheque` `BankTransfer` |
 | `amtPaid` | Amount collected at the door |
 | `balance` | Remaining amount owed — auto-creates a Debit ledger entry |
@@ -461,7 +490,8 @@ Same shape and behaviour as the driver endpoint but requires authentication. Use
   "products": [
     {
       "stopProductId": "...",
-      "qtyDelivered": 8,
+      "basicQtyDelivered": 8,
+      "packagingQtyDelivered": 1,
       "paymentMethod": "Cash",
       "amtPaid": 240.00,
       "balance": 60.00,
@@ -502,6 +532,7 @@ When status changes to `Cancelled`, all auto-generated entries for the trek are 
 | `sort` | `string` | e.g. `scheduledDate_desc` |
 | `pageNumber` | `int` | Default: 1 |
 | `pageSize` | `int` | Default: 20 |
+| `regionId` | `guid` | Filter by region |
 | `branchId` | `guid` | Filter by branch |
 | `status` | `string` | e.g. `InProgress`, `Completed` |
 | `scheduledDate` | `DateOnly` | e.g. `2026-09-10` |

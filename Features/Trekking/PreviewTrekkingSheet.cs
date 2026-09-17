@@ -32,9 +32,9 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         PrimaryContactPhone = "0209 876 543",
                         Products =
                         [
-                            new() { ProductName = "Paracetamol 500mg", Unit = "Box", PlannedQuantity = 10 },
-                            new() { ProductName = "Amoxicillin 250mg", Unit = "Carton", PlannedQuantity = 5 },
-                            new() { ProductName = "ORS Sachets", Unit = "Box", PlannedQuantity = 20 }
+                            new() { ProductName = "Paracetamol 500mg", BasicUnitName = "Tab", PackagingUnitName = "Box", PlannedBasicQuantity = 10, PlannedPackagingQuantity = 2 },
+                            new() { ProductName = "Amoxicillin 250mg", BasicUnitName = "Cap", PackagingUnitName = "Carton", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 5 },
+                            new() { ProductName = "ORS Sachets", BasicUnitName = "Sachet", PlannedBasicQuantity = 20 }
                         ]
                     },
                     new()
@@ -51,8 +51,8 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         PrimaryContactPhone = "0244 567 890",
                         Products =
                         [
-                            new() { ProductName = "Metronidazole 400mg", Unit = "Box", PlannedQuantity = 8 },
-                            new() { ProductName = "Vitamin C 1000mg", Unit = "Bottle", PlannedQuantity = 12 }
+                            new() { ProductName = "Metronidazole 400mg", BasicUnitName = "Tab", PlannedBasicQuantity = 8 },
+                            new() { ProductName = "Vitamin C 1000mg", BasicUnitName = "Tab", PackagingUnitName = "Bottle", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 12 }
                         ]
                     },
                     new()
@@ -69,10 +69,10 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         PrimaryContactPhone = "0277 111 222",
                         Products =
                         [
-                            new() { ProductName = "Chloroquine Tablets", Unit = "Pack", PlannedQuantity = 30 },
-                            new() { ProductName = "Ibuprofen 400mg", Unit = "Box", PlannedQuantity = 15 },
-                            new() { ProductName = "Antacid Suspension", Unit = "Bottle", PlannedQuantity = 6 },
-                            new() { ProductName = "Zinc Sulphate", Unit = "Box", PlannedQuantity = 10 }
+                            new() { ProductName = "Chloroquine Tablets", BasicUnitName = "Tab", PackagingUnitName = "Pack", PlannedBasicQuantity = 30, PlannedPackagingQuantity = 3 },
+                            new() { ProductName = "Ibuprofen 400mg", BasicUnitName = "Tab", PlannedBasicQuantity = 15 },
+                            new() { ProductName = "Antacid Suspension", BasicUnitName = "Bottle", PlannedBasicQuantity = 6 },
+                            new() { ProductName = "Zinc Sulphate", BasicUnitName = "Tab", PackagingUnitName = "Box", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 10 }
                         ]
                     }
                 ]
