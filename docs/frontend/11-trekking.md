@@ -9,6 +9,7 @@
 | `GET` | `api/v1/treks/{id}` | Get a single trek | Required |
 | `PATCH` | `api/v1/treks/{id}/status` | Change trek status | Required |
 | `POST` | `api/v1/treks/{trekId}/stops` | Add a stop to a trek | Required |
+| `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}` | Update a stop's sequence, notes, or products | Required |
 | `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}` | Remove a stop | Required |
 | `POST` | `api/v1/treks/{id}/record` | Record deliveries (admin) | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
@@ -272,6 +273,43 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
 ### Errors
 - `404` — trek, customer, or product not found
 - `422` — validation error
+
+---
+
+## PATCH /api/v1/treks/{trekId}/stops/{stopId}
+
+Updates a stop's sequence position, notes, or product list. If `products` is omitted the existing product lines are left untouched. If `products` is provided it replaces all existing products for that stop and re-snapshots prices from the current product catalogue.
+
+### Request body
+
+```json
+{
+  "sequence": 2,
+  "notes": "Updated delivery notes",
+  "products": [
+    {
+      "productId": "<product-guid>",
+      "plannedBasicQuantity": 10,
+      "plannedPackagingQuantity": 2
+    }
+  ]
+}
+```
+
+| Field | Required | Constraints |
+|---|---|---|
+| `sequence` | No | > 0 |
+| `notes` | No | Max 500 chars |
+| `products` | No | If provided, must be non-empty; at least one qty > 0 per product |
+| `products[].productId` | Yes (if products provided) | Must exist |
+| `products[].plannedBasicQuantity` | No | >= 0 when provided |
+| `products[].plannedPackagingQuantity` | No | >= 0 when provided |
+
+### Response `200 OK` — same `TrekStopResponse` shape as `POST /api/v1/treks/{trekId}/stops`
+
+### Errors
+- `404` — trek or stop not found
+- `422` — validation error or product not found
 
 ---
 

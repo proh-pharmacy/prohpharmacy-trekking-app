@@ -189,7 +189,7 @@ Product delivery performance across completed treks, grouped by product.
 | `pageNumber` | `int?` | Defaults to `1` |
 | `pageSize` | `int?` | Defaults to `20`, max `100` |
 
-Only products from **Completed** treks with `qtyDelivered > 0` are included.
+Only products from **Completed** treks where `basicQtyDelivered > 0` or `packagingQtyDelivered > 0` are included.
 
 ### Response `200 OK`
 
@@ -207,7 +207,9 @@ Only products from **Completed** treks with `qtyDelivered > 0` are included.
       "productId": "...",
       "productName": "Paracetamol 500mg",
       "basicUnitName": "Strips",
+      "packagingUnitName": "Box",
       "totalQtyDelivered": 1200.0,
+      "totalPackagingQtyDelivered": 48.0,
       "totalCollected": 15000.00,
       "totalOutstanding": 800.00,
       "treksCount": 18
@@ -223,7 +225,9 @@ Only products from **Completed** treks with `qtyDelivered > 0` are included.
 | `totalProductLines` | Count of distinct products across all matching deliveries (after search filter) |
 | `totalAmountCollected` / `totalOutstanding` | Aggregates across **all** filtered products, not just the current page |
 | `treksCount` | Number of distinct completed treks in which this product was delivered |
-| `totalQtyDelivered` | Sum of `qtyDelivered` across all delivery records for this product |
+| `basicUnitName` / `packagingUnitName` | Unit names from the product — `packagingUnitName` is `null` for products with no packaging unit |
+| `totalQtyDelivered` | Sum of basic unit qty delivered across all records for this product |
+| `totalPackagingQtyDelivered` | Sum of packaging unit qty delivered — `0` for products without a packaging unit |
 
 ---
 
@@ -240,7 +244,7 @@ Downloads a styled `.xlsx` product delivery report sorted by total collected (hi
 | `branchId` | `guid?` | Filter by branch |
 | `productId` | `guid?` | Narrow to a single product |
 
-Returns `ProductDeliveryReport-{YYYYMMDD}.xlsx`.
+Returns `ProductDeliveryReport-{YYYYMMDD}.xlsx` with columns: `#`, `Product Name`, `Basic Unit`, `Basic Qty`, `Pkg Unit`, `Pkg Qty`, `Collected (GHS)`, `Outstanding (GHS)`, `Treks`.
 
 ### Usage
 
