@@ -15,8 +15,22 @@ namespace prohpharmacy_trekking_app.Migrations
                 name: "RegionId",
                 table: "Vehicles",
                 type: "uuid",
+                nullable: true);
+
+            migrationBuilder.Sql(@"
+                UPDATE ""Vehicles""
+                SET ""RegionId"" = (SELECT ""Id"" FROM ""Regions"" LIMIT 1)
+                WHERE ""RegionId"" IS NULL;
+            ");
+
+            migrationBuilder.AlterColumn<Guid>(
+                name: "RegionId",
+                table: "Vehicles",
+                type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                oldClrType: typeof(Guid),
+                oldType: "uuid",
+                oldNullable: true);
 
             migrationBuilder.CreateIndex(
                 name: "IX_Vehicles_RegionId",

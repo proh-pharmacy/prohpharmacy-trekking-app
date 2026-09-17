@@ -19,8 +19,22 @@ namespace prohpharmacy_trekking_app.Migrations
                 name: "BasicUnitId",
                 table: "Products",
                 type: "uuid",
+                nullable: true);
+
+            migrationBuilder.Sql(@"
+                UPDATE ""Products""
+                SET ""BasicUnitId"" = (SELECT ""Id"" FROM ""Units"" LIMIT 1)
+                WHERE ""BasicUnitId"" IS NULL;
+            ");
+
+            migrationBuilder.AlterColumn<Guid>(
+                name: "BasicUnitId",
+                table: "Products",
+                type: "uuid",
                 nullable: false,
-                defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+                oldClrType: typeof(Guid),
+                oldType: "uuid",
+                oldNullable: true);
 
             migrationBuilder.AddColumn<decimal>(
                 name: "BasicUnitPrice",
