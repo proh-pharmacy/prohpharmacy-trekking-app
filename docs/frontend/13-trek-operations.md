@@ -33,6 +33,7 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `POST` | `api/v1/treks/{id}/generate-link` | Required | Generate driver token URL |
 | `POST` | `api/v1/treks/{id}/send-email` | Required | Email sheet + link to staff |
 | `POST` | `api/v1/treks/{id}/record` | Required | Admin records delivery results |
+| `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Required | Override snapshotted price on a stop product |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
@@ -229,6 +230,7 @@ At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0
       "plannedPackagingQuantity": 2,
       "basicQtyDelivered": null,
       "packagingQtyDelivered": null,
+      "amountDue": 145.00,
       "paymentMethod": null,
       "amtPaid": null,
       "balance": null,
@@ -498,8 +500,8 @@ Driver submits delivery results for one or more products. Can be called multiple
 | `basicQtyDelivered` | Actual basic units delivered (e.g. tablets) |
 | `packagingQtyDelivered` | Actual packages delivered (e.g. boxes) — only meaningful when the product has a packaging unit |
 | `paymentMethod` | `Cash` `MobileMoney` `Credit` `Cheque` `BankTransfer` |
-| `amtPaid` | Amount collected at the door |
-| `balance` | Remaining amount owed — auto-creates a Debit ledger entry |
+| `amtPaid` | Amount collected at the door. If omitted, auto-calculated as `(basicQtyDelivered × basicUnitPrice) + (packagingQtyDelivered × packagingUnitPrice)` |
+| `balance` | Remaining amount owed — auto-creates a Debit ledger entry. Set to `0` automatically when `amtPaid` is auto-calculated |
 | `notes` | Optional per-product note |
 
 ### Response `200 OK`
@@ -580,3 +582,29 @@ When status changes to `Cancelled`, all auto-generated entries for the trek are 
 | `scheduledDate` | `DateOnly` | e.g. `2026-09-10` |
 
 ### Response `200 OK` — `PaginatedData<TrekResponse>`
+
+---
+
+## PATCH /api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price
+
+Corrects the snapshotted `basicUnitPrice` and/or `packagingUnitPrice` on a specific stop product — use this when a price was wrong at the time the stop was added. `amountDue` is recalculated from planned quantities × new prices. Not allowed once the trek is `Completed`.
+
+### Request body
+
+```json
+{
+  "basicUnitPrice": 3.00,
+  "packagingUnitPrice": 72.00
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `basicUnitPrice` | Yes | Corrected price for the basic unit |
+| `packagingUnitPrice` | No | Corrected price for the packaging unit. Send `null` to clear |
+
+### Response `200 OK` — full stop product object with updated prices and recalculated `amountDue`
+
+### Errors
+- `404` — trek, stop, or stop product not found
+- `422` — trek is already `Completed`

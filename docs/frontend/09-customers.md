@@ -8,6 +8,7 @@
 | `GET` | `api/v1/customers/map-pins` | All customer locations for a map (unpaginated) |
 | `GET` | `api/v1/customers/{id}` | Get a single customer |
 | `POST` | `api/v1/customers` | Register a new customer |
+| `POST` | `api/v1/customers/import` | Bulk import customers from Excel |
 | `PATCH` | `api/v1/customers/{id}` | Update customer business details |
 | `POST` | `api/v1/customers/{customerId}/locations` | Add an additional location |
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
@@ -467,3 +468,84 @@ The `premisesPhotoUrl` is also reflected on the customer's full response from th
 ### Errors
 - `404` — customer not found
 - `422` — unsupported file type or file exceeds 5 MB
+
+---
+
+## POST /api/v1/customers/import
+
+Bulk-imports customers from an Excel file. The user specifies which column header maps to each field — the file layout is flexible and not fixed.
+
+### Request
+
+`Content-Type: multipart/form-data`
+
+**Required form fields:**
+
+| Field | Description |
+|---|---|
+| `file` | `.xlsx` or `.xls` file |
+| `businessNameColumn` | Exact header text for business name, e.g. `"Business Name"` |
+| `customerTypeColumn` | Exact header text for customer type, e.g. `"Type"` |
+| `regionNameColumn` | Exact header text for region name, e.g. `"Region"` |
+| `primaryPhoneColumn` | Exact header text for primary phone, e.g. `"Phone"` |
+| `repFirstNameColumn` | Exact header text for representative first name |
+| `repLastNameColumn` | Exact header text for representative last name |
+| `repPhoneColumn` | Exact header text for representative phone |
+| `repRelationshipColumn` | Exact header text for representative relationship type |
+
+**Optional form fields:**
+
+| Field | Description |
+|---|---|
+| `tradingNameColumn` | Trading/DBA name |
+| `whatsAppColumn` | WhatsApp number |
+| `repMiddleNameColumn` | Representative middle name |
+| `ghanaCardColumn` | Ghana Card number |
+| `districtNameColumn` | District name — matched within the region |
+| `streetAddressColumn` | Street address |
+| `landmarkColumn` | Landmark and directions |
+
+Header matching is **case-insensitive**. Omitting an optional column field leaves that field `null` on the created record.
+
+### How the file is processed
+
+1. Row 1 is the header row. All specified column names are located by text match.
+2. Every row from row 2 onwards is processed. Blank business name rows are silently skipped.
+3. **Region** is matched by name (case-insensitive). Rows with an unrecognised region are skipped.
+4. **District** (if column provided) is matched by name within the matched region. Rows where the district name is not found in that region are skipped.
+5. **CustomerType** must match one of the valid enum values (case-insensitive). Rows with an invalid type are skipped.
+6. **RepRelationship** is matched case-insensitively. Defaults to `Owner` if blank or unrecognised.
+7. `CustomerCode` is auto-generated per region in format `{REGION_CODE}-{SEQUENCE:D5}` e.g. `GAR-00001`.
+8. `owningBranch` is resolved from the authenticated staff member's branch.
+9. All valid rows are committed in a single transaction.
+
+> Provide region and district names exactly as configured in the Organisation settings. The frontend should show a reference list of valid names before the user starts filling their spreadsheet.
+
+### Valid enum values
+
+**`customerType`:** `RetailPharmacy` `WholesalePharmacy` `OTCMedicineSeller` `Clinic` `Hospital` `ChemicalShop` `LicensedHealthFacility` `Other`
+
+**`repRelationship`:** `Owner` `Proprietor` `Director` `Manager` `PrimaryContact` `CreditResponsiblePerson` `Guarantor` `Other` (defaults to `Owner` if blank)
+
+### Response `200 OK`
+
+```json
+{
+  "imported": 45,
+  "skipped": 3,
+  "skippedRows": [
+    "Row 4 (Tema Pharmacy): region 'Accra' not found.",
+    "Row 9 (Koforidua Clinic): invalid CustomerType 'Pharmacy'.",
+    "Row 14 (Cape Coast Drug Store): representative first name, last name, and phone are required."
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `imported` | Number of customers successfully created |
+| `skipped` | Number of rows skipped |
+| `skippedRows` | Descriptions of each skipped row including the row number and business name |
+
+### Errors
+- `422` — no file provided, unsupported file type, missing required form fields, or specified column header not found in the file

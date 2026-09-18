@@ -12,6 +12,7 @@
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}` | Update a stop's sequence, notes, or products | Required |
 | `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}` | Remove a stop | Required |
 | `POST` | `api/v1/treks/{id}/record` | Record deliveries (admin) | Required |
+| `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Override snapshotted price on a stop product | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
 | `POST` | `api/v1/treks/{id}/send-email` | Email trek sheet to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
@@ -89,6 +90,7 @@ Used by create, get single, get list, and status change.
           "plannedPackagingQuantity": 2,
           "basicQtyDelivered": null,
           "packagingQtyDelivered": null,
+          "amountDue": 145.00,
           "paymentMethod": null,
           "amtPaid": null,
           "balance": null,
@@ -102,6 +104,8 @@ Used by create, get single, get list, and status change.
 ```
 
 `basicUnitPrice` and `packagingUnitPrice` are snapshotted at the time the stop is added — they will not change if the product price is later updated in the system.
+
+`amountDue` is the planned total for the line item: `plannedBasicQuantity × basicUnitPrice + plannedPackagingQuantity × packagingUnitPrice`. It is recalculated if an admin uses the price override endpoint.
 
 > The list endpoint (`GET /api/v1/treks`) returns treks with `stops: []` — stops are only populated on the single get (`GET /api/v1/treks/{id}`).
 
@@ -264,6 +268,7 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
       "plannedPackagingQuantity": 2,
       "basicQtyDelivered": null,
       "packagingQtyDelivered": null,
+      "amountDue": 145.00,
       "paymentMethod": null,
       "amtPaid": null,
       "balance": null,
@@ -356,8 +361,8 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 | `basicQtyDelivered` | No | Decimal — units delivered (e.g. tablets) |
 | `packagingQtyDelivered` | No | Decimal — packages delivered (e.g. boxes). Only meaningful when the product has a packaging unit |
 | `paymentMethod` | No | See enum table |
-| `amtPaid` | No | Decimal |
-| `balance` | No | Decimal |
+| `amtPaid` | No | Decimal. If omitted and quantities were delivered, auto-calculated from delivered qty × snapshotted price |
+| `balance` | No | Decimal. Set to `0` automatically when `amtPaid` is auto-calculated |
 | `notes` | No | Free text |
 
 ### Response `200 OK`
@@ -373,6 +378,33 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 
 ### Notes
 - Recording does **not** touch the ledger. Ledger entries are only written when the trek is marked `Completed`. Re-submitting updated figures before completion is safe — the ledger will reflect the final values at completion time.
+- If `amtPaid` is omitted, the backend calculates it as `(basicQtyDelivered × basicUnitPrice) + (packagingQtyDelivered × packagingUnitPrice)` and sets `balance` to `0`. Send an explicit `amtPaid` to override this.
+
+---
+
+## PATCH /api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price
+
+Corrects the snapshotted `basicUnitPrice` and/or `packagingUnitPrice` on a specific stop product. Use this when a price was entered incorrectly at the time the stop was created. `amountDue` is recalculated automatically. Not allowed once the trek is `Completed`.
+
+### Request body
+
+```json
+{
+  "basicUnitPrice": 3.00,
+  "packagingUnitPrice": 72.00
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `basicUnitPrice` | Yes | New price for the basic unit |
+| `packagingUnitPrice` | No | New price for the packaging unit. Send `null` to clear |
+
+### Response `200 OK` — `TrekStopProductResponse` with updated prices and recalculated `amountDue`
+
+### Errors
+- `404` — trek, stop, or stop product not found
+- `422` — trek is already `Completed`
 
 ### Errors
 - `404` — trek not found
