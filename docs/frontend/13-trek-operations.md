@@ -500,9 +500,23 @@ Driver submits delivery results for one or more products. Can be called multiple
 | `basicQtyDelivered` | Actual basic units delivered (e.g. tablets) |
 | `packagingQtyDelivered` | Actual packages delivered (e.g. boxes) — only meaningful when the product has a packaging unit |
 | `paymentMethod` | `Cash` `MobileMoney` `Credit` `Cheque` `BankTransfer` |
-| `amtPaid` | Amount collected at the door. If omitted, auto-calculated as `(basicQtyDelivered × basicUnitPrice) + (packagingQtyDelivered × packagingUnitPrice)` |
-| `balance` | Remaining amount owed — auto-creates a Debit ledger entry. Set to `0` automatically when `amtPaid` is auto-calculated |
+| `amtPaid` | **Optional.** Amount collected at the door. If omitted, the backend auto-calculates it (see below) |
+| `balance` | Amount still owed. Set to `0` automatically when `amtPaid` is auto-calculated |
 | `notes` | Optional per-product note |
+
+### How payment recording works
+
+1. The driver enters the delivered basic and packaging quantities.
+2. `amtPaid` is **optional** — do not force the user to fill it in.
+3. If `amtPaid` is omitted, the backend auto-calculates the amount using the snapshotted prices:
+   ```
+   basicQtyDelivered × basicUnitPrice + packagingQtyDelivered × packagingUnitPrice
+   ```
+   and sets `balance` to `0`.
+4. If the customer paid only **part** of the amount, the frontend sends an explicit `amtPaid` (what was collected) and `balance` (what is still owed). The backend stores both as provided.
+5. `amountDue` (from the product listing) is the **planned** total based on planned quantities — it is display-only and should **not** be submitted during delivery recording.
+
+> **Frontend guidance:** leave the amount field empty by default. Only show/require it when the driver indicates a partial or different payment. This allows the auto-calculation to handle the normal full-payment case without the driver doing manual arithmetic.
 
 ### Response `200 OK`
 

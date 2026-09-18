@@ -376,9 +376,22 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 }
 ```
 
+### How payment recording works
+
+1. The driver enters the delivered basic and packaging quantities.
+2. `amtPaid` is **optional** — do not force the user to fill it in.
+3. If `amtPaid` is omitted, the backend auto-calculates the amount using the snapshotted prices:
+   ```
+   basicQtyDelivered × basicUnitPrice + packagingQtyDelivered × packagingUnitPrice
+   ```
+   and sets `balance` to `0`.
+4. If the customer paid only **part** of the amount, the frontend sends an explicit `amtPaid` (what was collected) and `balance` (what is still owed). The backend stores both as provided.
+5. `amountDue` (from the product listing) is the **planned** total based on planned quantities — it is display-only and should **not** be submitted during delivery recording.
+
+> **Frontend guidance:** leave the amount field empty by default. Only show/require it when the driver indicates a partial or different payment. This allows the auto-calculation to handle the normal full-payment case without the driver doing manual arithmetic.
+
 ### Notes
 - Recording does **not** touch the ledger. Ledger entries are only written when the trek is marked `Completed`. Re-submitting updated figures before completion is safe — the ledger will reflect the final values at completion time.
-- If `amtPaid` is omitted, the backend calculates it as `(basicQtyDelivered × basicUnitPrice) + (packagingQtyDelivered × packagingUnitPrice)` and sets `balance` to `0`. Send an explicit `amtPaid` to override this.
 
 ---
 
