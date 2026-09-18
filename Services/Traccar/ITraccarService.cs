@@ -23,4 +23,9 @@ public interface ITraccarService
     Task<TraccarUser?> CreateUserAsync(string name, string email, string password, bool administrator = false, CancellationToken ct = default);
     Task<TraccarUser?> UpdateUserAsync(int traccarUserId, string name, string email, string? password, bool administrator, bool disabled, CancellationToken ct = default);
     Task<bool> DeleteUserAsync(int traccarUserId, CancellationToken ct = default);
+
+    Task<bool> ReportPositionAsync(string uniqueId, double latitude, double longitude,
+        double? altitude = null, double? speed = null, double? bearing = null,
+        double? accuracy = null, double? batteryLevel = null, string? alarm = null,
+        CancellationToken ct = default);
 }

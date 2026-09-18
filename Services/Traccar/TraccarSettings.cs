@@ -5,4 +5,6 @@ public class TraccarSettings
     public string BaseUrl { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
+    // OsmAnd protocol endpoint, e.g. http://tracking.prohpharmacy.com:5055
+    public string OsmAndUrl { get; set; } = string.Empty;
 }

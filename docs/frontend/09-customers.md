@@ -11,6 +11,7 @@
 | `PATCH` | `api/v1/customers/{id}` | Update customer business details |
 | `POST` | `api/v1/customers/{customerId}/locations` | Add an additional location |
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
+| `POST` | `api/v1/customers/{customerId}/premises-photo` | Upload business premises photo |
 | `POST` | `api/v1/customers/sync` | Batch sync offline-created customers |
 
 ---
@@ -166,6 +167,7 @@ function getCustomerIcon(customerType) {
   "registeredByName": "Kwame Asante",
   "registeredDuringTrekId": null,
   "createdOffline": false,
+  "premisesPhotoUrl": "https://ik.imagekit.io/prohpharmacy/customers/premises/abc.jpg",
   "recordedAt": "2026-09-09T10:00:00Z",
   "createdAt": "2026-09-09T10:00:00Z",
   "updatedAt": null,
@@ -437,4 +439,31 @@ Updates business details, primary representative, and primary location in a sing
 
 ### Errors
 - `404` — person not found on this customer
+- `422` — unsupported file type or file exceeds 5 MB
+
+---
+
+## POST /api/v1/customers/{customerId}/premises-photo
+
+`multipart/form-data` upload of a photo of the customer's business premises. Optional — upload separately after registration. Replaces any existing premises photo.
+
+| Constraint | Value |
+|---|---|
+| Accepted types | JPEG, PNG, WebP |
+| Max size | 5 MB |
+| Field name | `file` |
+
+### Response `200 OK`
+
+```json
+{
+  "customerId": "...",
+  "premisesPhotoUrl": "https://ik.imagekit.io/prohpharmacy/customers/premises/abc.jpg"
+}
+```
+
+The `premisesPhotoUrl` is also reflected on the customer's full response from this point on.
+
+### Errors
+- `404` — customer not found
 - `422` — unsupported file type or file exceeds 5 MB

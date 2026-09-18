@@ -182,6 +182,7 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(a => a.CustomerType).HasConversion<string>().HasMaxLength(40).IsRequired();
                 entity.Property(a => a.PrimaryPhoneNumber).HasMaxLength(30).IsRequired();
                 entity.Property(a => a.WhatsAppNumber).HasMaxLength(30);
+                entity.Property(a => a.PremisesPhotoUrl).HasMaxLength(500);
                 entity.Property(a => a.RegistrationStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
                 entity.HasOne(a => a.Region).WithMany().HasForeignKey(a => a.RegionId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(a => a.OwningBranch).WithMany().HasForeignKey(a => a.OwningBranchId).OnDelete(DeleteBehavior.Restrict);

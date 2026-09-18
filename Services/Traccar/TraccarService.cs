@@ -1,8 +1,14 @@
 using System.Net.Http.Json;
+using System.Text;
+using Microsoft.Extensions.Options;
 
 namespace prohpharmacy_trekking_app.Services.Traccar;
 
-public class TraccarService(HttpClient http, ILogger<TraccarService> logger) : ITraccarService
+public class TraccarService(
+    HttpClient http,
+    IHttpClientFactory httpClientFactory,
+    IOptions<TraccarSettings> options,
+    ILogger<TraccarService> logger) : ITraccarService
 {
     public async Task<TraccarPosition?> GetCurrentPositionAsync(int traccarDeviceId, CancellationToken ct = default)
     {
@@ -275,6 +281,42 @@ public class TraccarService(HttpClient http, ILogger<TraccarService> logger) : I
         catch (Exception ex)
         {
             logger.LogWarning(ex, "Traccar: failed to delete user #{UserId}", traccarUserId);
+            return false;
+        }
+    }
+
+    public async Task<bool> ReportPositionAsync(string uniqueId, double latitude, double longitude,
+        double? altitude = null, double? speed = null, double? bearing = null,
+        double? accuracy = null, double? batteryLevel = null, string? alarm = null,
+        CancellationToken ct = default)
+    {
+        var osmAndUrl = options.Value.OsmAndUrl;
+        if (string.IsNullOrWhiteSpace(osmAndUrl))
+        {
+            logger.LogWarning("Traccar: OsmAndUrl not configured. Skipping position report.");
+            return false;
+        }
+
+        try
+        {
+            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            var qs = new StringBuilder();
+            qs.Append($"{osmAndUrl.TrimEnd('/')}/?id={Uri.EscapeDataString(uniqueId)}");
+            qs.Append($"&lat={latitude:F6}&lon={longitude:F6}&timestamp={timestamp}");
+            if (altitude.HasValue)    qs.Append($"&altitude={altitude.Value:F1}");
+            if (speed.HasValue)       qs.Append($"&speed={speed.Value * 1.94384:F2}"); // m/s → knots
+            if (bearing.HasValue)     qs.Append($"&bearing={bearing.Value:F1}");
+            if (accuracy.HasValue)    qs.Append($"&accuracy={accuracy.Value:F1}");
+            if (batteryLevel.HasValue) qs.Append($"&batt={(int)(batteryLevel.Value * 100)}");
+            if (!string.IsNullOrWhiteSpace(alarm)) qs.Append($"&alarm={Uri.EscapeDataString(alarm)}");
+
+            var client = httpClientFactory.CreateClient("Traccar.OsmAnd");
+            var response = await client.GetAsync(qs.ToString(), ct);
+            return response.IsSuccessStatusCode;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning(ex, "Traccar: failed to report OsmAnd position for device '{UniqueId}'", uniqueId);
             return false;
         }
     }

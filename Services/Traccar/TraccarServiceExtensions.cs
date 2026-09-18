@@ -27,6 +27,11 @@ public static class TraccarServiceExtensions
                 new AuthenticationHeaderValue("Basic", credentials);
         });
 
+        services.AddHttpClient("Traccar.OsmAnd", client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(8);
+        });
+
         return services;
     }
 }

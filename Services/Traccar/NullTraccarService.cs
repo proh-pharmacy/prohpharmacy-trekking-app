@@ -109,4 +109,13 @@ public class NullTraccarService(ILogger<NullTraccarService> logger) : ITraccarSe
         logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping user deletion.");
         return Task.FromResult(false);
     }
+
+    public Task<bool> ReportPositionAsync(string uniqueId, double latitude, double longitude,
+        double? altitude = null, double? speed = null, double? bearing = null,
+        double? accuracy = null, double? batteryLevel = null, string? alarm = null,
+        CancellationToken ct = default)
+    {
+        logger.LogWarning("TraccarSettings:BaseUrl is not configured. Skipping position report.");
+        return Task.FromResult(false);
+    }
 }

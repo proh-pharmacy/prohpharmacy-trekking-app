@@ -41,6 +41,11 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Record a product return at a stop |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
 | `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
+| `GET` | `api/v1/treks/driver/{token}/device` | Last known device position, battery, speed, motion |
+| `POST` | `api/v1/treks/driver/{token}/location` | Report current GPS location to Traccar |
+| `POST` | `api/v1/treks/driver/{token}/sos` | Send SOS alert via Traccar |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/premises-photo` | Upload premises photo for a customer |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
 
 ---
 
@@ -134,10 +139,50 @@ Register a new customer from the field. Pass `clientGeneratedId` for offline ide
 - `districtId` is not required — GPS-only location records are valid.
 - `createdOffline: true` is always set on customers registered via this endpoint.
 
-**Response `201 Created`** — full `CustomerResponse` (same shape as `POST /api/v1/customers`).
+**Response `201 Created`** — full `CustomerResponse` (same shape as `POST /api/v1/customers`). Includes `premisesPhotoUrl` once uploaded.
 
 **Errors:**
 - `422` — validation failed, or phone number already registered
+
+---
+
+### POST /api/v1/treks/driver/{token}/customers/{customerId}/premises-photo
+
+Upload a photo of the customer's business premises. Call this **after** customer creation once you have the server `customerId` (from the registration response or a completed batch sync). This is a multipart upload — it cannot be queued in the offline batch.
+
+**Request:** `multipart/form-data` with a single field `file` (JPEG, PNG, or WebP, max 5 MB).
+
+**Response `200 OK`**
+
+```json
+{
+  "customerId": "...",
+  "premisesPhotoUrl": "https://ik.imagekit.io/prohpharmacy/customers/premises/abc.jpg"
+}
+```
+
+The URL is also reflected on the customer's `premisesPhotoUrl` field from that point on.
+
+**Note:** GPS capture and premises photo are independent — a customer can have GPS coordinates without a photo, or a photo without coordinates. Both are optional.
+
+---
+
+### POST /api/v1/treks/driver/{token}/customers/{customerId}/people/{personId}/portrait
+
+Upload a portrait photo for the customer's representative. `personId` comes from `primaryPerson.id` in the customer registration response. The customer must belong to the trek's region.
+
+**Request:** `multipart/form-data` with a single field `file` (JPEG, PNG, or WebP, max 5 MB).
+
+**Response `200 OK`**
+
+```json
+{
+  "personId": "...",
+  "portraitUrl": "https://ik.imagekit.io/prohpharmacy/customers/portraits/abc.jpg"
+}
+```
+
+Like premises photo, this is a **separate follow-up request** — upload after you have the server `personId` from the registration response.
 
 ---
 
@@ -644,6 +689,138 @@ async function syncOfflineQueue() {
 
 window.addEventListener('online', syncOfflineQueue);
 ```
+
+---
+
+## Device Tracking & SOS
+
+### GET /api/v1/treks/driver/{token}/device
+
+Returns the tracking device linked to the trek's vehicle (or the driver's personal device as fallback). Call this on load to populate the status bar. Battery level and live fields come from a live Traccar query; `lastLatitude`/`lastLongitude`/`lastAddress` come from the webhook cache.
+
+**Response `200 OK`**
+
+```json
+{
+  "deviceId": "...",
+  "deviceName": "Van 01 — Accra North",
+  "traccarUniqueId": "abc-def-123",
+  "lastLatitude": 6.0835,
+  "lastLongitude": -0.2170,
+  "lastAddress": "Ring Road East, Accra",
+  "lastReportedAt": "2026-09-17T10:45:00Z",
+  "batteryLevel": 0.72,
+  "speed": 0.0,
+  "motion": false,
+  "ignition": false,
+  "traccarStatus": "online"
+}
+```
+
+`batteryLevel` is `0.0–1.0`. `traccarStatus` reflects the Traccar device status string (`"online"`, `"offline"`, `"unknown"`). All fields except `deviceId`, `deviceName`, and `traccarUniqueId` may be `null` if the device has not reported yet.
+
+**Errors:** `404` if no tracking device is registered for this trek's vehicle or driver.
+
+---
+
+### POST /api/v1/treks/driver/{token}/location
+
+Forwards the driver's GPS coordinates to Traccar via the OsmAnd protocol. Call this on a timer (e.g. every 30–60 seconds) while the app is in the foreground and online. On reconnect after offline, push the most recent known fix.
+
+**Request body**
+
+```json
+{
+  "latitude": 6.0835,
+  "longitude": -0.2170,
+  "altitude": 50.0,
+  "speed": 8.5,
+  "bearing": 180.0,
+  "accuracy": 12.5,
+  "batteryLevel": 0.75
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `latitude` | Yes | -90 to 90 |
+| `longitude` | Yes | -180 to 180 |
+| `altitude` | No | Metres — from `coords.altitude` |
+| `speed` | No | **m/s** — from `coords.speed` (Geolocation API units, server converts to knots) |
+| `bearing` | No | Degrees — from `coords.heading` |
+| `accuracy` | No | Metres — from `coords.accuracy` |
+| `batteryLevel` | No | **0.0–1.0** — from `navigator.getBattery().then(b => b.level)` |
+
+**Response `204 No Content`**
+
+```js
+// Suggested polling pattern
+async function reportLocation() {
+  const [pos, battery] = await Promise.all([
+    new Promise(r => navigator.geolocation.getCurrentPosition(r, () => r(null), { enableHighAccuracy: true })),
+    navigator.getBattery?.().catch(() => null)
+  ]);
+  if (!pos) return;
+  await fetch(`/api/v1/treks/driver/${token}/location`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      latitude:     pos.coords.latitude,
+      longitude:    pos.coords.longitude,
+      altitude:     pos.coords.altitude,
+      speed:        pos.coords.speed,
+      bearing:      pos.coords.heading,
+      accuracy:     pos.coords.accuracy,
+      batteryLevel: battery?.level ?? null
+    })
+  });
+}
+
+setInterval(reportLocation, 45_000);
+```
+
+---
+
+### POST /api/v1/treks/driver/{token}/sos
+
+Sends a position event to Traccar with `alarm=sos`. Traccar fires an alarm event, which triggers any configured notifications (push, email, SMS, webhooks) to the fleet manager. The driver's current GPS coordinates are required so the alert includes their location.
+
+**Request body**
+
+```json
+{
+  "latitude": 6.0835,
+  "longitude": -0.2170,
+  "altitude": 50.0,
+  "accuracy": 12.5
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `latitude` | Yes | -90 to 90 |
+| `longitude` | Yes | -180 to 180 |
+| `altitude` | No | Metres |
+| `accuracy` | No | Metres |
+
+**Response `204 No Content`**
+
+**Note:** The SOS is handled entirely by Traccar's notification system. Configure Traccar notifications (via the Traccar web UI or API) to send alerts when `alarm=sos` events arrive for devices in the fleet.
+
+---
+
+### Weather
+
+Weather is a **frontend-only** concern — call a weather API (e.g. OpenWeatherMap) directly from the browser using the current GPS coordinates. No backend endpoint is needed or provided.
+
+```js
+// Example: OpenWeatherMap one-call
+const weather = await fetch(
+  `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OWM_KEY}&units=metric`
+).then(r => r.json());
+```
+
+The GPS fix from `navigator.geolocation` provides the coordinates — no extra API call to this backend needed.
 
 ---
 
