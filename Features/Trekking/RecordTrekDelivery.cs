@@ -70,8 +70,19 @@ public static class RecordTrekDelivery
                 product.BasicQtyDelivered = record.BasicQtyDelivered;
                 product.PackagingQtyDelivered = record.PackagingQtyDelivered;
                 product.PaymentMethod = record.PaymentMethod;
-                product.AmtPaid = record.AmtPaid;
-                product.Balance = record.Balance;
+
+                if (record.AmtPaid is null && (record.BasicQtyDelivered > 0 || record.PackagingQtyDelivered > 0))
+                {
+                    product.AmtPaid = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
+                                    + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
+                    product.Balance = 0;
+                }
+                else
+                {
+                    product.AmtPaid = record.AmtPaid;
+                    product.Balance = record.Balance;
+                }
+
                 product.Notes = record.Notes?.Trim();
                 product.DeliveredAt = DateTime.UtcNow;
 
