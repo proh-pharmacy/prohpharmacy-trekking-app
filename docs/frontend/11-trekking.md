@@ -14,6 +14,7 @@
 | `POST` | `api/v1/treks/{id}/record` | Record deliveries (admin) | Required |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Override snapshotted price on a stop product | Required |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Re-sync all stop product prices from the current catalog | Required |
+| `GET` | `api/v1/treks/{trekId}/price-diff` | Get price differences between trek and current catalog | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
 | `POST` | `api/v1/treks/{id}/send-email` | Email trek sheet to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
@@ -57,6 +58,7 @@ Used by create, get single, get list, and status change.
   "scheduledDate": "2026-09-15",
   "status": "Draft",
   "notes": "Morning route",
+  "syncRequired": false,
   "createdAt": "2026-09-09T10:00:00Z",
   "updatedAt": null,
   "stops": [
@@ -106,7 +108,9 @@ Used by create, get single, get list, and status change.
 
 `basicUnitPrice` and `packagingUnitPrice` are snapshotted at the time the stop is added — they will not change if the product price is later updated in the system.
 
-`amountDue` is the planned total for the line item: `plannedBasicQuantity × basicUnitPrice + plannedPackagingQuantity × packagingUnitPrice`. It is recalculated if an admin uses the price override endpoint.
+`amountDue` is the planned total for the line item: `plannedBasicQuantity × basicUnitPrice + plannedPackagingQuantity × packagingUnitPrice`. It is recalculated if an admin uses the price override or sync-prices endpoint.
+
+`syncRequired` is `true` on `GET /api/v1/treks/{id}` when at least one stop product's snapshotted price or packaging configuration is out of date with the current catalog. Use this to dynamically show a "Sync Prices" button on the trek detail page. `syncRequired` is always `false` on the list endpoint and on create — it is only computed on the single trek fetch.
 
 > The list endpoint (`GET /api/v1/treks`) returns treks with `stops: []` — stops are only populated on the single get (`GET /api/v1/treks/{id}`).
 

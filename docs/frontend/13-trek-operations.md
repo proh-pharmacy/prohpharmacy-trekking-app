@@ -35,6 +35,7 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `POST` | `api/v1/treks/{id}/record` | Required | Admin records delivery results |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Required | Override snapshotted price on a stop product |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Required | Re-sync all stop product prices from the current catalog |
+| `GET` | `api/v1/treks/{trekId}/price-diff` | Required | Get price differences between trek and current catalog |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
@@ -674,3 +675,80 @@ If nothing has changed since the last sync, `productsUpdated` will be `0` and `c
 ### Errors
 - `404` — trek not found
 - `422` — trek is `Completed` or `Cancelled`
+
+---
+
+## GET /api/v1/treks/{trekId}/price-diff
+
+Returns a breakdown of every stop product whose snapshotted price or packaging configuration is out of date with the current catalog. Use this to show the user exactly what will change before they confirm a sync.
+
+Only products with at least one difference are included — products that are up to date are omitted.
+
+### Response `200 OK`
+
+```json
+{
+  "trekId": "...",
+  "trekNumber": "TRK-00001",
+  "syncRequired": true,
+  "differences": [
+    {
+      "stopId": "...",
+      "stopSequence": 1,
+      "customerName": "Accra Pharmacy Ltd",
+      "stopProductId": "...",
+      "productName": "Paracetamol 500mg",
+      "snapshotBasicUnitPrice": 2.50,
+      "catalogBasicUnitPrice": 3.00,
+      "basicPriceChanged": true,
+      "snapshotPackagingUnitPrice": 60.00,
+      "catalogPackagingUnitPrice": 72.00,
+      "packagingPriceChanged": true,
+      "packagingAdded": false,
+      "packagingRemoved": false
+    },
+    {
+      "stopId": "...",
+      "stopSequence": 2,
+      "customerName": "Tema Central Pharmacy",
+      "stopProductId": "...",
+      "productName": "ORS Sachets",
+      "snapshotBasicUnitPrice": 5.00,
+      "catalogBasicUnitPrice": 5.00,
+      "basicPriceChanged": false,
+      "snapshotPackagingUnitPrice": 95.00,
+      "catalogPackagingUnitPrice": null,
+      "packagingPriceChanged": false,
+      "packagingAdded": false,
+      "packagingRemoved": true
+    }
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `syncRequired` | `true` when at least one difference exists |
+| `differences` | Only products with a difference — empty array means everything is up to date |
+| `basicPriceChanged` | Snapshotted basic price differs from catalog |
+| `packagingPriceChanged` | Both snapshot and catalog have packaging but prices differ |
+| `packagingAdded` | Catalog now has a packaging unit the stop product didn't have |
+| `packagingRemoved` | Catalog no longer has a packaging unit the stop product had |
+
+> **Frontend guidance:** call this endpoint when `syncRequired: true` is returned from `GET /api/v1/treks/{id}`. Show the diff to the user in a confirmation dialog before calling `POST /sync-prices`.
+
+### `syncRequired` on the trek response
+
+`GET /api/v1/treks/{id}` now includes a `syncRequired` field. Use it to dynamically show or hide the sync button on the trek detail page without needing to call the diff endpoint upfront.
+
+```json
+{
+  "id": "...",
+  "trekNumber": "TRK-00001",
+  "syncRequired": true,
+  ...
+}
+```
+
+### Errors
+- `404` — trek not found

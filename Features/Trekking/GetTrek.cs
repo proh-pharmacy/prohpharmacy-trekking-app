@@ -66,14 +66,41 @@ public static class GetTrek
                 .Select(s => MapStop(s))
                 .ToList();
 
-            return Result.Success(CreateTrek.Handler.ToResponse(
+            var productIds = trip.Stops
+                .SelectMany(s => s.Products)
+                .Select(p => p.ProductId)
+                .Distinct()
+                .ToList();
+
+            var catalogPrices = await _db.Products
+                .Where(p => productIds.Contains(p.Id))
+                .AsNoTracking()
+                .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+            var syncRequired = trip.Stops
+                .SelectMany(s => s.Products)
+                .Any(sp =>
+                {
+                    if (!catalogPrices.TryGetValue(sp.ProductId, out var cat)) return false;
+                    if (sp.BasicUnitPrice != cat.BasicUnitPrice) return true;
+                    var hadPackaging = sp.PackagingUnitPrice.HasValue;
+                    var nowHasPackaging = cat.PackagingUnitId.HasValue;
+                    if (hadPackaging != nowHasPackaging) return true;
+                    if (hadPackaging && nowHasPackaging && sp.PackagingUnitPrice != cat.PackagingUnitPrice) return true;
+                    return false;
+                });
+
+            var response = CreateTrek.Handler.ToResponse(
                 trip,
                 trip.Region?.Name ?? string.Empty,
                 trip.Branch?.Name,
                 trip.Driver?.FullName ?? string.Empty,
                 trip.SalesStaff?.FullName,
                 trip.Vehicle?.DisplayName ?? string.Empty,
-                stops));
+                stops);
+
+            response.SyncRequired = syncRequired;
+            return Result.Success(response);
         }
 
         internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop)
