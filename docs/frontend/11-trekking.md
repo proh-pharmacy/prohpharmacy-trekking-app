@@ -13,6 +13,7 @@
 | `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}` | Remove a stop | Required |
 | `POST` | `api/v1/treks/{id}/record` | Record deliveries (admin) | Required |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Override snapshotted price on a stop product | Required |
+| `POST` | `api/v1/treks/{trekId}/sync-prices` | Re-sync all stop product prices from the current catalog | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
 | `POST` | `api/v1/treks/{id}/send-email` | Email trek sheet to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |

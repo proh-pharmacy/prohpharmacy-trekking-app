@@ -34,6 +34,7 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `POST` | `api/v1/treks/{id}/send-email` | Required | Email sheet + link to staff |
 | `POST` | `api/v1/treks/{id}/record` | Required | Admin records delivery results |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Required | Override snapshotted price on a stop product |
+| `POST` | `api/v1/treks/{trekId}/sync-prices` | Required | Re-sync all stop product prices from the current catalog |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
@@ -622,3 +623,54 @@ Corrects the snapshotted `basicUnitPrice` and/or `packagingUnitPrice` on a speci
 ### Errors
 - `404` — trek, stop, or stop product not found
 - `422` — trek is already `Completed`
+
+---
+
+## POST /api/v1/treks/{trekId}/sync-prices
+
+Re-snapshots all stop product prices from the current product catalog in one call. Use this when product prices have changed since the trek was created and you want the trek to reflect the updated pricing.
+
+Allowed on `Draft`, `Scheduled`, and `InProgress` treks. Blocked on `Completed` and `Cancelled`.
+
+### What it does per stop product
+
+| Scenario | Action |
+|---|---|
+| Basic price changed | Updates `basicUnitPrice` |
+| Packaging price changed | Updates `packagingUnitPrice` |
+| Packaging unit removed from catalog | Clears `packagingUnitPrice`, `plannedPackagingQuantity`, and `packagingQtyDelivered` |
+| Packaging unit added to catalog | Sets `packagingUnitPrice` from catalog (quantities remain `null`) |
+| Nothing changed | No update |
+
+`amountDue` is recalculated for every stop product that was changed.
+
+### Response `200 OK`
+
+```json
+{
+  "trekId": "...",
+  "trekNumber": "TRK-00001",
+  "productsUpdated": 4,
+  "packagingAdded": 1,
+  "packagingRemoved": 1,
+  "changes": [
+    "Paracetamol 500mg: basic price 2.50 → 3.00",
+    "Amoxicillin 250mg: packaging price 60.00 → 72.00",
+    "ORS Sachets: packaging unit removed — clearing packaging price and quantities",
+    "Vitamin C 1000mg: packaging unit added at 36.00"
+  ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `productsUpdated` | Number of stop products where at least one value changed |
+| `packagingAdded` | Number of stop products that gained a packaging unit |
+| `packagingRemoved` | Number of stop products that lost a packaging unit |
+| `changes` | Human-readable description of every change made |
+
+If nothing has changed since the last sync, `productsUpdated` will be `0` and `changes` will be empty — the response is still `200 OK`.
+
+### Errors
+- `404` — trek not found
+- `422` — trek is `Completed` or `Cancelled`
