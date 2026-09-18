@@ -59,6 +59,9 @@ public static class CreateTrek
         public string? DistrictName { get; set; }
         public string? PrimaryLocationLandmark { get; set; }
         public string? PrimaryLocationStreet { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+        public decimal? AccuracyMetres { get; set; }
         public string? PrimaryContactName { get; set; }
         public string? PrimaryContactPhone { get; set; }
         public string? Notes { get; set; }

@@ -42,6 +42,9 @@ public static class GetTrekByDriverToken
         public string? DistrictName { get; set; }
         public string? PrimaryLocationLandmark { get; set; }
         public string? PrimaryLocationStreet { get; set; }
+        public decimal? Latitude { get; set; }
+        public decimal? Longitude { get; set; }
+        public decimal? AccuracyMetres { get; set; }
         public string? PrimaryContactName { get; set; }
         public string? PrimaryContactPhone { get; set; }
         public string? Notes { get; set; }
@@ -157,6 +160,9 @@ public static class GetTrekByDriverToken
                         DistrictName = loc?.District?.Name,
                         PrimaryLocationLandmark = loc?.LandmarkAndDirections,
                         PrimaryLocationStreet = loc?.StreetAddress,
+                        Latitude = loc?.Latitude,
+                        Longitude = loc?.Longitude,
+                        AccuracyMetres = loc?.AccuracyMetres,
                         PrimaryContactName = contact?.FullName,
                         PrimaryContactPhone = contact?.PrimaryPhoneNumber,
                         Notes = s.Notes,
