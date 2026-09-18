@@ -56,7 +56,7 @@ public static class GetVehicleList
                     nameof(Vehicle.DisplayName),
                     nameof(Vehicle.Make),
                     nameof(Vehicle.Model))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(v =>
                 {

@@ -42,7 +42,7 @@ public static class GetDistrictList
 
             var result = await new QueryBuilder<Entities.District>(query)
                 .WithSearch(request.Search, nameof(Entities.District.Name), nameof(Entities.District.Code))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "name_asc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(d => (object)ToResponse((Entities.District)d));
 

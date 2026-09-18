@@ -53,7 +53,7 @@ public static class GetBranchList
 
             var result = await new QueryBuilder<Entities.Branch>(query)
                 .WithSearch(request.Search, nameof(Entities.Branch.Name), nameof(Entities.Branch.Code))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "name_asc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(b => (object)CreateBranch.Handler.ToResponse(
                     (Entities.Branch)b,

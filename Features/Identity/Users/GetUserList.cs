@@ -73,7 +73,7 @@ public static class GetUserList
             }
 
             var result = await new QueryBuilder<ApplicationUser>(query)
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(u => (object)new UserSummaryResponse
                 {

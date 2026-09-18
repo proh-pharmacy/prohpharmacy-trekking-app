@@ -37,7 +37,7 @@ public static class GetUnitList
 
             var result = await new QueryBuilder<UnitEntity>(query)
                 .WithSearch(request.Search, nameof(UnitEntity.Name))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "name_asc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(u => (object)CreateUnit.Handler.ToResponse((UnitEntity)u));
 

@@ -41,7 +41,7 @@ public static class GetTrackingDeviceList
                     nameof(TrackingDevice.Name),
                     nameof(TrackingDevice.TraccarUniqueId),
                     nameof(TrackingDevice.PhoneNumber))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(d => (object)CreateTrackingDevice.Handler.ToResponse(
                     d,

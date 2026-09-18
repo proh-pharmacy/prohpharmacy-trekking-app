@@ -62,7 +62,7 @@ public static class GetTrekList
             }
 
             var result = await new QueryBuilder<Entities.TrekkingTrip>(query)
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "scheduledDate_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(t => (object)CreateTrek.Handler.ToResponse(
                     t,

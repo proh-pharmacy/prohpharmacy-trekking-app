@@ -57,7 +57,7 @@ public static class GetStaffList
                 .WithSearch(request.Search, nameof(Entities.StaffMember.FirstName),
                     nameof(Entities.StaffMember.LastName), nameof(Entities.StaffMember.EmailAddress),
                     nameof(Entities.StaffMember.EmployeeNumber))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(s =>
                 {

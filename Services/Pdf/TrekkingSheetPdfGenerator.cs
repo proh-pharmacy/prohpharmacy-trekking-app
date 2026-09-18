@@ -238,15 +238,59 @@ public static class TrekkingSheetPdfGenerator
                     .Text("No stops assigned to this trekking sheet.")
                     .FontSize(8f)
                     .FontColor(MutedText);
-                return;
+            }
+            else
+            {
+                for (var i = 0; i < sortedStops.Count; i++)
+                {
+                    col.Item().Element(c => ComposeStop(c, sortedStops[i]));
+                    if (i < sortedStops.Count - 1)
+                        col.Item().PaddingVertical(4).LineHorizontal(1.5f).LineColor(PrimaryColor);
+                }
             }
 
-            for (var i = 0; i < sortedStops.Count; i++)
+            // Signature block and terms appear once, after the last stop
+            col.Item().PaddingTop(12).Element(ComposeSignatureBlock);
+        });
+    }
+
+    private static void ComposeSignatureBlock(IContainer container)
+    {
+        container.Column(col =>
+        {
+            col.Spacing(5);
+
+            col.Item()
+                .Background(CardBg)
+                .Border(0.5f).BorderColor(CardBorder)
+                .PaddingHorizontal(10).PaddingVertical(7)
+                .Row(row =>
+                {
+                    row.RelativeItem(4)
+                        .Text("Driver Signature: ___________________________")
+                        .FontSize(6.8f).FontColor(TextColor);
+
+                    row.RelativeItem(4)
+                        .Text("Supervisor Sign-off: ___________________________")
+                        .FontSize(6.8f).FontColor(TextColor);
+
+                    row.RelativeItem(3).AlignRight()
+                        .Text("Date: __________________")
+                        .FontSize(6.8f).FontColor(TextColor);
+                });
+
+            col.Item().Column(termsCol =>
             {
-                col.Item().Element(c => ComposeStop(c, sortedStops[i]));
-                if (i < sortedStops.Count - 1)
-                    col.Item().PaddingVertical(4).LineHorizontal(1.5f).LineColor(PrimaryColor);
-            }
+                termsCol.Spacing(1);
+
+                termsCol.Item()
+                    .Text("Terms & Conditions:")
+                    .FontSize(6.5f).SemiBold().FontColor(LabelColor);
+
+                termsCol.Item()
+                    .Text("All goods and medical supplies must be inspected upon delivery. Delivered quantities, payment receipts, and customer endorsements must be confirmed before departure. Discrepancies must be recorded immediately in the notes column.")
+                    .FontSize(5.8f).FontColor(MutedText);
+            });
         });
     }
 
@@ -445,65 +489,25 @@ public static class TrekkingSheetPdfGenerator
         cell.Text(text).FontSize(7.5f).FontColor(TextColor);
     }
 
-    // ── Footer: Signature Box & Terms (Directly matching delivery note reference)
+    // ── Footer: Page number only — repeats on every page ─────────────────────
 
     private static void ComposeFooter(IContainer container)
     {
-        container.Column(col =>
+        container.PaddingTop(4).Row(row =>
         {
-            col.Spacing(5);
+            row.RelativeItem()
+                .Text("Proh Pharmacy Logistics Management System")
+                .FontSize(5.8f).FontColor(MutedText);
 
-            // Flat Signature Card (Matching bottom signature card of the reference)
-            col.Item()
-                .Background(CardBg)
-                .Border(0.5f).BorderColor(CardBorder)
-                .PaddingHorizontal(10).PaddingVertical(7)
-                .Row(row =>
+            row.ConstantItem(180).AlignRight()
+                .Text(text =>
                 {
-                    row.RelativeItem(4)
-                        .Text("Driver Signature: ___________________________")
-                        .FontSize(6.8f).FontColor(TextColor);
-
-                    row.RelativeItem(4)
-                        .Text("Supervisor Sign-off: ___________________________")
-                        .FontSize(6.8f).FontColor(TextColor);
-
-                    row.RelativeItem(3).AlignRight()
-                        .Text("Date: __________________")
-                        .FontSize(6.8f).FontColor(TextColor);
+                    text.Span("Page ").FontSize(5.8f).FontColor(MutedText);
+                    text.CurrentPageNumber().FontSize(5.8f).FontColor(MutedText);
+                    text.Span(" of ").FontSize(5.8f).FontColor(MutedText);
+                    text.TotalPages().FontSize(5.8f).FontColor(MutedText);
+                    text.Span($"  •  {DateTime.UtcNow:dd MMM yyyy HH:mm} UTC").FontSize(5.8f).FontColor(MutedText);
                 });
-
-            // Terms & Conditions note in gentle muted gray
-            col.Item().Column(termsCol =>
-            {
-                termsCol.Spacing(1);
-
-                termsCol.Item()
-                    .Text("Terms & Conditions:")
-                    .FontSize(6.5f).SemiBold().FontColor(LabelColor);
-
-                termsCol.Item()
-                    .Text("All goods and medical supplies must be inspected upon delivery. Delivered quantities, payment receipts, and customer endorsements must be confirmed before departure. Discrepancies must be recorded immediately in the notes column.")
-                    .FontSize(5.8f).FontColor(MutedText);
-            });
-
-            // Bottom metadata line
-            col.Item().PaddingTop(2).Row(row =>
-            {
-                row.RelativeItem()
-                    .Text("Proh Pharmacy Logistics Management System")
-                    .FontSize(5.8f).FontColor(MutedText);
-
-                row.ConstantItem(180).AlignRight()
-                    .Text(text =>
-                    {
-                        text.Span("Page ").FontSize(5.8f).FontColor(MutedText);
-                        text.CurrentPageNumber().FontSize(5.8f).FontColor(MutedText);
-                        text.Span(" of ").FontSize(5.8f).FontColor(MutedText);
-                        text.TotalPages().FontSize(5.8f).FontColor(MutedText);
-                        text.Span($"  •  {DateTime.UtcNow:dd MMM yyyy HH:mm} UTC").FontSize(5.8f).FontColor(MutedText);
-                    });
-            });
         });
     }
 }

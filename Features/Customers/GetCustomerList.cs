@@ -60,7 +60,7 @@ public static class GetCustomerList
                 .WithSearch(request.Search, nameof(CustomerAccount.BusinessName),
                     nameof(CustomerAccount.CustomerCode),
                     nameof(CustomerAccount.PrimaryPhoneNumber))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(a => CreateCustomer.Handler.ToResponse(
                     a,

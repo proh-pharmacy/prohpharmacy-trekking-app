@@ -36,7 +36,7 @@ public static class GetRegionList
 
             var result = await new QueryBuilder<Entities.Region>(query)
                 .WithSearch(request.Search, nameof(Entities.Region.Name), nameof(Entities.Region.Code))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "name_asc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(r => (object)ToResponse(r));
 

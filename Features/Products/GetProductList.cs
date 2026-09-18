@@ -39,7 +39,7 @@ public static class GetProductList
 
             var result = await new QueryBuilder<Entities.Product>(query)
                 .WithSearch(request.Search, nameof(Entities.Product.Name))
-                .WithSort(request.Sort)
+                .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
                 .BuildAsync(p => (object)CreateProduct.Handler.ToResponse(p, p.BasicUnit.Name, p.PackagingUnit?.Name));
 
