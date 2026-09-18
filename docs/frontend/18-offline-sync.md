@@ -40,6 +40,7 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Record a product return at a stop |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
+| `POST` | `api/v1/treks/driver/{token}/complete` | Mark the trek as completed (triggers ledger sync) |
 | `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
 | `GET` | `api/v1/treks/driver/{token}/device` | Last known device position, battery, speed, motion |
 | `POST` | `api/v1/treks/driver/{token}/location` | Report current GPS location to Traccar |
@@ -319,6 +320,40 @@ Record a product return at a stop. The returned product does not have to be from
 Void a return. Not allowed on Completed or Cancelled treks.
 
 **Response `204 No Content`**
+
+---
+
+## Completing the Trek
+
+### POST /api/v1/treks/driver/{token}/complete
+
+Marks the trek as `Completed` and runs the full ledger sync in a single transaction:
+- **Credit** entries for each payment group across all stops (`amtPaid > 0`)
+- **Debit** entries for outstanding balances (`balance > 0`)
+- **Debit** entries for product return refunds (`refundAmount > 0`)
+
+No request body. The response is the full `TrekResponse`.
+
+**Guards:**
+- Trek must be `InProgress` — returns `422` if already `Completed` or `Cancelled`, or if it hasn't been started yet
+- Only the driver's own assigned trek can be completed via this endpoint
+
+**Recommended flow:** push a final batch sync first to flush any queued offline actions, then call this endpoint.
+
+```js
+async function finishTrek() {
+  await syncOfflineQueue();   // flush any pending actions first
+  const res = await fetch(`/api/v1/treks/driver/${token}/complete`, { method: 'POST' });
+  if (!res.ok) {
+    const err = await res.json();
+    alert(err.message);
+    return;
+  }
+  // Trek is now locked — redirect driver to summary screen
+}
+```
+
+**Errors:** `422` if the trek is not `InProgress`.
 
 ---
 

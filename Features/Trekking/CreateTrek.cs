@@ -173,7 +173,7 @@ public static class CreateTrek
                 salesStaffName = salesStaff.FullName;
             }
 
-            var seq = await _db.Database.SqlQueryRaw<long>("SELECT nextval('\"TrekNumberSequence\"')").FirstAsync(cancellationToken);
+            var seq = await _db.Database.SqlQueryRaw<long>("SELECT nextval('\"TrekNumberSequence\"') AS \"Value\"").FirstAsync(cancellationToken);
             var trekNumber = $"TRK-{seq:D5}";
 
             var trip = new TrekkingTrip
