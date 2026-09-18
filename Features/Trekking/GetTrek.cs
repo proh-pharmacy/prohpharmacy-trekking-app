@@ -113,6 +113,7 @@ public static class GetTrek
                     PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                     BasicQtyDelivered = p.BasicQtyDelivered,
                     PackagingQtyDelivered = p.PackagingQtyDelivered,
+                    AmountDue = p.AmountDue,
                     PaymentMethod = p.PaymentMethod?.ToString(),
                     AmtPaid = p.AmtPaid,
                     Balance = p.Balance,

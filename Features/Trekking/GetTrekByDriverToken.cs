@@ -64,6 +64,7 @@ public static class GetTrekByDriverToken
         public decimal? PlannedPackagingQuantity { get; set; }
         public decimal? BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
+        public decimal? AmountDue { get; set; }
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }
@@ -178,6 +179,7 @@ public static class GetTrekByDriverToken
                             PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                             BasicQtyDelivered = p.BasicQtyDelivered,
                             PackagingQtyDelivered = p.PackagingQtyDelivered,
+                            AmountDue = p.AmountDue,
                             PaymentMethod = p.PaymentMethod?.ToString(),
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,

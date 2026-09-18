@@ -15,6 +15,7 @@ public class TrekkingTripStopProduct
     public decimal? BasicQtyDelivered { get; set; }
     public decimal? PackagingQtyDelivered { get; set; }
     public PaymentMethod? PaymentMethod { get; set; }
+    public decimal? AmountDue { get; set; }
     public decimal? AmtPaid { get; set; }
     public decimal? Balance { get; set; }
     public bool IsUnplanned { get; set; }

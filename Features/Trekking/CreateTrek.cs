@@ -82,6 +82,7 @@ public static class CreateTrek
         public decimal? PlannedPackagingQuantity { get; set; }
         public decimal? BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
+        public decimal? AmountDue { get; set; }
         public string? PaymentMethod { get; set; }
         public decimal? AmtPaid { get; set; }
         public decimal? Balance { get; set; }

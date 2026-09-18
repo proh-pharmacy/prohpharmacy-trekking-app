@@ -97,13 +97,18 @@ public static class AddTrekStop
             {
                 if (!productDict.TryGetValue(input.ProductId, out var product)) continue;
                 var hasPackaging = product.PackagingUnitId.HasValue;
+                var basicQty = input.PlannedBasicQuantity ?? 0;
+                var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
+                var basicPrice = product.BasicUnitPrice;
+                var packagingPrice = hasPackaging ? product.PackagingUnitPrice : null;
                 stopProducts.Add(new TrekkingTripStopProduct
                 {
                     ProductId = input.ProductId,
-                    PlannedBasicQuantity = input.PlannedBasicQuantity ?? 0,
-                    PlannedPackagingQuantity = hasPackaging ? input.PlannedPackagingQuantity : null,
-                    BasicUnitPrice = product.BasicUnitPrice,
-                    PackagingUnitPrice = hasPackaging ? product.PackagingUnitPrice : null
+                    PlannedBasicQuantity = basicQty,
+                    PlannedPackagingQuantity = packagingQty,
+                    BasicUnitPrice = basicPrice,
+                    PackagingUnitPrice = packagingPrice,
+                    AmountDue = basicQty * basicPrice + (packagingQty ?? 0) * (packagingPrice ?? 0)
                 });
             }
 
@@ -156,6 +161,7 @@ public static class AddTrekStop
                         PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                         BasicQtyDelivered = p.BasicQtyDelivered,
                         PackagingQtyDelivered = p.PackagingQtyDelivered,
+                        AmountDue = p.AmountDue,
                         PaymentMethod = p.PaymentMethod?.ToString(),
                         AmtPaid = p.AmtPaid,
                         Balance = p.Balance,
