@@ -52,14 +52,14 @@ public static class SyncDevicesToTraccar
                 // 3. Delete any Traccar device with no matching local UniqueId (true orphans)
 
                 var allTraccar = await _traccar.GetAllDevicesAsync(cancellationToken);
-                var traccarByUniqueId = allTraccar.ToDictionary(d => d.UniqueId, d => d.Id);
+                var traccarByUniqueId = allTraccar.ToDictionary(d => d.UniqueId, d => d);
                 var knownTraccarIds = new HashSet<int>();
 
                 foreach (var device in devices)
                 {
-                    if (traccarByUniqueId.TryGetValue(device.TraccarUniqueId, out var existingTraccarId))
+                    if (traccarByUniqueId.TryGetValue(device.TraccarUniqueId, out var existing))
                     {
-                        // Already in Traccar — just ensure local ID is correct
+                        var existingTraccarId = existing.Id;
                         knownTraccarIds.Add(existingTraccarId);
 
                         if (device.TraccarDeviceId != existingTraccarId)
@@ -71,7 +71,17 @@ public static class SyncDevicesToTraccar
                                 device.Id, device.Name, existingTraccarId);
                         }
 
-                        response.AlreadySynced++;
+                        if (existing.Name != device.Name)
+                        {
+                            _ = _traccar.UpdateDeviceAsync(existingTraccarId, device.Name, cancellationToken);
+                            _logger.LogInformation("Device #{TraccarId} renamed from '{OldName}' to '{NewName}'",
+                                existingTraccarId, existing.Name, device.Name);
+                            response.Synced++;
+                        }
+                        else
+                        {
+                            response.AlreadySynced++;
+                        }
                     }
                     else
                     {
