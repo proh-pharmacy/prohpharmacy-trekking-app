@@ -162,8 +162,6 @@ Content-Type: application/json
 
 ## 4. Update a Staff Member
 
-Cannot update `emailAddress` or `joinedOn` after creation.
-
 ```http
 PATCH /api/v1/staff/{id}
 Authorization: Bearer <token>
@@ -173,14 +171,23 @@ Content-Type: application/json
   "firstName": "Kwame",
   "lastName": "Asante",
   "phoneNumber": "+233209999999",
+  "emailAddress": "kwame.asante@prohpharmacy.com",
   "branchId": "<branch-guid>",
   "role": "FieldStaff"
 }
 ```
 
-- All fields are **required** in the update payload
-- `role` is optional — omit to keep the current role
+| Field | Required | Notes |
+|---|---|---|
+| `firstName` | Yes | Max 80 chars |
+| `lastName` | Yes | Max 80 chars |
+| `phoneNumber` | Yes | Max 30 chars |
+| `emailAddress` | No | Omit to keep the current email. When provided, updates both the staff record and their app login account. Must be a valid email and unique across all staff |
+| `branchId` | Yes | Must exist |
+| `role` | No | Omit to keep the current role. Must match an existing system role |
+
 - Returns `422` if trying to update an `Offboarded` staff member
+- Returns `422` if `emailAddress` is already in use by another staff member
 
 ---
 

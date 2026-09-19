@@ -1,5 +1,7 @@
 using System.Text.Json.Serialization;
 using Carter;
+using Hangfire;
+using Hangfire.PostgreSql;
 using Serilog;
 using FluentValidation;
 using Microsoft.AspNetCore.HttpOverrides;
@@ -11,6 +13,7 @@ using prohpharmacy_trekking_app.Features.Organisation.Seeding;
 using prohpharmacy_trekking_app.Hubs;
 using prohpharmacy_trekking_app.Services.Email;
 using prohpharmacy_trekking_app.Services.ImageKit;
+using prohpharmacy_trekking_app.Services.Jobs;
 using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
@@ -77,6 +80,19 @@ builder.Services.Configure<Microsoft.AspNetCore.Http.Json.JsonOptions>(options =
 
 // ─── Email ────────────────────────────────────────────────────────────────────
 builder.Services.AddEmailServices(builder.Configuration);
+
+// ─── Hangfire ─────────────────────────────────────────────────────────────────
+var hangfireConn = builder.Configuration.GetConnectionString("DefaultConnection")!;
+builder.Services.AddHangfire(cfg => cfg
+    .SetDataCompatibilityLevel(CompatibilityLevel.Version_180)
+    .UseSimpleAssemblyNameTypeSerializer()
+    .UseRecommendedSerializerSettings()
+    .UsePostgreSqlStorage(o => o.UseNpgsqlConnection(hangfireConn), new PostgreSqlStorageOptions
+    {
+        SchemaName = "hangfire"
+    }));
+builder.Services.AddHangfireServer();
+builder.Services.AddScoped<TrekEmailJob>();
 
 // ─── ImageKit ─────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<ImageKitService>();
@@ -148,6 +164,9 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseAuthorization();
+
+// ─── Hangfire Dashboard ───────────────────────────────────────────────────────
+app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [] });
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 app.MapCarter();

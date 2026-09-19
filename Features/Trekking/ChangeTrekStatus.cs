@@ -1,5 +1,6 @@
 using Carter;
 using FluentValidation;
+using Hangfire;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
@@ -7,6 +8,7 @@ using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Ledger.Entities;
 using prohpharmacy_trekking_app.Features.Ledger.Enums;
 using prohpharmacy_trekking_app.Features.Trekking.Enums;
+using prohpharmacy_trekking_app.Services.Jobs;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Trekking.CreateTrek;
 
@@ -32,11 +34,13 @@ public static class ChangeTrekStatus
     {
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
+        private readonly IBackgroundJobClient _jobs;
 
-        public Handler(AppDbContext db, IValidator<Command> validator)
+        public Handler(AppDbContext db, IValidator<Command> validator, IBackgroundJobClient jobs)
         {
             _db = db;
             _validator = validator;
+            _jobs = jobs;
         }
 
         public async Task<Result<TrekResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -66,13 +70,18 @@ public static class ChangeTrekStatus
                 trip.Status = request.Status;
                 trip.UpdatedAt = DateTime.UtcNow;
 
-                if (request.Status == TrekStatus.Completed)
+                if (request.Status == TrekStatus.InProgress)
+                    trip.DriverToken ??= Guid.NewGuid();
+                else if (request.Status == TrekStatus.Completed)
                     await SyncLedgerOnCompletionAsync(trip, cancellationToken);
                 else if (request.Status == TrekStatus.Cancelled)
                     await ClearTrekLedgerEntriesAsync(trip.Id, cancellationToken);
 
                 await _db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
+
+                if (request.Status == TrekStatus.InProgress)
+                    _jobs.Enqueue<TrekEmailJob>(j => j.SendTrekStartEmailsAsync(trip.Id, trip.DriverToken!.Value));
 
                 return Result.Success(CreateTrek.Handler.ToResponse(
                     trip,

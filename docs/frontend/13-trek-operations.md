@@ -7,14 +7,18 @@ Trek operations covers the day-to-day execution of a trekking route — from pla
 ### The full flow
 
 ```
-Admin creates trek → adds stops → sends email / shares driver link
+Admin creates trek (Draft) → adds stops → schedules trek (Scheduled)
+        ↓
+Admin marks trek InProgress → email + driver link auto-sent to Driver and SalesStaff
         ↓
 Driver opens link (no login) → sees route → records deliveries stop by stop
         ↓
 Admin marks trek Completed → ledger auto-updated per customer
         ↓
-Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
+Admin downloads delivery sheet PDF or prints per-customer receipt
 ```
+
+Draft and Scheduled treks can be deleted at any time. Once a trek is InProgress the driver has an active link and the trek cannot be deleted.
 
 ---
 
@@ -29,9 +33,10 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `POST` | `api/v1/treks/{id}/stops` | Required | Add a customer stop |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}` | Required | Update stop sequence, notes, or products |
 | `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}` | Required | Remove a stop |
-| `PATCH` | `api/v1/treks/{id}/status` | Required | Change trek status |
+| `PATCH` | `api/v1/treks/{id}/status` | Required | Change trek status (InProgress auto-emails driver) |
+| `DELETE` | `api/v1/treks/{id}` | Required | Delete trek (Draft/Scheduled only) |
 | `POST` | `api/v1/treks/{id}/generate-link` | Required | Generate driver token URL |
-| `POST` | `api/v1/treks/{id}/send-email` | Required | Email sheet + link to staff |
+| `POST` | `api/v1/treks/{id}/send-email` | Required | Resend sheet + link to staff |
 | `POST` | `api/v1/treks/{id}/record` | Required | Admin records delivery results |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Required | Override snapshotted price on a stop product |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Required | Re-sync all stop product prices from the current catalog |
@@ -257,12 +262,13 @@ At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0
 
 ## PATCH /api/v1/treks/{trekId}/stops/{stopId}
 
-Updates a stop's sequence position, notes, or product list. If `products` is omitted the existing product lines are left untouched. If `products` is provided it replaces all existing products and re-snapshots prices from the current product catalogue.
+Updates a stop's customer, sequence, notes, or product list. All fields are optional — send only what you want to change.
 
 ### Request body
 
 ```json
 {
+  "customerAccountId": "<customer-guid>",
   "sequence": 2,
   "notes": "Updated delivery notes",
   "products": [
@@ -277,17 +283,20 @@ Updates a stop's sequence position, notes, or product list. If `products` is omi
 
 | Field | Required | Constraints |
 |---|---|---|
+| `customerAccountId` | No | If provided and different from the current customer, swaps the customer and clears all existing products |
 | `sequence` | No | > 0 |
 | `notes` | No | Max 500 chars |
-| `products` | No | If provided, must be non-empty; at least one qty > 0 per product |
+| `products` | No | If provided, must be non-empty; at least one qty > 0 per product; replaces the entire product list |
 | `products[].productId` | Yes (if products provided) | Must exist |
 | `products[].plannedBasicQuantity` | No | >= 0 when provided |
 | `products[].plannedPackagingQuantity` | No | >= 0 when provided |
 
+**Customer swap behaviour:** when `customerAccountId` is provided and differs from the current customer, the stop is reassigned to the new customer and all existing products are cleared. You can provide `products` in the same call to populate the new product list immediately, or add them separately afterwards.
+
 ### Response `200 OK` — same `TrekStopResponse` shape as `POST /api/v1/treks/{trekId}/stops`
 
 ### Errors
-- `404` — trek or stop not found
+- `404` — trek, stop, or customer not found
 - `422` — validation error or product not found
 
 ---
@@ -313,11 +322,29 @@ Changes the trek status. No restrictions on transitions — the frontend control
 { "status": "InProgress" }
 ```
 
+**When transitioning to `InProgress`:** the backend automatically generates the driver token (if not already set) and emails the trek sheet PDF + driver link to the assigned Driver and SalesStaff (if present). No extra call needed — it happens as part of this status change.
+
 ### Response `200 OK` — full `TrekResponse`
 
 ### Errors
 - `404` — trek not found
 - `422` — invalid status value
+
+---
+
+## DELETE /api/v1/treks/{id}
+
+Permanently deletes a trek. Only allowed for treks in `Draft` or `Scheduled` status. Once a trek reaches `InProgress`, the driver has an active link and the trek cannot be deleted.
+
+Cascades to all child records — stops, stop products, and returns are all removed.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — trek not found
+- `422` — trek is not `Draft` or `Scheduled`
+
+> **Frontend guidance:** only show the delete button (or enable it) when `status === 'Draft' || status === 'Scheduled'`. Hide or disable it for `InProgress`, `Completed`, and `Cancelled` treks.
 
 ---
 
@@ -343,7 +370,7 @@ Generates a permanent token-based URL for the driver. The token is stable — ca
 
 ## POST /api/v1/treks/{id}/send-email
 
-Sends the trekking sheet PDF + driver link to one or more staff members by email. Generates the driver token automatically if not yet created.
+Resends the trekking sheet PDF + driver link to one or more staff members by email. The email is sent automatically to the Driver and SalesStaff when the trek transitions to `InProgress` — use this endpoint only for manual resends (e.g., the driver lost their link). Generates the driver token automatically if not yet set.
 
 ### Request body
 

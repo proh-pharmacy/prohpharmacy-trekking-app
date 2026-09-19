@@ -15,8 +15,9 @@
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Override snapshotted price on a stop product | Required |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Re-sync all stop product prices from the current catalog | Required |
 | `GET` | `api/v1/treks/{trekId}/price-diff` | Get price differences between trek and current catalog | Required |
+| `DELETE` | `api/v1/treks/{id}` | Delete a trek (Draft/Scheduled only) | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
-| `POST` | `api/v1/treks/{id}/send-email` | Email trek sheet to staff | Required |
+| `POST` | `api/v1/treks/{id}/send-email` | Resend trek sheet email to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
 | `GET` | `api/v1/treks/driver/{token}` | Get trek via driver token | None |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | Download delivery sheet PDF via driver token | None |
@@ -194,11 +195,25 @@ Returns the trek with all stops and their products fully populated.
 
 Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 
+**When transitioning to `InProgress`:** the backend automatically generates the driver token (if one doesn't already exist) and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). No extra call is needed — the email fires as part of the status change.
+
 ### Response `200 OK` — `TrekResponse`
 
 ### Errors
 - `404` — trek not found
 - `422` — invalid status value
+
+---
+
+## DELETE /api/v1/treks/{id}
+
+Permanently deletes a trek and all its stops, stop products, and return records. Only allowed when the trek is in `Draft` or `Scheduled` status — treks that are `InProgress`, `Completed`, or `Cancelled` cannot be deleted.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — trek not found
+- `422` — trek is not in Draft or Scheduled status
 
 ---
 
@@ -294,12 +309,13 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
 
 ## PATCH /api/v1/treks/{trekId}/stops/{stopId}
 
-Updates a stop's sequence position, notes, or product list. If `products` is omitted the existing product lines are left untouched. If `products` is provided it replaces all existing products for that stop and re-snapshots prices from the current product catalogue.
+Updates a stop's customer, sequence, notes, or product list. All fields are optional.
 
 ### Request body
 
 ```json
 {
+  "customerAccountId": "<customer-guid>",
   "sequence": 2,
   "notes": "Updated delivery notes",
   "products": [
@@ -314,6 +330,7 @@ Updates a stop's sequence position, notes, or product list. If `products` is omi
 
 | Field | Required | Constraints |
 |---|---|---|
+| `customerAccountId` | No | Swaps the customer and clears existing products when provided and different from the current customer |
 | `sequence` | No | > 0 |
 | `notes` | No | Max 500 chars |
 | `products` | No | If provided, must be non-empty; at least one qty > 0 per product |
@@ -324,7 +341,7 @@ Updates a stop's sequence position, notes, or product list. If `products` is omi
 ### Response `200 OK` — same `TrekStopResponse` shape as `POST /api/v1/treks/{trekId}/stops`
 
 ### Errors
-- `404` — trek or stop not found
+- `404` — trek, stop, or customer not found
 - `422` — validation error or product not found
 
 ---
@@ -559,7 +576,7 @@ Same as `POST /api/v1/treks/{id}/record`
 
 ## POST /api/v1/treks/{id}/send-email
 
-Emails the trek sheet (with PDF attachment and driver form link) to one or more staff members. Auto-generates the driver token if one does not yet exist.
+Resends the trek sheet (with PDF attachment and driver form link) to one or more staff members. Use this for manual resends — for example when a driver loses their link. The email is sent automatically to the assigned driver and sales staff when the trek transitions to `InProgress`; this endpoint is only needed beyond that.
 
 ### Request body
 

@@ -16,6 +16,7 @@ public static class UpdateTrekStop
     {
         public Guid TrekId { get; set; }
         public Guid StopId { get; set; }
+        public Guid? CustomerAccountId { get; set; }
         public int? Sequence { get; set; }
         public string? Notes { get; set; }
         public List<AddTrekStop.StopProductInput>? Products { get; set; }
@@ -78,7 +79,25 @@ public static class UpdateTrekStop
             if (request.Notes is not null)
                 stop.Notes = request.Notes.Trim();
 
+            Customers.Entities.CustomerAccount? newCustomer = null;
+            if (request.CustomerAccountId.HasValue && request.CustomerAccountId.Value != stop.CustomerAccountId)
+            {
+                newCustomer = await db.CustomerAccounts
+                    .Include(ca => ca.Region)
+                    .Include(ca => ca.Locations.Where(l => l.IsPrimary))
+                        .ThenInclude(l => l.District)
+                    .Include(ca => ca.People.Where(p => p.IsPrimaryContact && p.IsActive))
+                    .FirstOrDefaultAsync(ca => ca.Id == request.CustomerAccountId.Value, cancellationToken);
+
+                if (newCustomer is null)
+                    return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError("Customer account not found."));
+
+                stop.CustomerAccountId = newCustomer.Id;
+                db.TrekkingTripStopProducts.RemoveRange(stop.Products.ToList());
+            }
+
             Dictionary<Guid, Products.Entities.Product> productDict = [];
+            List<TrekkingTripStopProduct> productsForResponse;
 
             if (request.Products is not null)
             {
@@ -95,50 +114,66 @@ public static class UpdateTrekStop
 
                 productDict = products.ToDictionary(p => p.Id);
 
-                db.TrekkingTripStopProducts.RemoveRange(stop.Products);
+                if (newCustomer is null)
+                    db.TrekkingTripStopProducts.RemoveRange(stop.Products.ToList());
 
-                stop.Products = request.Products.Select(input =>
+                var newProducts = request.Products.Select(input =>
                 {
                     productDict.TryGetValue(input.ProductId, out var product);
                     var hasPackaging = product?.PackagingUnitId.HasValue ?? false;
+                    var basicQty = input.PlannedBasicQuantity ?? 0;
+                    var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
+                    var basicPrice = product?.BasicUnitPrice ?? 0;
+                    var packagingPrice = hasPackaging ? product?.PackagingUnitPrice : null;
                     return new TrekkingTripStopProduct
                     {
+                        TrekkingTripStopId = stop.Id,
                         ProductId = input.ProductId,
-                        PlannedBasicQuantity = input.PlannedBasicQuantity ?? 0,
-                        PlannedPackagingQuantity = hasPackaging ? input.PlannedPackagingQuantity : null,
-                        BasicUnitPrice = product?.BasicUnitPrice ?? 0,
-                        PackagingUnitPrice = hasPackaging ? product?.PackagingUnitPrice : null
+                        PlannedBasicQuantity = basicQty,
+                        PlannedPackagingQuantity = packagingQty,
+                        BasicUnitPrice = basicPrice,
+                        PackagingUnitPrice = packagingPrice,
+                        AmountDue = basicQty * basicPrice + (packagingQty ?? 0) * (packagingPrice ?? 0)
                     };
                 }).ToList();
+
+                db.TrekkingTripStopProducts.AddRange(newProducts);
+                productsForResponse = newProducts;
+            }
+            else if (newCustomer is not null)
+            {
+                productsForResponse = [];
             }
             else
             {
                 foreach (var p in stop.Products)
                     productDict.TryAdd(p.ProductId, p.Product);
+                productsForResponse = stop.Products.ToList();
             }
 
             await db.SaveChangesAsync(cancellationToken);
 
-            var primaryLocation = stop.CustomerAccount?.Locations.FirstOrDefault();
-            var primaryContact = stop.CustomerAccount?.People.FirstOrDefault();
+            var customer = newCustomer ?? stop.CustomerAccount;
+            var primaryLocation = (newCustomer?.Locations ?? stop.CustomerAccount?.Locations)?.FirstOrDefault();
+            var primaryContact = (newCustomer?.People ?? stop.CustomerAccount?.People)?.FirstOrDefault();
 
             return Result.Success(new TrekStopResponse
             {
                 StopId = stop.Id,
                 Sequence = stop.Sequence,
                 CustomerAccountId = stop.CustomerAccountId,
-                CustomerName = stop.CustomerAccount?.BusinessName ?? string.Empty,
-                CustomerCode = stop.CustomerAccount?.CustomerCode ?? string.Empty,
-                CustomerPhone = stop.CustomerAccount?.PrimaryPhoneNumber,
-                CustomerType = stop.CustomerAccount?.CustomerType.ToString(),
-                RegionName = stop.CustomerAccount?.Region?.Name,
+                CustomerName = customer?.BusinessName ?? string.Empty,
+                CustomerCode = customer?.CustomerCode ?? string.Empty,
+                CustomerPhone = customer?.PrimaryPhoneNumber,
+                CustomerType = customer?.CustomerType.ToString(),
+                RegionName = customer?.Region?.Name,
                 DistrictName = primaryLocation?.District?.Name,
                 PrimaryLocationLandmark = primaryLocation?.LandmarkAndDirections,
                 PrimaryLocationStreet = primaryLocation?.StreetAddress,
                 PrimaryContactName = primaryContact?.FullName,
                 PrimaryContactPhone = primaryContact?.PrimaryPhoneNumber,
                 Notes = stop.Notes,
-                Products = stop.Products.Select(p =>
+                Products = productsForResponse.Select(p =>
                 {
                     productDict.TryGetValue(p.ProductId, out var prod);
                     return new TrekStopProductResponse
@@ -154,9 +189,11 @@ public static class UpdateTrekStop
                         PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                         BasicQtyDelivered = p.BasicQtyDelivered,
                         PackagingQtyDelivered = p.PackagingQtyDelivered,
+                        AmountDue = p.AmountDue,
                         PaymentMethod = p.PaymentMethod?.ToString(),
                         AmtPaid = p.AmtPaid,
                         Balance = p.Balance,
+                        IsUnplanned = p.IsUnplanned,
                         Notes = p.Notes,
                         DeliveredAt = p.DeliveredAt
                     };
@@ -186,7 +223,7 @@ public class UpdateTrekStopEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Update a trek stop")
-        .WithDescription("Update the sequence, notes, or product list for an existing stop. If products is provided, it replaces the entire product list and re-snapshots prices. Omit products to leave them unchanged.")
+        .WithDescription("Update the sequence, notes, customer, or product list for an existing stop. If customerAccountId is provided and differs from the current customer, the customer is swapped and all existing products are cleared. If products is provided, it replaces the entire product list and re-snapshots prices. Omit products to leave them unchanged.")
         .Produces<TrekStopResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

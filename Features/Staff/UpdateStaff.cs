@@ -17,6 +17,7 @@ public static class UpdateStaff
         public string FirstName { get; set; } = string.Empty;
         public string LastName { get; set; } = string.Empty;
         public string PhoneNumber { get; set; } = string.Empty;
+        public string? EmailAddress { get; set; }
         public string? Role { get; set; }
         public Guid BranchId { get; set; }
     }
@@ -28,6 +29,7 @@ public static class UpdateStaff
             RuleFor(x => x.FirstName).NotEmpty().MaximumLength(80);
             RuleFor(x => x.LastName).NotEmpty().MaximumLength(80);
             RuleFor(x => x.PhoneNumber).NotEmpty().MaximumLength(30);
+            RuleFor(x => x.EmailAddress).NotEmpty().EmailAddress().MaximumLength(200).When(x => x.EmailAddress is not null);
             RuleFor(x => x.Role).NotEmpty().MaximumLength(60).When(x => x.Role is not null);
             RuleFor(x => x.BranchId).NotEmpty();
         }
@@ -74,6 +76,19 @@ public static class UpdateStaff
                 staff.Role = role.Name;
             }
 
+            if (request.EmailAddress is not null)
+            {
+                var newEmail = request.EmailAddress.Trim().ToLower();
+                var taken = await _db.StaffMembers
+                    .AnyAsync(s => s.Id != request.Id && s.EmailAddress.ToLower() == newEmail, cancellationToken);
+                if (taken)
+                    return Result.Failure<StaffResponse>(Error.Conflict("A staff member with this email address already exists."));
+
+                staff.EmailAddress = newEmail;
+                if (staff.ApplicationUser is not null)
+                    staff.ApplicationUser.Email = newEmail;
+            }
+
             staff.FirstName = request.FirstName.Trim();
             staff.LastName = request.LastName.Trim();
             staff.PhoneNumber = request.PhoneNumber.Trim();
@@ -103,7 +118,7 @@ public class UpdateStaffEndpoint : ICarterModule
         .WithTags("Staff")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Staff)
         .WithSummary("Update a staff member")
-        .WithDescription("Updates staff details. `role` must match an existing system role.")
+        .WithDescription("Updates staff details. `role` must match an existing system role. `emailAddress` is optional — when provided it updates both the staff record and their app login account.")
         .Produces<StaffResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
