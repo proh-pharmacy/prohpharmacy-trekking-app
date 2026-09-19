@@ -31,7 +31,9 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | Method | Endpoint | Purpose |
 |---|---|---|
 | `GET` | `api/v1/treks/driver/{token}` | Driver's assigned trek (existing) |
+| `GET` | `api/v1/treks/driver/{token}/assigned` | All active treks assigned to this driver |
 | `GET` | `api/v1/treks/driver/{token}/region/treks` | All active treks in the region |
+| `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/generate-token` | Get or generate a token for another trek |
 | `GET` | `api/v1/treks/driver/{token}/offline/products` | Product catalogue seed (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/customers` | Customers in the region seed (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/trek` | Full assigned trek with stops + returns (supports `?since=`) |
@@ -81,6 +83,65 @@ All active (`Scheduled` or `InProgress`) treks in the same region.
   }
 ]
 ```
+
+### GET /api/v1/treks/driver/{token}/assigned
+
+Returns all `Scheduled` and `InProgress` treks where this driver is the assigned driver — across all regions. Use this to power the **"My Treks"** tab alongside the existing `GET .../region/treks` **"Region Treks"** tab.
+
+**Response `200 OK`** — same shape as `GET .../region/treks`:
+
+```json
+[
+  {
+    "trekId": "...",
+    "trekNumber": "TRK-00042",
+    "scheduledDate": "2026-09-19",
+    "status": "InProgress",
+    "driverName": "Kwame Asante",
+    "salesStaffName": null,
+    "regionName": "Greater Accra Region",
+    "stopsCount": 8
+  }
+]
+```
+
+---
+
+### POST /api/v1/treks/driver/{token}/treks/{trekId}/generate-token
+
+Generates (or retrieves the existing) driver token for any trek from either tab. Use this when the driver wants to switch their current working trek.
+
+- If the trek already has a token, the existing token is returned unchanged
+- If no token exists yet, a new one is generated and saved
+- The trek must be assigned to this driver **or** be active in the same region — returns `422` otherwise
+
+**Response `200 OK`**
+
+```json
+{
+  "token": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "url": "https://trekking.prohpharmacy.com/treks/driver?token=3fa85f64-..."
+}
+```
+
+**Frontend switch flow:**
+
+```js
+// Driver taps a trek from either tab
+async function switchTrek(trekId) {
+  const res = await fetch(
+    `/api/v1/treks/driver/${currentToken}/treks/${trekId}/generate-token`,
+    { method: 'POST' }
+  );
+  const { token, url } = await res.json();
+  // Navigate to the new token — this becomes the driver's working context
+  window.location.href = url;
+}
+```
+
+**Errors:**
+- `404` — current token or target trek not found
+- `422` — target trek is not assigned to this driver and not in the same region
 
 ---
 
