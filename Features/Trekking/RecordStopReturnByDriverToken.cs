@@ -97,15 +97,23 @@ public static class RecordStopReturnByDriverToken
 
             var attributedStaffId = trip.SalesStaffId ?? trip.DriverStaffId;
 
+            var basicUnitPrice = product.BasicUnitPrice;
+            var packagingUnitPrice = product.PackagingUnitId.HasValue ? product.PackagingUnitPrice : null;
+            var packagingQtyReturned = product.PackagingUnitId.HasValue ? request.PackagingQtyReturned : null;
+
+            var refundAmount = request.RefundAmount
+                ?? (request.BasicQtyReturned * basicUnitPrice
+                    + (packagingQtyReturned ?? 0) * (packagingUnitPrice ?? 0));
+
             var ret = new TrekkingTripStopReturn
             {
                 TrekkingTripStopId = request.StopId,
                 ProductId = request.ProductId,
                 BasicQtyReturned = request.BasicQtyReturned,
-                PackagingQtyReturned = product.PackagingUnitId.HasValue ? request.PackagingQtyReturned : null,
-                BasicUnitPrice = product.BasicUnitPrice,
-                PackagingUnitPrice = product.PackagingUnitId.HasValue ? product.PackagingUnitPrice : null,
-                RefundAmount = request.RefundAmount,
+                PackagingQtyReturned = packagingQtyReturned,
+                BasicUnitPrice = basicUnitPrice,
+                PackagingUnitPrice = packagingUnitPrice,
+                RefundAmount = refundAmount,
                 RefundMethod = request.RefundMethod,
                 Reason = request.Reason?.Trim(),
                 RecordedByStaffId = attributedStaffId,

@@ -43,6 +43,14 @@ public static class GetTrekkingSheetByDriverToken
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                             .ThenInclude(p => p.PackagingUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
@@ -89,6 +97,19 @@ public static class GetTrekkingSheetByDriverToken
                             AmtPaid = p.AmtPaid,
                             Balance = p.Balance,
                             Notes = p.Notes
+                        }).ToList(),
+                        Returns = s.Returns.Select(r => new TrekkingSheetPdfGenerator.TrekkingSheetData.ReturnData
+                        {
+                            ProductName = r.Product?.Name ?? string.Empty,
+                            BasicUnitName = r.Product?.BasicUnit?.Name,
+                            PackagingUnitName = r.Product?.PackagingUnit?.Name,
+                            BasicUnitPrice = r.BasicUnitPrice,
+                            PackagingUnitPrice = r.PackagingUnitPrice,
+                            BasicQtyReturned = r.BasicQtyReturned,
+                            PackagingQtyReturned = r.PackagingQtyReturned,
+                            RefundAmount = r.RefundAmount,
+                            RefundMethod = r.RefundMethod?.ToString(),
+                            Reason = r.Reason
                         }).ToList()
                     };
                 }).ToList()

@@ -36,6 +36,7 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `GET` | `api/v1/treks/driver/{token}/offline/customers` | Customers in the region seed (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/trek` | Full assigned trek with stops + returns (supports `?since=`) |
 | `POST` | `api/v1/treks/driver/{token}/customers` | Register a new customer from the field |
+| `PATCH` | `api/v1/customers/{id}` *(online only)* | Update an existing customer (requires auth — use `UpdateCustomer` batch action for offline) |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Record a product return at a stop |
@@ -512,11 +513,39 @@ When connectivity returns, push all queued actions in one request. Actions are p
 | `businessName` | Yes | |
 | `primaryPhoneNumber` | Yes | |
 | `customerType` | Yes | |
+| `tradingName` | No | |
+| `whatsAppNumber` | No | |
 | `representative.firstName` | Yes | |
 | `representative.lastName` | Yes | |
+| `representative.middleName` | No | |
 | `representative.relationshipType` | Yes | |
 | `representative.primaryPhoneNumber` | Yes | |
+| `representative.ghanaCardNumber` | No | |
 | `gps` | No | Optional — see GPS section |
+
+**`UpdateCustomer`**
+
+Updates an existing customer's account fields, primary representative, and/or GPS location. Only fields present in the payload are applied — everything else is left unchanged. Naturally idempotent.
+
+| Field | Required | Notes |
+|---|---|---|
+| `customerId` | Yes | Server ID of the customer to update |
+| `businessName` | No | New business name |
+| `tradingName` | No | Send `null` to clear |
+| `primaryPhoneNumber` | No | Returns `Conflict` if the number is already used by another customer |
+| `whatsAppNumber` | No | Send `null` to clear |
+| `customerType` | No | See enum reference in doc 09 |
+| `representative.firstName` | No | |
+| `representative.middleName` | No | Send `null` to clear |
+| `representative.lastName` | No | |
+| `representative.primaryPhoneNumber` | No | |
+| `representative.relationshipType` | No | |
+| `representative.ghanaCardNumber` | No | Send `null` to clear |
+| `gps` | No | Updates the existing primary location if one exists; creates one if not |
+
+**GPS update behaviour:** if the customer already has a primary location its coordinates are overwritten in place. If no location exists yet a new primary `BusinessPremises` location is created. The `gps` object requires `latitude`, `longitude`, and optionally `accuracyMetres`.
+
+> `UpdateCustomer` does not have an `AlreadySynced` path — it is idempotent by nature (applying the same values twice produces the same result). The response always returns `Created` with the customer's `serverId`.
 
 **`AddWalkInStop`**
 

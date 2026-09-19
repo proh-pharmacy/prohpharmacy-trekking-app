@@ -40,6 +40,10 @@ Admin downloads delivery sheet PDF (pre-route) or prints per-customer receipt
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
 | `POST` | `api/v1/treks/driver/{token}/record` | None | Driver records deliveries |
+| `POST` | `api/v1/treks/{trekId}/stops/{stopId}/returns` | Required | Admin records a product return at a stop |
+| `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}/returns/{returnId}` | Required | Admin voids a return |
+| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | None | Driver records a product return |
+| `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | None | Driver voids a return |
 
 ---
 
@@ -752,3 +756,120 @@ Only products with at least one difference are included — products that are up
 
 ### Errors
 - `404` — trek not found
+
+---
+
+## Recording Product Returns
+
+A return is recorded when a customer sends back stock at a stop — expired goods, damaged items, or a previous over-delivery. Returns are independent of delivery recording and can be submitted at any time while the trek is not `Completed` or `Cancelled`.
+
+### POST /api/v1/treks/{trekId}/stops/{stopId}/returns (admin)
+
+### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns (driver)
+
+### Request body
+
+```json
+{
+  "productId": "<guid>",
+  "basicQtyReturned": 4,
+  "packagingQtyReturned": 1,
+  "refundAmount": 48.00,
+  "refundMethod": "Cash",
+  "reason": "Expired stock — batch EXP-2026-01",
+  "clientGeneratedId": "<guid>",
+  "gps": {
+    "latitude": 5.6037,
+    "longitude": -0.1870,
+    "accuracyMetres": 12.5
+  }
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `productId` | Yes | The product being returned |
+| `basicQtyReturned` | Yes | Must be > 0 |
+| `packagingQtyReturned` | No | Only meaningful when the product has a packaging unit |
+| `refundAmount` | No | Amount refunded to the customer. If omitted, the backend auto-calculates: `basicQtyReturned × basicUnitPrice + packagingQtyReturned × packagingUnitPrice`. Send an explicit value only for partial or non-standard refunds |
+| `refundMethod` | No | `Cash` `MobileMoney` `Credit` `Cheque` `BankTransfer` |
+| `reason` | No | Max 500 chars |
+| `clientGeneratedId` | No | Client-generated UUID for offline idempotency — submitting the same `clientGeneratedId` twice returns the first result instead of creating a duplicate |
+| `gps` | No | Driver endpoint only. Optional GPS coordinates at the time of recording |
+
+### How refund amount works
+
+Leave `refundAmount` empty in the normal case — the backend calculates it from the returned quantities and the product's snapshotted prices. Only send an explicit `refundAmount` when the customer is receiving a partial or negotiated refund.
+
+### Response `201 Created`
+
+```json
+{
+  "returnId": "...",
+  "productId": "...",
+  "productName": "Paracetamol 500mg",
+  "basicUnitName": "Tab",
+  "packagingUnitName": "Box",
+  "basicQtyReturned": 4,
+  "packagingQtyReturned": 1,
+  "basicUnitPrice": 2.50,
+  "packagingUnitPrice": 60.00,
+  "refundAmount": 70.00,
+  "refundMethod": "Cash",
+  "reason": "Expired stock — batch EXP-2026-01",
+  "recordedAt": "2026-09-19T10:30:00Z"
+}
+```
+
+> `returnId` is the ID to use when voiding a return.
+
+### Errors
+- `404` — trek, stop, or product not found
+- `422` — trek is `Completed` or `Cancelled`, validation error, or duplicate `clientGeneratedId`
+
+---
+
+### DELETE /api/v1/treks/{trekId}/stops/{stopId}/returns/{returnId} (admin)
+
+### DELETE /api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId} (driver)
+
+Voids (permanently deletes) a return record. Blocked on `Completed` and `Cancelled` treks.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — return, stop, or trek not found
+- `422` — trek is `Completed` or `Cancelled`
+
+---
+
+### Returns on the trek response
+
+Returns appear inside each stop under the `returns` array when fetching `GET /api/v1/treks/{id}` or `GET /api/v1/treks/driver/{token}`:
+
+```json
+{
+  "stopId": "...",
+  "customerName": "Tema Central Pharmacy",
+  "products": [...],
+  "returns": [
+    {
+      "returnId": "...",
+      "productId": "...",
+      "productName": "Paracetamol 500mg",
+      "basicUnitName": "Tab",
+      "packagingUnitName": "Box",
+      "basicQtyReturned": 4,
+      "packagingQtyReturned": 1,
+      "basicUnitPrice": 2.50,
+      "packagingUnitPrice": 60.00,
+      "refundAmount": 70.00,
+      "refundMethod": "Cash",
+      "reason": "Expired stock",
+      "recordedAt": "2026-09-19T10:30:00Z"
+    }
+  ]
+}
+```
+
+Returns also appear on the PDF delivery sheet — each stop with returns shows a separate red-header returns table below its products table, with columns for product, unit price, qty returned, refund amount, refund method, and reason.

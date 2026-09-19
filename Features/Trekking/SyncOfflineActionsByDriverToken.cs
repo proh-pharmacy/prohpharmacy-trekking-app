@@ -70,6 +70,7 @@ public static class SyncOfflineActionsByDriverToken
                 var result = action.Type switch
                 {
                     "RegisterCustomer"   => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, cancellationToken),
+                    "UpdateCustomer"     => await ProcessUpdateCustomerAsync(action, trip, attributedStaffId, cancellationToken),
                     "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
                     "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, cancellationToken),
                     "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
@@ -123,13 +124,18 @@ public static class SyncOfflineActionsByDriverToken
             var count = await db.CustomerAccounts.CountAsync(c => c.RegionId == trip.RegionId, ct);
             var code = $"{trip.Region.Code.ToUpper()}-{(count + 1):D5}";
 
+            var tradingName = payload.TryGetProperty("tradingName", out var tn) ? tn.GetString()?.Trim() : null;
+            var whatsApp = payload.TryGetProperty("whatsAppNumber", out var wa) ? wa.GetString()?.Trim() : null;
+
             var account = new CustomerAccount
             {
                 CustomerCode = code,
                 BusinessName = businessName.Trim(),
+                TradingName = tradingName,
                 CustomerType = customerType,
                 RegionId = trip.RegionId,
                 PrimaryPhoneNumber = phone.Trim(),
+                WhatsAppNumber = whatsApp,
                 OwningBranchId = owningBranchId,
                 RegistrationStatus = RegistrationStatus.Active,
                 RegisteredByStaffId = attributedStaffId,
@@ -145,16 +151,24 @@ public static class SyncOfflineActionsByDriverToken
             {
                 var firstName = rep.TryGetProperty("firstName", out var fn) ? fn.GetString()?.Trim() ?? string.Empty : string.Empty;
                 var lastName = rep.TryGetProperty("lastName", out var ln) ? ln.GetString()?.Trim() ?? string.Empty : string.Empty;
+                var middleName = rep.TryGetProperty("middleName", out var mn) ? mn.GetString()?.Trim() : null;
                 var repPhone = rep.TryGetProperty("primaryPhoneNumber", out var rph) ? rph.GetString()?.Trim() ?? string.Empty : string.Empty;
+                var ghanaCard = rep.TryGetProperty("ghanaCardNumber", out var gcn) ? gcn.GetString()?.Trim() : null;
+                var relTypeStr = rep.TryGetProperty("relationshipType", out var rt) ? rt.GetString() : null;
+                if (!Enum.TryParse<Features.Customers.Enums.RelationshipType>(relTypeStr, ignoreCase: true, out var relType))
+                    relType = Features.Customers.Enums.RelationshipType.Owner;
+
                 if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName))
                 {
                     db.CustomerPersons.Add(new CustomerPerson
                     {
                         CustomerAccountId = account.Id,
                         FirstName = firstName,
+                        MiddleName = middleName,
                         LastName = lastName,
-                        RelationshipType = Features.Customers.Enums.RelationshipType.Owner,
+                        RelationshipType = relType,
                         PrimaryPhoneNumber = string.IsNullOrWhiteSpace(repPhone) ? phone.Trim() : repPhone,
+                        GhanaCardNumber = ghanaCard,
                         IsPrimaryContact = true,
                         IsCreditResponsiblePerson = true,
                         CreatedAt = DateTime.UtcNow
@@ -187,6 +201,129 @@ public static class SyncOfflineActionsByDriverToken
             }
 
             customerClientMap[action.ClientId] = account.Id;
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = account.Id };
+        }
+
+        private async Task<ActionResult> ProcessUpdateCustomerAsync(
+            OfflineAction action,
+            Entities.TrekkingTrip trip,
+            Guid attributedStaffId,
+            CancellationToken ct)
+        {
+            var payload = action.Payload;
+
+            if (!payload.TryGetProperty("customerId", out var cidEl) || !Guid.TryParse(cidEl.GetString(), out var customerId))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerId is required." };
+
+            var account = await db.CustomerAccounts
+                .Include(c => c.People.Where(p => p.IsPrimaryContact && p.IsActive))
+                .Include(c => c.Locations.Where(l => l.IsPrimary))
+                .FirstOrDefaultAsync(c => c.Id == customerId && c.RegionId == trip.RegionId, ct);
+
+            if (account is null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Customer not found in this region." };
+
+            if (payload.TryGetProperty("businessName", out var bn) && !string.IsNullOrWhiteSpace(bn.GetString()))
+                account.BusinessName = bn.GetString()!.Trim();
+
+            if (payload.TryGetProperty("tradingName", out var tn))
+                account.TradingName = tn.GetString()?.Trim();
+
+            if (payload.TryGetProperty("whatsAppNumber", out var wa))
+                account.WhatsAppNumber = wa.GetString()?.Trim();
+
+            if (payload.TryGetProperty("customerType", out var ctEl) && Enum.TryParse<CustomerType>(ctEl.GetString(), ignoreCase: true, out var customerType))
+                account.CustomerType = customerType;
+
+            if (payload.TryGetProperty("primaryPhoneNumber", out var ph) && !string.IsNullOrWhiteSpace(ph.GetString()))
+            {
+                var newPhone = ph.GetString()!.Trim();
+                var conflict = await db.CustomerAccounts.AnyAsync(c => c.PrimaryPhoneNumber == newPhone && c.Id != customerId, ct);
+                if (conflict)
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Phone number already registered to another customer." };
+                account.PrimaryPhoneNumber = newPhone;
+            }
+
+            account.UpdatedAt = DateTime.UtcNow;
+
+            if (payload.TryGetProperty("representative", out var rep))
+            {
+                var person = account.People.FirstOrDefault();
+                if (person is null)
+                {
+                    person = new CustomerPerson
+                    {
+                        CustomerAccountId = account.Id,
+                        FirstName = string.Empty,
+                        LastName = string.Empty,
+                        RelationshipType = Features.Customers.Enums.RelationshipType.Owner,
+                        PrimaryPhoneNumber = account.PrimaryPhoneNumber,
+                        IsPrimaryContact = true,
+                        IsCreditResponsiblePerson = true,
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    db.CustomerPersons.Add(person);
+                }
+
+                if (rep.TryGetProperty("firstName", out var fn) && !string.IsNullOrWhiteSpace(fn.GetString()))
+                    person.FirstName = fn.GetString()!.Trim();
+
+                if (rep.TryGetProperty("middleName", out var mn))
+                    person.MiddleName = mn.GetString()?.Trim();
+
+                if (rep.TryGetProperty("lastName", out var ln) && !string.IsNullOrWhiteSpace(ln.GetString()))
+                    person.LastName = ln.GetString()!.Trim();
+
+                if (rep.TryGetProperty("primaryPhoneNumber", out var rph) && !string.IsNullOrWhiteSpace(rph.GetString()))
+                    person.PrimaryPhoneNumber = rph.GetString()!.Trim();
+
+                if (rep.TryGetProperty("relationshipType", out var rt) && Enum.TryParse<Features.Customers.Enums.RelationshipType>(rt.GetString(), ignoreCase: true, out var relType))
+                    person.RelationshipType = relType;
+
+                if (rep.TryGetProperty("ghanaCardNumber", out var gcn))
+                    person.GhanaCardNumber = gcn.GetString()?.Trim();
+
+                person.UpdatedAt = DateTime.UtcNow;
+            }
+
+            if (payload.TryGetProperty("gps", out var gps))
+            {
+                var lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
+                var lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
+                var acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+
+                if (lat.HasValue && lon.HasValue)
+                {
+                    var location = account.Locations.FirstOrDefault();
+                    if (location is not null)
+                    {
+                        location.Latitude = lat;
+                        location.Longitude = lon;
+                        location.AccuracyMetres = acc;
+                        location.CaptureMethod = CaptureMethod.PwaGps;
+                        location.VerificationStatus = LocationVerificationStatus.GpsCaptured;
+                        location.CapturedByStaffId = attributedStaffId;
+                    }
+                    else
+                    {
+                        db.CustomerLocations.Add(new CustomerLocation
+                        {
+                            CustomerAccountId = account.Id,
+                            LocationType = LocationType.BusinessPremises,
+                            RegionId = trip.RegionId,
+                            Latitude = lat,
+                            Longitude = lon,
+                            AccuracyMetres = acc,
+                            CaptureMethod = CaptureMethod.PwaGps,
+                            VerificationStatus = LocationVerificationStatus.GpsCaptured,
+                            IsPrimary = true,
+                            CapturedByStaffId = attributedStaffId,
+                            CreatedAt = DateTime.UtcNow
+                        });
+                    }
+                }
+            }
+
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = account.Id };
         }
 
@@ -511,7 +648,7 @@ public class SyncOfflineActionsByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Push queued offline actions in a batch (driver portal)")
-        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, AddWalkInStop, RecordDelivery, RecordUnplannedSale, RecordReturn, VoidReturn.")
+        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, UpdateCustomer, AddWalkInStop, RecordDelivery, RecordUnplannedSale, RecordReturn, VoidReturn.")
         .Produces<SyncOfflineActionsByDriverToken.SyncResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

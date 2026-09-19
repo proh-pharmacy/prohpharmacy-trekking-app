@@ -33,6 +33,7 @@ public static class CreateCustomerByDriverToken
             public string LastName { get; set; } = string.Empty;
             public RelationshipType RelationshipType { get; set; }
             public string PrimaryPhoneNumber { get; set; } = string.Empty;
+            public string? GhanaCardNumber { get; set; }
         }
 
         public class GpsInput
@@ -136,6 +137,7 @@ public static class CreateCustomerByDriverToken
                 LastName = request.Representative.LastName.Trim(),
                 RelationshipType = request.Representative.RelationshipType,
                 PrimaryPhoneNumber = request.Representative.PrimaryPhoneNumber.Trim(),
+                GhanaCardNumber = request.Representative.GhanaCardNumber?.Trim(),
                 IsPrimaryContact = true,
                 IsCreditResponsiblePerson = true,
                 CreatedAt = DateTime.UtcNow

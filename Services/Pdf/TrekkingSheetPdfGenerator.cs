@@ -46,6 +46,7 @@ public static class TrekkingSheetPdfGenerator
             public string? PrimaryContactName { get; set; }
             public string? PrimaryContactPhone { get; set; }
             public List<ProductData> Products { get; set; } = [];
+            public List<ReturnData> Returns { get; set; } = [];
         }
 
         public class ProductData
@@ -63,6 +64,20 @@ public static class TrekkingSheetPdfGenerator
             public decimal? AmtPaid { get; set; }
             public decimal? Balance { get; set; }
             public string? Notes { get; set; }
+        }
+
+        public class ReturnData
+        {
+            public string ProductName { get; set; } = string.Empty;
+            public string? BasicUnitName { get; set; }
+            public string? PackagingUnitName { get; set; }
+            public decimal BasicUnitPrice { get; set; }
+            public decimal? PackagingUnitPrice { get; set; }
+            public decimal BasicQtyReturned { get; set; }
+            public decimal? PackagingQtyReturned { get; set; }
+            public decimal? RefundAmount { get; set; }
+            public string? RefundMethod { get; set; }
+            public string? Reason { get; set; }
         }
     }
 
@@ -445,6 +460,67 @@ public static class TrekkingSheetPdfGenerator
                     }
                 }
             });
+
+            // Returns table — only rendered when this stop has returns
+            if (stop.Returns.Count > 0)
+            {
+                stopCol.Item().PaddingTop(4).Table(table =>
+                {
+                    table.ColumnsDefinition(columns =>
+                    {
+                        columns.RelativeColumn(0.4f);  // #
+                        columns.RelativeColumn(2.5f);  // Description
+                        columns.RelativeColumn(1.2f);  // Unit Price
+                        columns.RelativeColumn(1.3f);  // Qty Returned
+                        columns.RelativeColumn(1.2f);  // Refund Amount
+                        columns.RelativeColumn(1.3f);  // Refund Method
+                        columns.RelativeColumn(2.5f);  // Reason
+                    });
+
+                    table.Header(header =>
+                    {
+                        ReturnHeaderCell(header, "#", alignCenter: true);
+                        ReturnHeaderCell(header, "Returns — Description", alignCenter: false);
+                        ReturnHeaderCell(header, "Unit Price", alignCenter: true);
+                        ReturnHeaderCell(header, "Qty Returned", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Amount", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Method", alignCenter: true);
+                        ReturnHeaderCell(header, "Reason", alignCenter: false);
+                    });
+
+                    var returnIndex = 1;
+                    foreach (var ret in stop.Returns)
+                    {
+                        var background = returnIndex % 2 == 1 ? "#fff7f7" : "#fef2f2";
+
+                        var priceParts = new List<string>();
+                        if (ret.BasicUnitPrice > 0)
+                            priceParts.Add($"GHS {ret.BasicUnitPrice:0.00}{(string.IsNullOrWhiteSpace(ret.BasicUnitName) ? string.Empty : $"/{ret.BasicUnitName}")}");
+                        if (ret.PackagingUnitPrice.HasValue && ret.PackagingUnitPrice > 0)
+                            priceParts.Add($"GHS {ret.PackagingUnitPrice:0.00}{(string.IsNullOrWhiteSpace(ret.PackagingUnitName) ? string.Empty : $"/{ret.PackagingUnitName}")}");
+                        var priceText = string.Join("\n", priceParts);
+
+                        var qtyParts = new List<string>();
+                        if (ret.BasicQtyReturned > 0)
+                            qtyParts.Add($"{ret.BasicQtyReturned:0.###}{(string.IsNullOrWhiteSpace(ret.BasicUnitName) ? string.Empty : $" {ret.BasicUnitName}")}");
+                        if (ret.PackagingQtyReturned.HasValue && ret.PackagingQtyReturned > 0)
+                            qtyParts.Add($"{ret.PackagingQtyReturned:0.###}{(string.IsNullOrWhiteSpace(ret.PackagingUnitName) ? string.Empty : $" {ret.PackagingUnitName}")}");
+                        var qtyText = string.Join("\n", qtyParts);
+
+                        var refundText = ret.RefundAmount.HasValue ? $"GHS {ret.RefundAmount:0.00}" : string.Empty;
+
+                        ReturnBodyCell(table, returnIndex.ToString(), background, alignCenter: true);
+                        ReturnBodyCell(table, ret.ProductName, background, alignCenter: false);
+                        ReturnBodyCell(table, priceText, background, alignCenter: true);
+                        ReturnBodyCell(table, qtyText, background, alignCenter: true);
+                        ReturnBodyCell(table, refundText, background, alignCenter: true);
+                        ReturnBodyCell(table, ret.RefundMethod ?? string.Empty, background, alignCenter: true);
+                        ReturnBodyCell(table, ret.Reason ?? string.Empty, background, alignCenter: false);
+
+                        returnIndex++;
+                    }
+                });
+            }
         });
     }
 
@@ -476,6 +552,47 @@ public static class TrekkingSheetPdfGenerator
             .BorderBottom(0.5f)
             .BorderColor("#ffffff")
             .MinHeight(20)
+            .PaddingVertical(3)
+            .PaddingHorizontal(4)
+            .AlignMiddle();
+
+        if (alignCenter)
+        {
+            cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(TextColor);
+            return;
+        }
+
+        cell.Text(text).FontSize(7.5f).FontColor(TextColor);
+    }
+
+    private static void ReturnHeaderCell(TableCellDescriptor table, string text, bool alignCenter = true)
+    {
+        var cell = table.Cell()
+            .Background("#b91c1c")
+            .BorderRight(0.5f)
+            .BorderColor("#fca5a5")
+            .MinHeight(18)
+            .PaddingVertical(3)
+            .PaddingHorizontal(4)
+            .AlignMiddle();
+
+        if (alignCenter)
+        {
+            cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(Colors.White);
+            return;
+        }
+
+        cell.Text(text).FontSize(7.5f).FontColor(Colors.White);
+    }
+
+    private static void ReturnBodyCell(TableDescriptor table, string text, string background, bool alignCenter = true)
+    {
+        var cell = table.Cell()
+            .Background(background)
+            .BorderRight(0.5f)
+            .BorderBottom(0.5f)
+            .BorderColor("#ffffff")
+            .MinHeight(18)
             .PaddingVertical(3)
             .PaddingHorizontal(4)
             .AlignMiddle();
