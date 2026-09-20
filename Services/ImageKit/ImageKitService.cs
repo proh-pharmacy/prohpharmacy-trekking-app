@@ -4,10 +4,11 @@ using System.Text.Json;
 
 namespace prohpharmacy_trekking_app.Services.ImageKit;
 
-public class ImageKitService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
+public class ImageKitService(IConfiguration configuration, IHttpClientFactory httpClientFactory,
+    ILogger<ImageKitService> logger)
 {
-    private readonly string _privateKey = configuration["ImageKitSettings:PrivateKey"]
-        ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.");
+    private readonly string _privateKey = (configuration["ImageKitSettings:PrivateKey"]
+        ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.")).Trim();
 
     public async Task<string> UploadAsync(IFormFile file, string folder)
     {
@@ -22,8 +23,10 @@ public class ImageKitService(IConfiguration configuration, IHttpClientFactory ht
         }
 
         using var client = httpClientFactory.CreateClient("imagekit");
-        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_privateKey}:"));
+        var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_privateKey}:"));
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
+        logger.LogInformation("ImageKit upload — key length: {Len}, first 8: {Start}, credentials length: {CredLen}",
+            _privateKey.Length, _privateKey[..Math.Min(8, _privateKey.Length)], credentials.Length);
 
         using var content = new MultipartFormDataContent();
         content.Add(new ByteArrayContent(bytes), "file", fileName);
