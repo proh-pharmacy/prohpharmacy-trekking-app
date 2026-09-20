@@ -25,8 +25,9 @@ public class ImageKitService(IConfiguration configuration, IHttpClientFactory ht
         using var client = httpClientFactory.CreateClient("imagekit");
         var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_privateKey}:"));
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-        logger.LogInformation("ImageKit upload — key length: {Len}, first 8: {Start}, credentials length: {CredLen}",
-            _privateKey.Length, _privateKey[..Math.Min(8, _privateKey.Length)], credentials.Length);
+        logger.LogInformation("ImageKit DEBUG — PrivateKey: '{PrivateKey}' PublicKey: '{PublicKey}'",
+            _privateKey,
+            configuration["ImageKitSettings:PublicKey"] ?? "(null)");
 
         using var content = new MultipartFormDataContent();
         content.Add(new ByteArrayContent(bytes), "file", fileName);
