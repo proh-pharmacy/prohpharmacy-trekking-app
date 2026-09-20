@@ -8,7 +8,8 @@ public class ImageKitService(IConfiguration configuration)
     private readonly ImageKitClient _client = new()
     {
         PrivateKey = configuration["ImageKitSettings:PrivateKey"]
-            ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.")
+            ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured."),
+        MaxRetries = 0
     };
 
     public async Task<string> UploadAsync(IFormFile file, string folder)
@@ -23,14 +24,27 @@ public class ImageKitService(IConfiguration configuration)
             bytes = ms.ToArray();
         }
 
-        var response = await _client.Files.Upload(new FileUploadParams
+        Exception? lastException = null;
+        for (var attempt = 0; attempt < 3; attempt++)
         {
-            File = bytes,
-            FileName = fileName,
-            Folder = $"/prohpharmacy/{folder.Trim('/')}"
-        });
+            try
+            {
+                var response = await _client.Files.Upload(new FileUploadParams
+                {
+                    File = bytes,
+                    FileName = fileName,
+                    Folder = $"/prohpharmacy/{folder.Trim('/')}"
+                });
 
-        return response.Url
-            ?? throw new InvalidOperationException("ImageKit upload succeeded but returned no URL.");
+                return response.Url
+                    ?? throw new InvalidOperationException("ImageKit upload succeeded but returned no URL.");
+            }
+            catch (Exception ex) when (attempt < 2)
+            {
+                lastException = ex;
+            }
+        }
+
+        throw lastException!;
     }
 }
