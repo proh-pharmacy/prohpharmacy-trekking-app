@@ -8,6 +8,57 @@ Because routes pass through areas with no connectivity, the control panel works 
 
 ---
 
+## Portal Login
+
+Drivers and sales reps access the trekking portal by entering their trek number — there is no username/password.
+
+### Login screen
+
+The login screen has two tabs: **Admin** (username + password, existing) and **Trekking** (trek number entry, new). On the Trekking tab:
+
+1. Show a single text input with the placeholder `TRK-00001`. Apply a `TRK-` prefix mask so the user only types the numeric part (e.g. typing `00001` fills in `TRK-00001`). Accept full entry too — strip leading/trailing spaces and uppercase before sending.
+2. On submit, call `POST /api/v1/treks/portal/auth` with `{ "trekNumber": "TRK-00001" }`.
+3. On success, show a **confirmation card** before proceeding:
+   - Region name
+   - Scheduled date
+   - Driver name + phone
+   - Sales rep name + phone (omit row if `salesRep` is `null`)
+   - Two buttons: **"Yes, that's me"** and **"Not my trek"**
+
+4. **On confirm ("Yes, that's me"):**
+   - Cache the full session response in `localStorage` under the key `portalSession`
+   - Navigate to `/treks/driver/treks?token={driverToken}`
+
+5. **On deny ("Not my trek"):** stay on the login screen, clear the input.
+
+6. On API error, show the error message inline and stay on the login screen.
+
+### PWA relaunch behaviour
+
+On app launch (before rendering any route), check `localStorage` for `portalSession`:
+
+- **Session found:** navigate directly to `/treks/driver/treks?token={lastToken}` — skip the login screen entirely.
+- **No session:** show the login screen.
+
+### Token switching
+
+When the driver navigates to a different trek via `/treks/driver/treks?token={newToken}` (e.g. after tapping a trek in the region list and calling `generate-token`), update the cached token:
+
+```js
+// Any time the token in the URL changes, update the cache
+const params = new URLSearchParams(window.location.search);
+const token = params.get('token');
+if (token) {
+  const session = JSON.parse(localStorage.getItem('portalSession') ?? '{}');
+  session.driverToken = token;
+  localStorage.setItem('portalSession', JSON.stringify(session));
+}
+```
+
+This ensures the next PWA launch opens whichever trek the driver last worked on.
+
+---
+
 ## The Token
 
 The `DriverToken` on `TrekkingTrip` is a UUID generated when the admin sends the trek assignment email. It never changes.

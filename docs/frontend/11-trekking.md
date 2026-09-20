@@ -23,6 +23,7 @@
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | Download delivery sheet PDF via driver token | None |
 | `POST` | `api/v1/treks/driver/{token}/record` | Record deliveries via driver token | None |
 | `GET` | `api/v1/treks/sheet/preview` | Preview sample trek sheet PDF | None |
+| `POST` | `api/v1/treks/portal/auth` | Driver portal login by trek number | None |
 
 ---
 
@@ -629,3 +630,52 @@ Downloads the trek sheet as a PDF.
 Returns a sample trek sheet PDF with placeholder data. No authentication required. Useful for previewing the template during development.
 
 - **Response:** Binary PDF file
+
+---
+
+## POST /api/v1/treks/portal/auth
+
+Anonymous login endpoint for the driver portal. The driver or sales rep enters their trek number — the backend verifies it and returns a session object the frontend caches for PWA use. No admin credentials required.
+
+### Request body
+
+```json
+{
+  "trekNumber": "TRK-00001"
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `trekNumber` | Yes | Case-insensitive — `TRK-00001` and `trk-00001` both work |
+
+### Response `200 OK`
+
+```json
+{
+  "driverToken": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+  "trekId": "...",
+  "trekNumber": "TRK-00001",
+  "regionName": "Greater Accra Region",
+  "scheduledDate": "2026-09-15",
+  "status": "InProgress",
+  "driver": {
+    "id": "...",
+    "name": "Kwame Asante",
+    "phone": "0244123456"
+  },
+  "salesRep": {
+    "id": "...",
+    "name": "Ama Boateng",
+    "phone": "0209876543"
+  }
+}
+```
+
+`salesRep` is `null` when no sales staff is assigned to the trek.
+
+Cache the full session object in `localStorage` (keyed by `trekNumber` or as a single "last session") so the PWA can relaunch without re-entering the trek number.
+
+### Errors
+- `404` — trek number not found
+- `422` — trek is `Cancelled`, trek is `Completed`, or the trek has no active driver link yet (admin must generate one first)
