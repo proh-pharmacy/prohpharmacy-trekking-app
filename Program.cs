@@ -14,6 +14,7 @@ using prohpharmacy_trekking_app.Hubs;
 using prohpharmacy_trekking_app.Services.Email;
 using prohpharmacy_trekking_app.Services.ImageKit;
 using prohpharmacy_trekking_app.Services.Jobs;
+using prohpharmacy_trekking_app.Services.Push;
 using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
@@ -94,6 +95,9 @@ builder.Services.AddHangfire(cfg => cfg
 builder.Services.AddHangfireServer();
 builder.Services.AddScoped<TrekEmailJob>();
 
+// ─── Push Notifications ───────────────────────────────────────────────────────
+builder.Services.AddPushServices(builder.Configuration);
+
 // ─── ImageKit ─────────────────────────────────────────────────────────────────
 builder.Services.AddScoped<ImageKitService>();
 
@@ -119,6 +123,7 @@ builder.Services.AddCors(options =>
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "https://trekking.prohpharmacy.com",
+                "http://192.168.1.193:3000/",
                 "https://prohpharmacy.com")
             .AllowAnyHeader()
             .AllowAnyMethod()

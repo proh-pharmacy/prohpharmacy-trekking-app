@@ -25,6 +25,7 @@ namespace prohpharmacy_trekking_app.Extensions
             public const string Visits = "Visits";
             public const string Reports = "Reports";
             public const string Dashboard = "Dashboard";
+            public const string Notifications = "Notifications";
         }
 
         // ─── Operation Filters ─────────────────────────────────────────────────────

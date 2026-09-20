@@ -9,6 +9,7 @@ using prohpharmacy_trekking_app.Features.Ledger.Entities;
 using prohpharmacy_trekking_app.Features.Ledger.Enums;
 using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Services.Jobs;
+using prohpharmacy_trekking_app.Services.Push;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Trekking.CreateTrek;
 
@@ -35,12 +36,14 @@ public static class ChangeTrekStatus
         private readonly AppDbContext _db;
         private readonly IValidator<Command> _validator;
         private readonly IBackgroundJobClient _jobs;
+        private readonly NotificationDispatcher _notifications;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, IBackgroundJobClient jobs)
+        public Handler(AppDbContext db, IValidator<Command> validator, IBackgroundJobClient jobs, NotificationDispatcher notifications)
         {
             _db = db;
             _validator = validator;
             _jobs = jobs;
+            _notifications = notifications;
         }
 
         public async Task<Result<TrekResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -83,6 +86,8 @@ public static class ChangeTrekStatus
                 if (request.Status == TrekStatus.InProgress)
                     _jobs.Enqueue<TrekEmailJob>(j => j.SendTrekStartEmailsAsync(trip.Id, trip.DriverToken!.Value));
 
+                DispatchTrekNotificationAsync(trip, request.Status);
+
                 return Result.Success(CreateTrek.Handler.ToResponse(
                     trip,
                     trip.Region?.Name ?? string.Empty,
@@ -97,6 +102,27 @@ public static class ChangeTrekStatus
                 await transaction.RollbackAsync(cancellationToken);
                 throw;
             }
+        }
+
+        private void DispatchTrekNotificationAsync(Entities.TrekkingTrip trip, TrekStatus status)
+        {
+            var (type, title, message) = status switch
+            {
+                TrekStatus.Scheduled  => ("TrekAssigned",  "Trek Assigned",  $"Trek {trip.TrekNumber} has been assigned to you on {trip.ScheduledDate:dd MMM yyyy}."),
+                TrekStatus.InProgress => ("TrekStarted",   "Trek Started",   $"Trek {trip.TrekNumber} is now in progress."),
+                TrekStatus.Completed  => ("TrekCompleted", "Trek Completed", $"Trek {trip.TrekNumber} has been completed."),
+                TrekStatus.Cancelled  => ("TrekCancelled", "Trek Cancelled", $"Trek {trip.TrekNumber} has been cancelled."),
+                _                     => (null, null, null)
+            };
+
+            if (type is null) return;
+
+            var recipients = new List<Guid> { trip.DriverStaffId };
+            if (trip.SalesStaffId.HasValue && trip.SalesStaffId.Value != trip.DriverStaffId)
+                recipients.Add(trip.SalesStaffId.Value);
+
+            var data = System.Text.Json.JsonSerializer.Serialize(new { trekId = trip.Id, trekNumber = trip.TrekNumber });
+            _ = _notifications.DispatchAsync(type, title!, message!, data, recipients);
         }
 
         private async Task SyncLedgerOnCompletionAsync(Entities.TrekkingTrip trip, CancellationToken cancellationToken)

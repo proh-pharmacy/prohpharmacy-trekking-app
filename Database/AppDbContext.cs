@@ -3,6 +3,7 @@ using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Features.Ledger.Entities;
 using prohpharmacy_trekking_app.Features.Fleet.Entities;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
+using prohpharmacy_trekking_app.Features.Notifications.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Features.Products.Entities;
 using prohpharmacy_trekking_app.Features.Units.Entities;
@@ -48,6 +49,10 @@ namespace prohpharmacy_trekking_app.Database
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
+
+        // Notifications
+        public DbSet<AppNotification> Notifications => Set<AppNotification>();
+        public DbSet<StaffPushSubscription> StaffPushSubscriptions => Set<StaffPushSubscription>();
 
         // Identity
         public DbSet<ApplicationUser> ApplicationUsers => Set<ApplicationUser>();
@@ -482,6 +487,34 @@ namespace prohpharmacy_trekking_app.Database
                     .HasForeignKey(i => i.StaffMemberId)
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(i => i.Token).IsUnique();
+            });
+
+            // ── Notifications ─────────────────────────────────────────────────────
+
+            modelBuilder.Entity<AppNotification>(entity =>
+            {
+                entity.HasKey(n => n.Id);
+                entity.Property(n => n.Type).HasMaxLength(60).IsRequired();
+                entity.Property(n => n.Title).HasMaxLength(200).IsRequired();
+                entity.Property(n => n.Message).HasMaxLength(500).IsRequired();
+                entity.Property(n => n.Data).HasMaxLength(2000);
+                entity.Property(n => n.NotifiableType).HasMaxLength(60).IsRequired();
+                entity.HasIndex(n => new { n.NotifiableId, n.NotifiableType });
+                entity.HasIndex(n => n.CreatedAt);
+            });
+
+            modelBuilder.Entity<StaffPushSubscription>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.Endpoint).HasMaxLength(2048).IsRequired();
+                entity.Property(s => s.P256dh).HasMaxLength(200).IsRequired();
+                entity.Property(s => s.Auth).HasMaxLength(100).IsRequired();
+                entity.HasOne(s => s.StaffMember)
+                    .WithMany()
+                    .HasForeignKey(s => s.StaffMemberId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(s => s.Endpoint).IsUnique();
+                entity.HasIndex(s => s.StaffMemberId);
             });
         }
     }
