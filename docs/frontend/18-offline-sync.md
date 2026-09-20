@@ -35,9 +35,11 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `GET` | `api/v1/treks/driver/{token}/region/treks` | All active treks in the region |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/generate-token` | Get or generate a token for another trek |
 | `GET` | `api/v1/treks/driver/{token}/offline/products` | Product catalogue seed (supports `?since=`) |
-| `GET` | `api/v1/treks/driver/{token}/offline/customers` | Customers in the region seed (supports `?since=`) |
+| `GET` | `api/v1/treks/driver/{token}/offline/customers` | Slim customer list for the region (supports `?since=`) |
+| `GET` | `api/v1/treks/driver/{token}/offline/districts` | All active districts in the trek's region (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/trek` | Full assigned trek with stops + returns (supports `?since=`) |
 | `POST` | `api/v1/treks/driver/{token}/customers` | Register a new customer from the field |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/locations` | Add an additional location to a customer |
 | `PATCH` | `api/v1/customers/{id}` *(online only)* | Update an existing customer (requires auth — use `UpdateCustomer` batch action for offline) |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
@@ -163,12 +165,16 @@ Register a new customer from the field. Pass `clientGeneratedId` for offline ide
   "tradingName": null,
   "whatsAppNumber": null,
   "clientGeneratedId": "<device-uuid>",
+  "districtId": null,
+  "streetAddress": "Ring Road East",
+  "landmarkAndDirections": "Next to the Total filling station",
   "representative": {
     "firstName": "Ama",
     "lastName": "Boateng",
     "middleName": null,
     "relationshipType": "Owner",
-    "primaryPhoneNumber": "0244123456"
+    "primaryPhoneNumber": "0244123456",
+    "ghanaCardNumber": null
   },
   "gps": {
     "latitude": 6.0835,
@@ -186,12 +192,16 @@ Register a new customer from the field. Pass `clientGeneratedId` for offline ide
 | `clientGeneratedId` | No | UUID — deduplication key for offline idempotency |
 | `tradingName` | No | Max 200 chars |
 | `whatsAppNumber` | No | Max 30 chars |
+| `districtId` | No | UUID of the district — omit if unknown |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
 | `representative.firstName` | Yes | Max 80 chars |
 | `representative.lastName` | Yes | Max 80 chars |
 | `representative.relationshipType` | Yes | See enum reference in doc 09 |
 | `representative.primaryPhoneNumber` | Yes | Max 30 chars |
 | `representative.middleName` | No | |
-| `gps` | No | Entire object optional — omit if device has no fix |
+| `representative.ghanaCardNumber` | No | |
+| `gps` | No | Entire object optional — omit or send `null` if device has no fix |
 | `gps.latitude` | Yes (if gps) | -90 to 90 |
 | `gps.longitude` | Yes (if gps) | -180 to 180 |
 | `gps.accuracyMetres` | Yes (if gps) | ≥ 0 |
@@ -199,13 +209,53 @@ Register a new customer from the field. Pass `clientGeneratedId` for offline ide
 **Notes:**
 - `regionId` is derived from the token — the customer is automatically assigned to the trek's region.
 - `owningBranchId` and `registeredByStaffId` are derived from the trek's attribution staff member.
-- `districtId` is not required — GPS-only location records are valid.
+- A location record is created if **any** of `gps`, `districtId`, `streetAddress`, or `landmarkAndDirections` is provided. GPS and address fields are independent — you can send one without the other.
 - `createdOffline: true` is always set on customers registered via this endpoint.
 
 **Response `201 Created`** — full `CustomerResponse` (same shape as `POST /api/v1/customers`). Includes `premisesPhotoUrl` once uploaded.
 
+`additionalLocations` will be `[]` on a freshly created customer. Additional locations can be added afterwards via `POST .../customers/{customerId}/locations` (online) or the `AddCustomerLocation` batch action (offline).
+
 **Errors:**
 - `422` — validation failed, or phone number already registered
+
+---
+
+### POST /api/v1/treks/driver/{token}/customers/{customerId}/locations
+
+Add an additional location to an existing customer. The customer must belong to the trek's region. Response shape is identical to the admin `POST /api/v1/customers/{customerId}/locations` — the frontend can use the same component for both.
+
+**Request body**
+
+```json
+{
+  "locationType": "BusinessPremises",
+  "districtId": null,
+  "streetAddress": "Ring Road East",
+  "landmarkAndDirections": "Near the school",
+  "latitude": 6.0835,
+  "longitude": -0.2170,
+  "accuracyMetres": 12.5,
+  "isPrimary": false
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `locationType` | No | `BusinessPremises`, `DeliveryLocation`, `Residential`, `Other` — defaults to `BusinessPremises` |
+| `districtId` | No | UUID from districts seed — optional unlike the admin equivalent |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `latitude` | No | -90 to 90 |
+| `longitude` | No | -180 to 180 |
+| `accuracyMetres` | No | > 0 |
+| `isPrimary` | No | `true` to make this the new primary location |
+
+**Response `201 Created`** — `LocationResponse` (same shape as `POST /api/v1/customers/{customerId}/locations`).
+
+**Errors:**
+- `404` — trek token invalid or customer not in trek's region
+- `422` — validation failed
 
 ---
 
@@ -213,7 +263,19 @@ Register a new customer from the field. Pass `clientGeneratedId` for offline ide
 
 Upload a photo of the customer's business premises. Call this **after** customer creation once you have the server `customerId` (from the registration response or a completed batch sync). This is a multipart upload — it cannot be queued in the offline batch.
 
-**Request:** `multipart/form-data` with a single field `file` (JPEG, PNG, or WebP, max 5 MB).
+**Request:** `multipart/form-data` with a single field named `file` (JPEG, PNG, or WebP, max 5 MB).
+
+> **Important:** Do **not** set the `Content-Type` header manually on this request. Use `FormData` and let the browser set the header automatically — it must include the multipart boundary. Setting it manually will cause a `400` before the request reaches any handler.
+>
+> ```js
+> // ✅ Correct
+> const form = new FormData();
+> form.append('file', blob);
+> fetch(url, { method: 'POST', body: form }); // no Content-Type header
+>
+> // ❌ Wrong — omit the header entirely
+> fetch(url, { method: 'POST', body: form, headers: { 'Content-Type': 'multipart/form-data' } });
+> ```
 
 **Response `200 OK`**
 
@@ -232,9 +294,13 @@ The URL is also reflected on the customer's `premisesPhotoUrl` field from that p
 
 ### POST /api/v1/treks/driver/{token}/customers/{customerId}/people/{personId}/portrait
 
-Upload a portrait photo for the customer's representative. `personId` comes from `primaryPerson.id` in the customer registration response. The customer must belong to the trek's region.
+Upload a portrait photo for the customer's representative. The customer must belong to the trek's region.
 
-**Request:** `multipart/form-data` with a single field `file` (JPEG, PNG, or WebP, max 5 MB).
+**Where `personId` comes from:**
+- **Online registration** — `primaryPerson.id` in the customer creation response.
+- **Offline registration (after sync)** — `personId` in the `RegisterCustomer` action result from the batch sync response (see [Sync response](#sync-response) below). Store this alongside the `serverId` when processing sync results. If `personId` is `null`, the customer was registered without a representative — skip the portrait upload.
+
+**Request:** `multipart/form-data` with a single field named `file` (JPEG, PNG, or WebP, max 5 MB). Same `Content-Type` rule applies as premises photo — do not set the header manually.
 
 **Response `200 OK`**
 
@@ -245,7 +311,7 @@ Upload a portrait photo for the customer's representative. `personId` comes from
 }
 ```
 
-Like premises photo, this is a **separate follow-up request** — upload after you have the server `personId` from the registration response.
+Like premises photo, this is a **separate follow-up request** — upload after you have the server `personId`.
 
 ---
 
@@ -421,17 +487,21 @@ async function finishTrek() {
 
 ## Offline Seed Data
 
-Before going into the field, seed the local store with the following. All three endpoints support `?since=ISO8601` for **delta sync** — pass the last-fetched timestamp to download only records modified since then.
+Before going into the field, seed the local store with the following. All four endpoints support `?since=ISO8601` for **delta sync** — pass the last-fetched timestamp to download only records created or updated since then.
 
 ```js
 // Full seed on first load
 await seedLocal('products',   `/api/v1/treks/driver/${token}/offline/products`);
 await seedLocal('customers',  `/api/v1/treks/driver/${token}/offline/customers`);
+await seedLocal('districts',  `/api/v1/treks/driver/${token}/offline/districts`);
 await seedLocal('trek',       `/api/v1/treks/driver/${token}/offline/trek`);
 
 // Delta on reconnect
 const since = localStorage.getItem('lastSyncedAt');
-await seedLocal('products',  `/api/v1/treks/driver/${token}/offline/products?since=${since}`);
+await seedLocal('products',   `/api/v1/treks/driver/${token}/offline/products?since=${since}`);
+await seedLocal('customers',  `/api/v1/treks/driver/${token}/offline/customers?since=${since}`);
+await seedLocal('districts',  `/api/v1/treks/driver/${token}/offline/districts?since=${since}`);
+await seedLocal('trek',       `/api/v1/treks/driver/${token}/offline/trek?since=${since}`);
 ```
 
 ### GET .../offline/products
@@ -440,7 +510,105 @@ Full product catalogue — name, unit prices, basic and packaging unit names.
 
 ### GET .../offline/customers
 
-All customers in the trek's region — names, phone numbers, GPS coordinates, primary contact. Used for the customer search/select when adding walk-in stops.
+All customers relevant to the trek's region as full `CustomerResponse` objects — the **same shape** as the admin `GET /api/v1/customers/{id}`. Includes `primaryLocation`, `additionalLocations`, `primaryPerson`, and every location field (districtId, locationType, GPS, landmark, etc.) needed to display or edit a customer offline.
+
+A customer is included if **any** of their locations belongs to the trek's region — not just customers whose account registration region matches. A customer registered in Ahafo with a delivery location in Bono will appear in the Bono driver's seed.
+
+Store locally and upsert by `id` on every delta sync. Use the `id` field as `customerId` when referencing existing customers in other actions.
+
+**Response `200 OK`** — array of `CustomerResponse` (see [doc 09](./09-customers.md) for the full shape). Key fields:
+
+```json
+[
+  {
+    "id": "...",
+    "customerCode": "GAR-00001",
+    "businessName": "Koforidua Pharmacy",
+    "tradingName": null,
+    "customerType": "RetailPharmacy",
+    "registrationStatus": "Active",
+    "primaryPhoneNumber": "0244123456",
+    "whatsAppNumber": null,
+    "regionId": "...",
+    "regionName": "Greater Accra Region",
+    "owningBranchId": "...",
+    "owningBranchName": "Kumasi Branch",
+    "registeredByStaffId": "...",
+    "registeredByName": "Kwame Asante",
+    "clientGeneratedId": "...",
+    "createdOffline": true,
+    "premisesPhotoUrl": null,
+    "recordedAt": "2026-09-17T10:32:00Z",
+    "createdAt": "2026-09-17T10:32:00Z",
+    "updatedAt": null,
+    "primaryPerson": {
+      "id": "...",
+      "fullName": "Ama Boateng",
+      "relationshipType": "Owner",
+      "primaryPhoneNumber": "0244123456",
+      "isPrimaryContact": true,
+      "isCreditResponsiblePerson": true,
+      "portraitUrl": null
+    },
+    "primaryLocation": {
+      "id": "...",
+      "locationType": "BusinessPremises",
+      "regionId": "...",
+      "regionName": "Greater Accra Region",
+      "districtId": "...",
+      "districtName": "Accra Metropolitan",
+      "latitude": 6.0835,
+      "longitude": -0.2170,
+      "accuracyMetres": 12.5,
+      "landmarkAndDirections": "Next to the Total filling station",
+      "streetAddress": "Ring Road East",
+      "captureMethod": "PwaGps",
+      "verificationStatus": "GpsCaptured",
+      "isPrimary": true
+    },
+    "additionalLocations": [
+      {
+        "id": "...",
+        "locationType": "DeliveryLocation",
+        "regionId": "...",
+        "regionName": "Greater Accra Region",
+        "districtId": "...",
+        "districtName": "Ga East",
+        "latitude": 5.6032,
+        "longitude": -0.1869,
+        "accuracyMetres": 8.0,
+        "landmarkAndDirections": "Behind the market",
+        "streetAddress": null,
+        "captureMethod": "PwaGps",
+        "verificationStatus": "GpsCaptured",
+        "isPrimary": false
+      }
+    ]
+  }
+]
+```
+
+`clientGeneratedId` is present when the customer was registered offline via the driver portal — use it to match against locally created records before sync completes.
+
+**Delta sync coverage:** the `?since=` filter returns a customer if any of the following changed after `since`:
+- The customer account itself was created or updated (business name, phone, etc.)
+- Any location was added to the customer (including additional locations)
+
+When a customer appears in a delta response, upsert it into your local store by `id`.
+
+### GET .../offline/districts
+
+All active districts in the trek's region. Returns a flat list — no pagination.
+
+**Response `200 OK`**
+```json
+[
+  { "id": "...", "name": "Accra Metropolitan", "code": "ACC-MET", "regionId": "..." },
+  { "id": "...", "name": "Ga East",            "code": "GA-E",    "regionId": "..." }
+]
+```
+
+Seed this once on first load and store in the local DB. Use the list to power the district picker when registering or updating a customer offline. Pass the selected `id` as `districtId` in `RegisterCustomer` or `UpdateCustomer` payloads. Pass `?since=` on reconnect like the other seed endpoints to pick up any newly added districts without re-downloading the full list.
 
 ### GET .../offline/trek
 
@@ -469,8 +637,8 @@ function getGps() {
 }
 ```
 
-**GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddWalkInStop` (stored on stop), `RecordReturn` (stored on return record).
-**GPS is NOT captured on:** `RecordDelivery` or `RecordUnplannedSale` — the stop already has a location.
+**GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddCustomerLocation` (stored on new location), `UpdateCustomerLocation` (updates existing location's coordinates), `AddWalkInStop` (stored on stop), `RecordReturn` (stored on return record).
+**GPS is NOT captured on:** `UpdateCustomer`, `RecordDelivery`, or `RecordUnplannedSale` — the stop/location already has coordinates.
 **Never block an action on GPS failure.** Pass `gps: null` and the action goes through without coordinates.
 
 ---
@@ -494,18 +662,44 @@ When connectivity returns, push all queued actions in one request. Actions are p
         "businessName": "Koforidua Pharmacy",
         "primaryPhoneNumber": "0244123456",
         "customerType": "RetailPharmacy",
+        "districtId": null,
+        "streetAddress": "Ring Road East",
+        "landmarkAndDirections": "Next to the Total filling station",
         "representative": {
           "firstName": "Ama",
           "lastName": "Boateng",
           "relationshipType": "Owner",
-          "primaryPhoneNumber": "0244123456"
+          "primaryPhoneNumber": "0244123456",
+          "ghanaCardNumber": null
         },
         "gps": { "latitude": 6.0835, "longitude": -0.2170, "accuracyMetres": 12.5 }
       }
     },
     {
-      "type": "AddWalkInStop",
+      "type": "AddCustomerLocation",
       "clientId": "<device-uuid-2>",
+      "occurredAt": "2026-09-17T10:33:00Z",
+      "payload": {
+        "customerClientId": "<device-uuid-1>",
+        "locationType": "DeliveryLocation",
+        "districtId": "<district-guid>",
+        "landmarkAndDirections": "Back entrance via the market",
+        "isPrimary": false,
+        "gps": { "latitude": 6.0840, "longitude": -0.2175, "accuracyMetres": 9.0 }
+      }
+    },
+    {
+      "type": "UpdateCustomerLocation",
+      "clientId": "<device-uuid-3>",
+      "occurredAt": "2026-09-17T10:34:00Z",
+      "payload": {
+        "locationClientId": "<device-uuid-2>",
+        "gps": { "latitude": 6.0842, "longitude": -0.2178, "accuracyMetres": 4.5 }
+      }
+    },
+    {
+      "type": "AddWalkInStop",
+      "clientId": "<device-uuid-4>",
       "occurredAt": "2026-09-17T10:35:00Z",
       "payload": {
         "trekId": "<trek-guid>",
@@ -516,7 +710,7 @@ When connectivity returns, push all queued actions in one request. Actions are p
     },
     {
       "type": "RecordDelivery",
-      "clientId": "<device-uuid-3>",
+      "clientId": "<device-uuid-5>",
       "occurredAt": "2026-09-17T10:38:00Z",
       "payload": {
         "stopProductId": "<existing-server-stop-product-guid>",
@@ -528,10 +722,10 @@ When connectivity returns, push all queued actions in one request. Actions are p
     },
     {
       "type": "RecordUnplannedSale",
-      "clientId": "<device-uuid-4>",
+      "clientId": "<device-uuid-6>",
       "occurredAt": "2026-09-17T10:40:00Z",
       "payload": {
-        "stopClientId": "<device-uuid-2>",
+        "stopClientId": "<device-uuid-4>",
         "productId": "<product-guid>",
         "basicQtyDelivered": 10,
         "paymentMethod": "Cash",
@@ -541,7 +735,7 @@ When connectivity returns, push all queued actions in one request. Actions are p
     },
     {
       "type": "RecordReturn",
-      "clientId": "<device-uuid-5>",
+      "clientId": "<device-uuid-7>",
       "occurredAt": "2026-09-17T10:45:00Z",
       "payload": {
         "stopId": "<existing-server-stop-guid>",
@@ -555,10 +749,10 @@ When connectivity returns, push all queued actions in one request. Actions are p
     },
     {
       "type": "VoidReturn",
-      "clientId": "<device-uuid-6>",
+      "clientId": "<device-uuid-8>",
       "occurredAt": "2026-09-17T10:46:00Z",
       "payload": {
-        "returnClientId": "<device-uuid-5>"
+        "returnClientId": "<device-uuid-7>"
       }
     }
   ]
@@ -576,13 +770,16 @@ When connectivity returns, push all queued actions in one request. Actions are p
 | `customerType` | Yes | |
 | `tradingName` | No | |
 | `whatsAppNumber` | No | |
+| `districtId` | No | UUID — omit if unknown |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
 | `representative.firstName` | Yes | |
 | `representative.lastName` | Yes | |
 | `representative.middleName` | No | |
 | `representative.relationshipType` | Yes | |
 | `representative.primaryPhoneNumber` | Yes | |
 | `representative.ghanaCardNumber` | No | |
-| `gps` | No | Optional — see GPS section |
+| `gps` | No | Optional — omit or send `null` — see GPS section |
 
 **`UpdateCustomer`**
 
@@ -596,17 +793,52 @@ Updates an existing customer's account fields, primary representative, and/or GP
 | `primaryPhoneNumber` | No | Returns `Conflict` if the number is already used by another customer |
 | `whatsAppNumber` | No | Send `null` to clear |
 | `customerType` | No | See enum reference in doc 09 |
+| `districtId` | No | UUID — updates the district on the primary location |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
 | `representative.firstName` | No | |
 | `representative.middleName` | No | Send `null` to clear |
 | `representative.lastName` | No | |
 | `representative.primaryPhoneNumber` | No | |
 | `representative.relationshipType` | No | |
 | `representative.ghanaCardNumber` | No | Send `null` to clear |
-| `gps` | No | Updates the existing primary location if one exists; creates one if not |
+| `gps` | No | Updates GPS on the primary location; creates a location if none exists |
 
-**GPS update behaviour:** if the customer already has a primary location its coordinates are overwritten in place. If no location exists yet a new primary `BusinessPremises` location is created. The `gps` object requires `latitude`, `longitude`, and optionally `accuracyMetres`.
+**Location update behaviour:** any combination of `gps`, `districtId`, `streetAddress`, and `landmarkAndDirections` can be sent independently. If the customer already has a primary location it is updated in place — GPS coordinates are overwritten when `gps` is provided, address fields are updated only when present. If no location exists yet a new primary `BusinessPremises` location is created with whatever fields were supplied.
 
 > `UpdateCustomer` does not have an `AlreadySynced` path — it is idempotent by nature (applying the same values twice produces the same result). The response always returns `Created` with the customer's `serverId`.
+
+**`AddCustomerLocation`**
+
+Adds an additional location to an existing customer. Accepts `customerId` or `customerClientId` for customers registered offline in the same or a previous batch.
+
+| Field | Required | Notes |
+|---|---|---|
+| `customerId` | Either/or | Server ID of the customer |
+| `customerClientId` | Either/or | `clientId` from a `RegisterCustomer` action |
+| `locationType` | No | `BusinessPremises`, `DeliveryLocation`, `Residential`, `Other` — defaults to `BusinessPremises` |
+| `districtId` | No | UUID from districts seed |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `isPrimary` | No | `true` to make this the new primary location — demotes any existing primary |
+| `gps` | No | Optional — see GPS section |
+
+The `serverId` returned is the new **location's** ID. Store it locally so you can reference it in a subsequent `UpdateCustomerLocation` action in a later batch using `locationId`.
+
+**`UpdateCustomerLocation`**
+
+Updates GPS coordinates and/or address fields on an existing location. Intended for the common field case where the driver drives to a customer's location and wants to capture or correct the GPS. Only fields present in the payload are applied — omit any field to leave it unchanged. `isPrimary` is not accepted; promotion is an admin-only operation.
+
+| Field | Required | Notes |
+|---|---|---|
+| `locationId` | Either/or | Server ID of the location to update |
+| `locationClientId` | Either/or | `clientId` from an `AddCustomerLocation` action **in the same batch** only — use `locationId` for locations from previous batches |
+| `districtId` | No | UUID from districts seed |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `gps` | No | When provided, also sets `captureMethod = PwaGps` and `verificationStatus = GpsCaptured` |
+
+> `UpdateCustomerLocation` is idempotent — applying the same values twice produces the same result. The response always returns `Created` with the location's `serverId`.
 
 **`AddWalkInStop`**
 
@@ -675,12 +907,14 @@ Cancels a return that was recorded online or offline. If `returnClientId` matche
 ```json
 {
   "results": [
-    { "clientId": "...", "type": "RegisterCustomer",   "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "AddWalkInStop",      "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "RecordDelivery",     "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "RecordUnplannedSale","status": "Created",      "serverId": null  },
-    { "clientId": "...", "type": "RecordReturn",       "status": "Created",      "serverId": "..." },
-    { "clientId": "...", "type": "VoidReturn",         "status": "Created",      "serverId": null  }
+    { "clientId": "...", "type": "RegisterCustomer",      "status": "Created",      "serverId": "...", "personId": "...", "reason": null },
+    { "clientId": "...", "type": "AddCustomerLocation",   "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
+    { "clientId": "...", "type": "UpdateCustomerLocation","status": "Created",      "serverId": "...", "personId": null,  "reason": null },
+    { "clientId": "...", "type": "AddWalkInStop",         "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
+    { "clientId": "...", "type": "RecordDelivery",        "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
+    { "clientId": "...", "type": "RecordUnplannedSale",   "status": "Created",      "serverId": null,  "personId": null,  "reason": null },
+    { "clientId": "...", "type": "RecordReturn",          "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
+    { "clientId": "...", "type": "VoidReturn",            "status": "Created",      "serverId": null,  "personId": null,  "reason": null }
   ]
 }
 ```
@@ -693,17 +927,20 @@ Cancels a return that was recorded online or offline. If `returnClientId` matche
 | `AlreadySynced` | Already processed — existing `serverId` returned. Update your local record with the returned ID. |
 | `Conflict` | Could not apply — e.g. phone already registered, trek is Completed, stop not found. Check `reason`. |
 
+**`personId` field** — only populated on `RegisterCustomer` results. It is the server ID of the primary representative (contact person). Store it alongside `serverId` so you can use it as the `{personId}` path param when uploading the representative portrait. If `null`, no representative was registered — skip the portrait upload.
+
 ### Dependency resolution
 
 The server processes all actions in `occurredAt` order and builds in-memory maps of `clientId → serverId` as it goes:
 
 | Map | Populated by | Consumed by |
 |---|---|---|
-| `customerClientMap` | `RegisterCustomer` | `AddWalkInStop` via `customerClientId` |
+| `customerClientMap` | `RegisterCustomer` | `AddCustomerLocation`, `AddWalkInStop` via `customerClientId` |
+| `locationClientMap` | `AddCustomerLocation` | `UpdateCustomerLocation` via `locationClientId` (same batch only) |
 | `stopClientMap` | `AddWalkInStop` | `RecordUnplannedSale` and `RecordReturn` via `stopClientId` |
 | `returnClientMap` | `RecordReturn` | `VoidReturn` via `returnClientId` |
 
-Each map also falls back to a DB lookup — so references to records created in **previous batches** resolve correctly too.
+`customerClientMap`, `stopClientMap`, and `returnClientMap` also fall back to a DB lookup — so references to records created in **previous batches** resolve correctly. `locationClientMap` does **not** have a DB fallback (locations have no `clientGeneratedId` column) — use the server `locationId` from a previous batch's response when referencing locations across batches.
 
 ### Offline work on other regional treks
 
@@ -738,9 +975,17 @@ const customerClientId = await queueAction('RegisterCustomer', {
   businessName: 'Koforidua Pharmacy',
   primaryPhoneNumber: '0244123456',
   customerType: 'RetailPharmacy',
-  representative: { firstName: 'Ama', lastName: 'Boateng',
-    relationshipType: 'Owner', primaryPhoneNumber: '0244123456' },
-  gps: await getGps()
+  districtId: selectedDistrictId ?? null,       // UUID from districts list, or null
+  streetAddress: 'Ring Road East',              // optional
+  landmarkAndDirections: 'Next to Total',       // optional
+  representative: {
+    firstName: 'Ama',
+    lastName: 'Boateng',
+    relationshipType: 'Owner',
+    primaryPhoneNumber: '0244123456',
+    ghanaCardNumber: null
+  },
+  gps: await getGps()   // null if no fix — action still proceeds
 });
 
 // Example — immediately add a walk-in stop for that offline customer:
@@ -799,7 +1044,11 @@ async function syncOfflineQueue() {
 
   for (const result of results) {
     if (result.status === 'Created' || result.status === 'AlreadySynced') {
-      await localDb.queue.update(result.clientId, { status: 'synced', serverId: result.serverId });
+      await localDb.queue.update(result.clientId, {
+        status: 'synced',
+        serverId: result.serverId,
+        personId: result.personId ?? null  // populated for RegisterCustomer only — use for portrait upload
+      });
     } else {
       await localDb.queue.update(result.clientId, { status: 'conflict', reason: result.reason });
     }
