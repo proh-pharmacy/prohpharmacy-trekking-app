@@ -16,11 +16,13 @@ public class ImageKitService(IConfiguration configuration)
         var extension = Path.GetExtension(file.FileName);
         var fileName = $"{Guid.NewGuid()}{extension}";
 
-        using var stream = file.OpenReadStream();
+        using var ms = new MemoryStream();
+        await file.CopyToAsync(ms);
+        ms.Position = 0;
 
         var response = await _client.Files.Upload(new FileUploadParams
         {
-            File = stream,
+            File = ms,
             FileName = fileName,
             Folder = $"/prohpharmacy/{folder.Trim('/')}"
         });
