@@ -42,17 +42,105 @@ The system uses permission-based access control. Roles are seeded by the backend
 
 ## Available Permissions
 
+All permissions follow `{Module}.{Action}` format.
+
 ```
-Staff.View              Staff.Manage
-Roles.Manage            Branches.Manage
-Vehicles.Manage         TrackingDevices.Manage
-Treks.ViewAll           Treks.Create
-Treks.Assign            Treks.Start            Treks.Complete
-Customers.Register      Customers.Edit         Customers.Approve
+# Users
+Users.View              Users.ViewDetails       Users.Invite
+Users.ResendInvitation  Users.Activate          Users.Suspend
+Users.RevokeSessions    Users.ResetPassword     Users.AssignRoles
+Users.RemoveRoles       Users.Edit
+
+# Staff
+Staff.View              Staff.ViewDetails       Staff.Create
+Staff.Edit              Staff.ChangeStatus      Staff.GrantAccess
+Staff.UploadPhoto
+
+# Roles
+Roles.View              Roles.Create            Roles.Edit
+Roles.ManagePermissions Roles.Delete
+
+# Organisation
+Regions.View            Regions.Create          Regions.Edit
+Districts.View          Districts.Create        Districts.Edit
+Branches.View           Branches.ViewDetails    Branches.Create
+Branches.Edit           Branches.ChangeStatus
+
+# Products & Units
+Products.View           Products.ViewDetails    Products.Create
+Products.Edit           Products.ChangeStatus   Products.Import
+Products.Export
+Units.View              Units.Create            Units.Edit
+Units.ChangeStatus
+
+# Customers
+Customers.View          Customers.ViewDetails   Customers.Register
+Customers.Edit          Customers.Approve       Customers.Export
+Customers.MapView
+CustomerLocations.View  CustomerLocations.Add   CustomerLocations.Edit
+CustomerLocations.Delete CustomerLocations.SetPrimary
+CustomerRepresentatives.View  CustomerRepresentatives.Edit
+CustomerPhotos.View     CustomerPhotos.Upload   CustomerPhotos.Replace
 CustomerKyc.View        CustomerKyc.Manage
 CustomerCredit.View     CustomerCredit.Manage
-Visits.Record           Visits.Verify
-Tracking.ViewAll        Reports.Export         Audit.View
+
+# Ledger
+Ledger.View             Ledger.ViewDetails      Ledger.CreateEntry
+Ledger.EditEntry        Ledger.DeleteEntry      Ledger.Export
+
+# Treks
+Treks.ViewAll           Treks.ViewAssigned      Treks.ViewDetails
+Treks.Create            Treks.Edit              Treks.Delete
+Treks.Assign            Treks.Start             Treks.Complete
+Treks.Cancel            Treks.ChangeStatus      Treks.Export
+Treks.DownloadSheet     Treks.GenerateDriverLink Treks.SendEmail
+
+# Trek Stops
+TrekStops.View          TrekStops.Add           TrekStops.Edit
+TrekStops.Delete        TrekStops.Reorder       TrekStops.ChangeCustomer
+
+# Trek Products (planned)
+TrekProducts.View       TrekProducts.Add        TrekProducts.Edit
+TrekProducts.Delete     TrekProducts.OverridePrice
+
+# Deliveries & Sales
+TrekDeliveries.View     TrekDeliveries.Record   TrekDeliveries.Edit
+UnplannedSales.View     UnplannedSales.Record   UnplannedSales.Edit
+UnplannedSales.Delete
+
+# Returns
+TrekReturns.View        TrekReturns.Record      TrekReturns.Delete
+
+# Trek Pricing / Catalogue Sync
+TrekPricing.ViewDiff    TrekPricing.Sync
+
+# Fleet — Vehicles
+Vehicles.View           Vehicles.ViewDetails    Vehicles.Create
+Vehicles.Edit           Vehicles.ChangeStatus   Vehicles.AssignStaff
+Vehicles.UnassignStaff
+
+# Fleet — Tracking Devices
+TrackingDevices.View    TrackingDevices.ViewDetails  TrackingDevices.Create
+TrackingDevices.Edit    TrackingDevices.Delete       TrackingDevices.Sync
+
+# Fleet — Fleet Drivers
+FleetDrivers.View       FleetDrivers.Register   FleetDrivers.Remove
+FleetDrivers.Sync
+
+# Fleet — Traccar Users
+TraccarUsers.View       TraccarUsers.Create     TraccarUsers.Edit
+TraccarUsers.Delete     TraccarUsers.Sync
+
+# Live Tracking
+Tracking.ViewAll        Tracking.ViewAssigned   Tracking.ViewLive
+Tracking.ViewHistory    Tracking.Export
+
+# Reports
+Reports.View            Reports.ViewCollections Reports.ViewLedger
+Reports.ViewProducts    Reports.ViewTreks       Reports.Export
+
+# Audit
+Audit.View              Audit.Export
 ```
 
 ---
@@ -71,15 +159,26 @@ Response:
 [
   {
     "module": "Customers",
-    "permissions": ["Customers.Approve", "Customers.Edit", "Customers.Register"]
+    "permissions": [
+      "Customers.View", "Customers.ViewDetails", "Customers.Register",
+      "Customers.Edit", "Customers.Approve", "Customers.Export", "Customers.MapView"
+    ]
   },
   {
     "module": "Staff",
-    "permissions": ["Staff.Manage", "Staff.View"]
+    "permissions": [
+      "Staff.View", "Staff.ViewDetails", "Staff.Create",
+      "Staff.Edit", "Staff.ChangeStatus", "Staff.GrantAccess", "Staff.UploadPhoto"
+    ]
   },
   {
     "module": "Treks",
-    "permissions": ["Treks.Assign", "Treks.Complete", "Treks.Create", "Treks.Start", "Treks.ViewAll"]
+    "permissions": [
+      "Treks.ViewAll", "Treks.ViewAssigned", "Treks.ViewDetails",
+      "Treks.Create", "Treks.Edit", "Treks.Delete", "Treks.Assign",
+      "Treks.Start", "Treks.Complete", "Treks.Cancel", "Treks.ChangeStatus",
+      "Treks.Export", "Treks.DownloadSheet", "Treks.GenerateDriverLink", "Treks.SendEmail"
+    ]
   }
 ]
 ```
@@ -103,7 +202,7 @@ Content-Type: application/json
 {
   "name": "Pharmacist",
   "description": "Optional description",
-  "permissions": ["Customers.Register", "Visits.Record"]
+  "permissions": ["Customers.Register", "TrekDeliveries.Record"]
 }
 ```
 
@@ -117,7 +216,7 @@ Content-Type: application/json
   "id": "...",
   "name": "Pharmacist",
   "description": "Optional description",
-  "permissions": ["Customers.Register", "Visits.Record"],
+  "permissions": ["Customers.Register", "TrekDeliveries.Record"],
   "isSystem": false
 }
 ```
@@ -140,7 +239,7 @@ Response:
     "id": "...",
     "name": "BranchManager",
     "description": "Staff, vehicles, treks and customers for assigned branches.",
-    "permissions": ["Staff.View", "Staff.Manage", "Treks.Create", "..."],
+    "permissions": ["Staff.View", "Staff.Edit", "Treks.ViewAll", "Treks.Create", "..."],
     "isSystem": true
   }
 ]
@@ -167,16 +266,20 @@ Response:
     {
       "module": "Customers",
       "permissions": [
+        { "key": "Customers.View", "enabled": true },
         { "key": "Customers.Register", "enabled": true },
         { "key": "Customers.Edit", "enabled": true },
-        { "key": "Customers.Approve", "enabled": false }
+        { "key": "Customers.Approve", "enabled": false },
+        { "key": "Customers.Export", "enabled": false }
       ]
     },
     {
       "module": "Staff",
       "permissions": [
         { "key": "Staff.View", "enabled": true },
-        { "key": "Staff.Manage", "enabled": true }
+        { "key": "Staff.ViewDetails", "enabled": true },
+        { "key": "Staff.Edit", "enabled": true },
+        { "key": "Staff.Create", "enabled": false }
       ]
     }
   ]
@@ -360,7 +463,7 @@ Response:
   "hasAppAccess": true,
   "isActive": true,
   "systemRoles": ["Driver"],
-  "permissions": ["Treks.ViewAll", "Treks.Start", "Treks.Complete"],
+  "permissions": ["Treks.ViewAssigned", "TrekDeliveries.Record", "UnplannedSales.Record"],
   "profilePhotoUrl": "https://ik.imagekit.io/...",
   "currentDeviceId": "...",
   "currentDeviceName": "Device 001",

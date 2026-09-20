@@ -44,7 +44,7 @@ Content-Type: application/json
     "email": "admin@prohpharmacy.com",
     "fullName": "Kwame Asante",
     "roles": ["BranchManager"],
-    "permissions": ["Staff.View", "Staff.Manage", "Treks.Create"]
+    "permissions": ["Staff.View", "Staff.Edit", "Treks.ViewAll", "Treks.Create"]
   }
 }
 ```
@@ -204,7 +204,7 @@ Authorization: Bearer <accessToken>
   "hasAppAccess": true,
   "isActive": true,
   "systemRoles": ["Driver"],
-  "permissions": ["Treks.ViewAll", "Treks.Start", "Treks.Complete"],
+  "permissions": ["Treks.ViewAssigned", "TrekDeliveries.Record", "UnplannedSales.Record"],
   "profilePhotoUrl": "https://ik.imagekit.io/...",
   "currentDeviceId": "...",
   "currentDeviceName": "Device 001",
