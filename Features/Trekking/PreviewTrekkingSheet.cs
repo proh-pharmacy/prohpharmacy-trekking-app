@@ -49,6 +49,11 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         [
                             new() { ProductName = "Metronidazole 400mg", BasicUnitName = "Tab", PlannedBasicQuantity = 8 },
                             new() { ProductName = "Vitamin C 1000mg", BasicUnitName = "Tab", PackagingUnitName = "Bottle", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 12 }
+                        ],
+                        Returns =
+                        [
+                            new() { ProductName = "Paracetamol 500mg", BasicUnitName = "Tab", PackagingUnitName = "Box", BasicUnitPrice = 2.50m, PackagingUnitPrice = 60.00m, BasicQtyReturned = 5, RefundAmount = 12.50m, RefundMethod = "Cash", Reason = "Damaged packaging" },
+                            new() { ProductName = "Amoxicillin 250mg", BasicUnitName = "Cap", BasicUnitPrice = 1.80m, BasicQtyReturned = 10, RefundAmount = 18.00m, RefundMethod = "MobileMoney", Reason = "Near expiry date" }
                         ]
                     },
                     new()
