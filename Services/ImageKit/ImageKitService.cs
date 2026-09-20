@@ -4,8 +4,7 @@ using System.Text.Json;
 
 namespace prohpharmacy_trekking_app.Services.ImageKit;
 
-public class ImageKitService(IConfiguration configuration, IHttpClientFactory httpClientFactory,
-    ILogger<ImageKitService> logger)
+public class ImageKitService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
 {
     private readonly string _privateKey = (configuration["ImageKitSettings:PrivateKey"]
         ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.")).Trim();
@@ -25,14 +24,13 @@ public class ImageKitService(IConfiguration configuration, IHttpClientFactory ht
         using var client = httpClientFactory.CreateClient("imagekit");
         var credentials = Convert.ToBase64String(Encoding.UTF8.GetBytes($"{_privateKey}:"));
         client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
-        logger.LogInformation("ImageKit DEBUG — PrivateKey: '{PrivateKey}' PublicKey: '{PublicKey}'",
-            _privateKey,
-            configuration["ImageKitSettings:PublicKey"] ?? "(null)");
 
-        using var content = new MultipartFormDataContent();
-        content.Add(new ByteArrayContent(bytes), "file", fileName);
-        content.Add(new StringContent(fileName), "fileName");
-        content.Add(new StringContent($"/prohpharmacy/{folder.Trim('/')}"), "folder");
+        using var content = new MultipartFormDataContent
+        {
+            { new ByteArrayContent(bytes), "file", fileName },
+            { new StringContent(fileName), "fileName" },
+            { new StringContent($"/prohpharmacy/{folder.Trim('/')}"), "folder" }
+        };
 
         var response = await client.PostAsync("https://upload.imagekit.io/api/v1/files/upload", content);
         var body = await response.Content.ReadAsStringAsync();
