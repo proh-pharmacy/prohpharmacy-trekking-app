@@ -15,7 +15,9 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                 ScheduledDate = DateOnly.FromDateTime(DateTime.Today),
                 DriverName = "Kwame Asante",
                 VehicleDisplayName = "Van 1 (GR-1234-24)",
-                BranchName = "Tema Branch",
+                RegionName = "Greater Accra Region",
+                DriverToken = Guid.Parse("3fa85f64-5717-4562-b3fc-2c963f66afa6"),
+                FrontendUrl = "https://trekking.prohpharmacy.com",
                 Stops =
                 [
                     new()
@@ -25,16 +27,13 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         CustomerCode = "GAR-00001",
                         PrimaryPhoneNumber = "0244 123 456",
                         DistrictName = "Tema",
-                        RegionName = "Greater Accra Region",
                         PrimaryLocationLandmark = "Opposite the blue mosque, after the junction",
                         PrimaryLocationStreet = "Community 5, Tema",
-                        PrimaryContactName = "Ama Boateng",
-                        PrimaryContactPhone = "0209 876 543",
                         Products =
                         [
-                            new() { ProductName = "Paracetamol 500mg", BasicUnitName = "Tab", PackagingUnitName = "Box", BasicUnitPrice = 2.50m, PackagingUnitPrice = 60.00m, PlannedBasicQuantity = 10, PlannedPackagingQuantity = 2 },
-                            new() { ProductName = "Amoxicillin 250mg", BasicUnitName = "Cap", PackagingUnitName = "Carton", BasicUnitPrice = 1.80m, PackagingUnitPrice = 45.00m, PlannedBasicQuantity = 0, PlannedPackagingQuantity = 5 },
-                            new() { ProductName = "ORS Sachets", BasicUnitName = "Sachet", BasicUnitPrice = 3.00m, PlannedBasicQuantity = 20 }
+                            new() { ProductName = "Paracetamol 500mg", BasicUnitName = "Tab", PackagingUnitName = "Box", PlannedBasicQuantity = 10, PlannedPackagingQuantity = 2 },
+                            new() { ProductName = "Amoxicillin 250mg", BasicUnitName = "Cap", PackagingUnitName = "Carton", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 5 },
+                            new() { ProductName = "ORS Sachets", BasicUnitName = "Sachet", PlannedBasicQuantity = 20 }
                         ]
                     },
                     new()
@@ -44,15 +43,12 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         CustomerCode = "GAR-00002",
                         PrimaryPhoneNumber = "0201 987 654",
                         DistrictName = "Katamanso",
-                        RegionName = "Greater Accra Region",
                         PrimaryLocationLandmark = "Near the Katamanso police station, red building",
                         PrimaryLocationStreet = "Main Road, Katamanso",
-                        PrimaryContactName = "Kofi Mensah",
-                        PrimaryContactPhone = "0244 567 890",
                         Products =
                         [
-                            new() { ProductName = "Metronidazole 400mg", BasicUnitName = "Tab", BasicUnitPrice = 1.20m, PlannedBasicQuantity = 8 },
-                            new() { ProductName = "Vitamin C 1000mg", BasicUnitName = "Tab", PackagingUnitName = "Bottle", BasicUnitPrice = 0.80m, PackagingUnitPrice = 22.00m, PlannedBasicQuantity = 0, PlannedPackagingQuantity = 12 }
+                            new() { ProductName = "Metronidazole 400mg", BasicUnitName = "Tab", PlannedBasicQuantity = 8 },
+                            new() { ProductName = "Vitamin C 1000mg", BasicUnitName = "Tab", PackagingUnitName = "Bottle", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 12 }
                         ]
                     },
                     new()
@@ -62,17 +58,14 @@ public class PreviewTrekkingSheetEndpoint : ICarterModule
                         CustomerCode = "GAR-00003",
                         PrimaryPhoneNumber = "0277 345 678",
                         DistrictName = "Ashaiman",
-                        RegionName = "Greater Accra Region",
                         PrimaryLocationLandmark = "Ground floor of the green plaza, beside mobile money booth",
                         PrimaryLocationStreet = "Ashaiman Market Road",
-                        PrimaryContactName = "Abena Asante",
-                        PrimaryContactPhone = "0277 111 222",
                         Products =
                         [
-                            new() { ProductName = "Chloroquine Tablets", BasicUnitName = "Tab", PackagingUnitName = "Pack", BasicUnitPrice = 0.50m, PackagingUnitPrice = 12.00m, PlannedBasicQuantity = 30, PlannedPackagingQuantity = 3 },
-                            new() { ProductName = "Ibuprofen 400mg", BasicUnitName = "Tab", BasicUnitPrice = 1.50m, PlannedBasicQuantity = 15 },
-                            new() { ProductName = "Antacid Suspension", BasicUnitName = "Bottle", BasicUnitPrice = 18.00m, PlannedBasicQuantity = 6 },
-                            new() { ProductName = "Zinc Sulphate", BasicUnitName = "Tab", PackagingUnitName = "Box", BasicUnitPrice = 0.60m, PackagingUnitPrice = 15.00m, PlannedBasicQuantity = 0, PlannedPackagingQuantity = 10 }
+                            new() { ProductName = "Chloroquine Tablets", BasicUnitName = "Tab", PackagingUnitName = "Pack", PlannedBasicQuantity = 30, PlannedPackagingQuantity = 3 },
+                            new() { ProductName = "Ibuprofen 400mg", BasicUnitName = "Tab", PlannedBasicQuantity = 15 },
+                            new() { ProductName = "Antacid Suspension", BasicUnitName = "Bottle", PlannedBasicQuantity = 6 },
+                            new() { ProductName = "Zinc Sulphate", BasicUnitName = "Tab", PackagingUnitName = "Box", PlannedBasicQuantity = 0, PlannedPackagingQuantity = 10 }
                         ]
                     }
                 ]

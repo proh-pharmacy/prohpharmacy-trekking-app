@@ -34,6 +34,7 @@ public static class SendTrekAssignmentEmail
 
             var trip = await db.TrekkingTrips
                 .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .Include(t => t.Driver)
                 .Include(t => t.Vehicle)
                 .Include(t => t.Stops.OrderBy(s => s.Sequence))
@@ -79,11 +80,12 @@ public static class SendTrekAssignmentEmail
                 ScheduledDate = trip.ScheduledDate,
                 DriverName = trip.Driver?.FullName ?? string.Empty,
                 VehicleDisplayName = trip.Vehicle?.DisplayName ?? string.Empty,
-                BranchName = trip.Region?.Name ?? string.Empty,
+                RegionName = trip.Region?.Name ?? string.Empty,
+                DriverToken = trip.DriverToken,
+                FrontendUrl = config["SiteSettings:FrontendUrl"],
                 Stops = trip.Stops.OrderBy(s => s.Sequence).Select(s =>
                 {
                     var loc = s.CustomerAccount?.Locations.FirstOrDefault();
-                    var contact = s.CustomerAccount?.People.FirstOrDefault();
                     return new TrekkingSheetPdfGenerator.TrekkingSheetData.StopData
                     {
                         Sequence = s.Sequence,
@@ -91,18 +93,13 @@ public static class SendTrekAssignmentEmail
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,
                         DistrictName = loc?.District?.Name,
-                        RegionName = s.CustomerAccount?.Region?.Name,
                         PrimaryLocationLandmark = loc?.LandmarkAndDirections,
                         PrimaryLocationStreet = loc?.StreetAddress,
-                        PrimaryContactName = contact?.FullName,
-                        PrimaryContactPhone = contact?.PrimaryPhoneNumber,
                         Products = s.Products.Select(p => new TrekkingSheetPdfGenerator.TrekkingSheetData.ProductData
                         {
                             ProductName = p.Product?.Name ?? string.Empty,
                             BasicUnitName = p.Product?.BasicUnit?.Name,
                             PackagingUnitName = p.Product?.PackagingUnit?.Name,
-                            BasicUnitPrice = p.BasicUnitPrice,
-                            PackagingUnitPrice = p.PackagingUnitPrice,
                             PlannedBasicQuantity = p.PlannedBasicQuantity,
                             PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                             BasicQtyDelivered = p.BasicQtyDelivered,
