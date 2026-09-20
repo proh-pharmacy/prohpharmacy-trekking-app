@@ -265,12 +265,11 @@ public static class TrekkingSheetPdfGenerator
                 .PaddingHorizontal(8).PaddingVertical(6)
                 .Row(row =>
                 {
-                    // Left: Stop+Code, Business Name, District, Address
+                    // Left: Stop+Code, Customer line
                     row.RelativeItem(1).Column(col1 =>
                     {
                         col1.Spacing(3);
 
-                        // Stop number merged with customer code (code faded)
                         col1.Item().Row(r =>
                         {
                             r.ConstantItem(75).Text("Stop:").FontSize(7f).Medium().FontColor(TextColor);
@@ -283,32 +282,22 @@ public static class TrekkingSheetPdfGenerator
                         });
                         col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        InfoRow(col1, "Business Name:", stop.CustomerName, 75);
-                        col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-
-                        InfoRow(col1, "District:", string.IsNullOrWhiteSpace(stop.DistrictName) ? "—" : stop.DistrictName, 75);
-                        col1.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-
-                        InfoRow(col1, "Address:", string.IsNullOrWhiteSpace(stop.PrimaryLocationStreet) ? "—" : stop.PrimaryLocationStreet, 75);
+                        var customerParts = new[] { stop.CustomerName, stop.PrimaryPhoneNumber, stop.DistrictName, stop.PrimaryLocationLandmark, stop.PrimaryLocationStreet }
+                            .Where(s => !string.IsNullOrWhiteSpace(s));
+                        InfoRow(col1, "Customer:", string.Join(", ", customerParts), 75);
                     });
 
                     row.ConstantItem(16);
 
-                    // Right: Tel, Location, Customer Signature, Date
+                    // Right: Customer Signature, Date
                     row.RelativeItem(1).Column(col2 =>
                     {
                         col2.Spacing(3);
 
-                        InfoRow(col2, "Tel:", string.IsNullOrWhiteSpace(stop.PrimaryPhoneNumber) ? "—" : stop.PrimaryPhoneNumber, 95);
+                        InfoRow(col2, "Customer Signature:", string.Empty, 115);
                         col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
 
-                        InfoRow(col2, "Location:", string.IsNullOrWhiteSpace(stop.PrimaryLocationLandmark) ? "—" : stop.PrimaryLocationLandmark, 95);
-                        col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-
-                        InfoRow(col2, "Customer Signature:", string.Empty, 95);
-                        col2.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-
-                        InfoRow(col2, "Date:", string.Empty, 95);
+                        InfoRow(col2, "Date:", string.Empty, 115);
                     });
                 });
 
