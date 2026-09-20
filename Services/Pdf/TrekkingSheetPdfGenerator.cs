@@ -87,7 +87,7 @@ public static class TrekkingSheetPdfGenerator
                 page.Margin(1.2f, Unit.Centimetre);
                 page.DefaultTextStyle(x => x.FontSize(7.5f).FontFamily("Helvetica Neue").FontColor(TextColor));
 
-                page.Header().Element(c => ComposeHeader(c, data));
+                page.Header().ShowOnce().Element(c => ComposeHeader(c, data));
                 page.Content().Element(c => ComposeContent(c, data));
                 page.Footer().Element(ComposeFooter);
             });
