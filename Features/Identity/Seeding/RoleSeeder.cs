@@ -15,58 +15,103 @@ public static class RoleSeeder
         ["OperationsManager"] = (
             "All trekking operations, fleet, customers and reports.",
             [
-                Permissions.StaffView, Permissions.TreksViewAll, Permissions.TreksCreate,
-                Permissions.TreksAssign, Permissions.TreksStart, Permissions.TreksComplete,
-                Permissions.VehiclesManage, Permissions.TrackingDevicesManage,
-                Permissions.CustomersRegister, Permissions.CustomersEdit, Permissions.CustomersApprove,
-                Permissions.CustomerKycView, Permissions.CustomerKycManage,
-                Permissions.CustomerCreditView, Permissions.CustomerCreditManage,
-                Permissions.VisitsRecord, Permissions.VisitsVerify,
-                Permissions.TrackingViewAll, Permissions.ReportsExport
+                Permissions.StaffView, Permissions.StaffEdit,
+                Permissions.BranchesView,
+                Permissions.ProductsView, Permissions.ProductsEdit,
+                Permissions.CustomersView, Permissions.CustomersEdit, Permissions.CustomersApprove,
+                Permissions.TreksViewAll, Permissions.TreksViewDetails,
+                Permissions.TreksCreate, Permissions.TreksEdit, Permissions.TreksAssign,
+                Permissions.TreksStart, Permissions.TreksComplete, Permissions.TreksCancel,
+                Permissions.TreksExport, Permissions.TreksDownloadSheet,
+                Permissions.TreksGenerateDriverLink, Permissions.TreksSendEmail,
+                Permissions.TrekStopsView, Permissions.TrekStopsAdd, Permissions.TrekStopsEdit,
+                Permissions.TrekStopsDelete, Permissions.TrekStopsReorder, Permissions.TrekStopsChangeCustomer,
+                Permissions.TrekProductsView, Permissions.TrekProductsAdd, Permissions.TrekProductsEdit,
+                Permissions.TrekProductsDelete, Permissions.TrekProductsOverridePrice,
+                Permissions.TrekDeliveriesView, Permissions.TrekReturnsView,
+                Permissions.VehiclesView,
+                Permissions.TrackingViewAll,
+                Permissions.ReportsView, Permissions.ReportsExport
             ]),
 
         ["BranchManager"] = (
             "Staff, vehicles, treks and customers for assigned branches.",
             [
-                Permissions.StaffView, Permissions.StaffManage,
-                Permissions.TreksCreate, Permissions.TreksAssign, Permissions.TreksStart, Permissions.TreksComplete,
-                Permissions.VehiclesManage,
-                Permissions.CustomersRegister, Permissions.CustomersEdit, Permissions.CustomersApprove,
-                Permissions.CustomerKycView,
-                Permissions.VisitsRecord, Permissions.VisitsVerify,
-                Permissions.ReportsExport
+                Permissions.StaffView, Permissions.StaffEdit,
+                Permissions.VehiclesView, Permissions.VehiclesAssignStaff,
+                Permissions.CustomersView, Permissions.CustomersRegister, Permissions.CustomersEdit,
+                Permissions.TreksViewAll, Permissions.TreksViewDetails,
+                Permissions.TreksCreate, Permissions.TreksEdit, Permissions.TreksAssign, Permissions.TreksStart,
+                Permissions.TreksDownloadSheet, Permissions.TreksSendEmail,
+                Permissions.TrekStopsView, Permissions.TrekStopsAdd, Permissions.TrekStopsEdit,
+                Permissions.TrekStopsDelete, Permissions.TrekStopsReorder, Permissions.TrekStopsChangeCustomer,
+                Permissions.TrekProductsView, Permissions.TrekProductsAdd, Permissions.TrekProductsEdit,
+                Permissions.TrekProductsDelete,
+                Permissions.TrekDeliveriesView,
+                Permissions.ReportsView
             ]),
 
         ["FieldStaff"] = (
-            "Assigned treks, customer registration and visit capture.",
+            "Assigned treks, customer registration and delivery capture.",
             [
-                Permissions.TreksViewAll, Permissions.CustomersRegister, Permissions.VisitsRecord
+                Permissions.CustomersView, Permissions.CustomersRegister, Permissions.CustomersEdit,
+                Permissions.CustomerLocationsAdd, Permissions.CustomerLocationsEdit,
+                Permissions.CustomerRepresentativesEdit,
+                Permissions.CustomerPhotosUpload,
+                Permissions.TreksViewAssigned, Permissions.TreksViewDetails,
+                Permissions.TrekStopsView,
+                Permissions.TrekDeliveriesRecord,
+                Permissions.UnplannedSalesRecord,
+                Permissions.TrekReturnsRecord
             ]),
 
         ["Driver"] = (
-            "Assigned treks and personal tracking-device status.",
+            "Assigned treks and delivery recording via driver portal or app.",
             [
-                Permissions.TreksViewAll
+                Permissions.TreksViewAssigned, Permissions.TreksViewDetails,
+                Permissions.TrekStopsView,
+                Permissions.TrekDeliveriesRecord,
+                Permissions.UnplannedSalesRecord,
+                Permissions.TrekReturnsRecord,
+                Permissions.CustomersRegister,
+                Permissions.CustomerLocationsAdd,
+                Permissions.CustomerPhotosUpload
             ]),
 
         ["CreditOfficer"] = (
-            "Customer KYC, credit assessment and outstanding credit records.",
+            "Customer KYC, credit assessment and ledger management.",
             [
-                Permissions.CustomersRegister,
+                Permissions.CustomersView, Permissions.CustomersViewDetails,
                 Permissions.CustomerKycView, Permissions.CustomerKycManage,
-                Permissions.CustomerCreditView, Permissions.CustomerCreditManage
+                Permissions.CustomerCreditView, Permissions.CustomerCreditManage,
+                Permissions.LedgerView, Permissions.LedgerViewDetails,
+                Permissions.LedgerCreateEntry, Permissions.LedgerEditEntry,
+                Permissions.ReportsViewLedger, Permissions.ReportsExport
             ]),
 
         ["Auditor"] = (
-            "Read-only reports and audit events.",
+            "Read-only access to reports and audit events.",
             [
-                Permissions.StaffView, Permissions.CustomerKycView, Permissions.CustomerCreditView,
-                Permissions.ReportsExport, Permissions.AuditView
+                Permissions.CustomersView,
+                Permissions.TreksViewAll,
+                Permissions.VehiclesView,
+                Permissions.TrackingViewAll,
+                Permissions.ReportsView, Permissions.ReportsExport,
+                Permissions.AuditView, Permissions.AuditExport
             ])
     };
 
     public static async Task SeedAsync(AppDbContext db)
     {
+        var definedRoleNames = _roles.Keys.ToHashSet();
+
+        // Remove system roles no longer in the definition
+        var staleRoles = await db.Roles
+            .Where(r => r.IsSystem && !definedRoleNames.Contains(r.Name))
+            .ToListAsync();
+        if (staleRoles.Count > 0)
+            db.Roles.RemoveRange(staleRoles);
+
         foreach (var (roleName, (description, permissions)) in _roles)
         {
             var role = await db.Roles
@@ -79,16 +124,22 @@ public static class RoleSeeder
                 db.Roles.Add(role);
                 await db.SaveChangesAsync();
             }
+            else
+            {
+                role.Description = description;
+            }
 
+            var desiredPerms = permissions.ToHashSet();
             var existingPerms = role.RolePermissions.Select(rp => rp.Permission).ToHashSet();
 
-            foreach (var permission in permissions)
-            {
-                if (!existingPerms.Contains(permission))
-                {
-                    db.RolePermissions.Add(new RolePermission { RoleId = role.Id, Permission = permission });
-                }
-            }
+            // Remove permissions no longer in the definition
+            var toRemove = role.RolePermissions.Where(rp => !desiredPerms.Contains(rp.Permission)).ToList();
+            if (toRemove.Count > 0)
+                db.RolePermissions.RemoveRange(toRemove);
+
+            // Add missing permissions
+            foreach (var permission in desiredPerms.Except(existingPerms))
+                db.RolePermissions.Add(new RolePermission { RoleId = role.Id, Permission = permission });
         }
 
         await db.SaveChangesAsync();
