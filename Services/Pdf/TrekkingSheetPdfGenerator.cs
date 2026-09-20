@@ -451,11 +451,11 @@ public static class TrekkingSheetPdfGenerator
     private static void ReturnHeaderCell(TableCellDescriptor table, string text, bool alignCenter = true)
     {
         var cell = table.Cell()
-            .Background("#b91c1c").BorderRight(0.5f).BorderColor("#fca5a5")
+            .Background("#fef2f2").BorderRight(0.5f).BorderColor("#fca5a5")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle();
 
-        if (alignCenter) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(Colors.White); return; }
-        cell.Text(text).FontSize(7.5f).FontColor(Colors.White);
+        if (alignCenter) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor("#b91c1c"); return; }
+        cell.Text(text).FontSize(7.5f).FontColor("#b91c1c");
     }
 
     private static void ReturnBodyCell(TableDescriptor table, string text, string background, bool alignCenter = true)
