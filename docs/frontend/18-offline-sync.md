@@ -930,6 +930,8 @@ Records the delivery outcome for a **planned** stop product (one that already ex
 | `amtPaid` | No | |
 | `balance` | No | |
 
+The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, that `serverId` is the `stopProductId` of the newly created stop product — use it with `POST api/v1/treks/driver/{token}/record` to update quantities, payment, or balance exactly like a planned product. No separate endpoint exists for editing unplanned sales.
+
 **`RecordReturn`**
 
 | Field | Required | Notes |
@@ -963,7 +965,7 @@ Cancels a return that was recorded online or offline. If `returnClientId` matche
     { "clientId": "...", "type": "UpdateCustomerLocation","status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "AddWalkInStop",         "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "RecordDelivery",        "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
-    { "clientId": "...", "type": "RecordUnplannedSale",   "status": "Created",      "serverId": null,  "personId": null,  "reason": null },
+    { "clientId": "...", "type": "RecordUnplannedSale",   "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "RecordReturn",          "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "VoidReturn",            "status": "Created",      "serverId": null,  "personId": null,  "reason": null }
   ]
