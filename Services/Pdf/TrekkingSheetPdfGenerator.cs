@@ -164,7 +164,6 @@ public static class TrekkingSheetPdfGenerator
             col.Item().PaddingTop(6).Column(detailsCol =>
             {
                 detailsCol.Spacing(4);
-                detailsCol.Item().Text("Trek Details").FontSize(9.5f).SemiBold().FontColor(PrimaryColor);
                 detailsCol.Item()
                     .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
                     .PaddingVertical(5).PaddingHorizontal(8)
