@@ -14,7 +14,7 @@ public static class HandleTraccarWebhook
 {
     public class Command : IRequest<Result>
     {
-        public TraccarWebhookPayload Payload { get; set; } = new();
+        public TraccarPosition Position { get; set; } = new();
     }
 
     internal sealed class Handler : IRequestHandler<Command, Result>
@@ -30,8 +30,8 @@ public static class HandleTraccarWebhook
 
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
-            var position = request.Payload.Position;
-            if (position is null || !position.Valid)
+            var position = request.Position;
+            if (!position.Valid)
                 return Result.Success();
 
             var traccarDeviceId = position.DeviceId;
@@ -92,7 +92,7 @@ public class TraccarWebhookEndpoint : ICarterModule
     {
         app.MapPost("api/traccar/webhook", async (
             [FromQuery] string? secret,
-            TraccarWebhookPayload payload,
+            TraccarPosition position,
             ISender sender,
             IConfiguration config) =>
         {
@@ -100,7 +100,7 @@ public class TraccarWebhookEndpoint : ICarterModule
             if (!string.IsNullOrEmpty(expected) && secret != expected)
                 return Results.Unauthorized();
 
-            await sender.Send(new HandleTraccarWebhook.Command { Payload = payload });
+            await sender.Send(new HandleTraccarWebhook.Command { Position = position });
             return Results.Ok();
         })
         .WithTags("Tracking")
