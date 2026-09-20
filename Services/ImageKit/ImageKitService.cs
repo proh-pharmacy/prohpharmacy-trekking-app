@@ -1,26 +1,13 @@
-using System.Net;
-using Imagekit;
-using Imagekit.Models.Files;
+using System.Net.Http.Headers;
+using System.Text;
+using System.Text.Json;
 
 namespace prohpharmacy_trekking_app.Services.ImageKit;
 
-public class ImageKitService(IConfiguration configuration)
+public class ImageKitService(IConfiguration configuration, IHttpClientFactory httpClientFactory)
 {
-    private readonly ImageKitClient _client = new()
-    {
-        PrivateKey = configuration["ImageKitSettings:PrivateKey"]
-            ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured."),
-        MaxRetries = 0,
-        HttpClient = new HttpClient(new SocketsHttpHandler
-        {
-            EnableMultipleHttp2Connections = false,
-            PooledConnectionLifetime = TimeSpan.FromMinutes(2)
-        })
-        {
-            DefaultRequestVersion = HttpVersion.Version11,
-            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
-        }
-    };
+    private readonly string _privateKey = configuration["ImageKitSettings:PrivateKey"]
+        ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured.");
 
     public async Task<string> UploadAsync(IFormFile file, string folder)
     {
@@ -34,27 +21,24 @@ public class ImageKitService(IConfiguration configuration)
             bytes = ms.ToArray();
         }
 
-        Exception? lastException = null;
-        for (var attempt = 0; attempt < 3; attempt++)
-        {
-            try
-            {
-                var response = await _client.Files.Upload(new FileUploadParams
-                {
-                    File = bytes,
-                    FileName = fileName,
-                    Folder = $"/prohpharmacy/{folder.Trim('/')}"
-                });
+        using var client = httpClientFactory.CreateClient("imagekit");
+        var credentials = Convert.ToBase64String(Encoding.ASCII.GetBytes($"{_privateKey}:"));
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", credentials);
 
-                return response.Url
-                    ?? throw new InvalidOperationException("ImageKit upload succeeded but returned no URL.");
-            }
-            catch (Exception ex) when (attempt < 2)
-            {
-                lastException = ex;
-            }
-        }
+        using var content = new MultipartFormDataContent();
+        content.Add(new ByteArrayContent(bytes), "file", fileName);
+        content.Add(new StringContent(fileName), "fileName");
+        content.Add(new StringContent($"/prohpharmacy/{folder.Trim('/')}"), "folder");
 
-        throw lastException!;
+        var response = await client.PostAsync("https://upload.imagekit.io/api/v1/files/upload", content);
+        var body = await response.Content.ReadAsStringAsync();
+
+        if (!response.IsSuccessStatusCode)
+            throw new InvalidOperationException($"ImageKit upload failed ({(int)response.StatusCode}): {body}");
+
+        using var doc = JsonDocument.Parse(body);
+        var url = doc.RootElement.GetProperty("url").GetString();
+
+        return url ?? throw new InvalidOperationException("ImageKit upload succeeded but returned no URL.");
     }
 }

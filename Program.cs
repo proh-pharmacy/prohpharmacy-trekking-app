@@ -99,6 +99,11 @@ builder.Services.AddScoped<TrekEmailJob>();
 builder.Services.AddPushServices(builder.Configuration);
 
 // ─── ImageKit ─────────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient("imagekit", client =>
+{
+    client.DefaultRequestVersion = new Version(1, 1);
+    client.DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower;
+});
 builder.Services.AddScoped<ImageKitService>();
 
 // ─── Traccar ──────────────────────────────────────────────────────────────────
