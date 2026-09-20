@@ -405,11 +405,10 @@ public static class TrekkingSheetPdfGenerator
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(0.4f);
-                        columns.RelativeColumn(2.5f);
-                        columns.RelativeColumn(1.2f);
-                        columns.RelativeColumn(1.3f);
-                        columns.RelativeColumn(1.2f);
-                        columns.RelativeColumn(1.3f);
+                        columns.RelativeColumn(3.0f);
+                        columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1.5f);
+                        columns.RelativeColumn(1.5f);
                         columns.RelativeColumn(2.5f);
                     });
 
@@ -417,7 +416,6 @@ public static class TrekkingSheetPdfGenerator
                     {
                         ReturnHeaderCell(header, "#", alignCenter: true);
                         ReturnHeaderCell(header, "Returns — Description", alignCenter: false);
-                        ReturnHeaderCell(header, "Unit Price", alignCenter: true);
                         ReturnHeaderCell(header, "Qty Returned", alignCenter: true);
                         ReturnHeaderCell(header, "Refund Amount", alignCenter: true);
                         ReturnHeaderCell(header, "Refund Method", alignCenter: true);
@@ -429,12 +427,6 @@ public static class TrekkingSheetPdfGenerator
                     {
                         var background = returnIndex % 2 == 1 ? "#fff7f7" : "#fef2f2";
 
-                        var priceParts = new List<string>();
-                        if (ret.BasicUnitPrice > 0)
-                            priceParts.Add($"GHS {ret.BasicUnitPrice:0.00}{(string.IsNullOrWhiteSpace(ret.BasicUnitName) ? string.Empty : $"/{ret.BasicUnitName}")}");
-                        if (ret.PackagingUnitPrice.HasValue && ret.PackagingUnitPrice > 0)
-                            priceParts.Add($"GHS {ret.PackagingUnitPrice:0.00}{(string.IsNullOrWhiteSpace(ret.PackagingUnitName) ? string.Empty : $"/{ret.PackagingUnitName}")}");
-
                         var qtyParts = new List<string>();
                         if (ret.BasicQtyReturned > 0)
                             qtyParts.Add($"{ret.BasicQtyReturned:0.###}{(string.IsNullOrWhiteSpace(ret.BasicUnitName) ? string.Empty : $" {ret.BasicUnitName}")}");
@@ -443,7 +435,6 @@ public static class TrekkingSheetPdfGenerator
 
                         ReturnBodyCell(table, returnIndex.ToString(), background, alignCenter: true);
                         ReturnBodyCell(table, ret.ProductName, background, alignCenter: false);
-                        ReturnBodyCell(table, string.Join("\n", priceParts), background, alignCenter: true);
                         ReturnBodyCell(table, string.Join("\n", qtyParts), background, alignCenter: true);
                         ReturnBodyCell(table, ret.RefundAmount.HasValue ? $"GHS {ret.RefundAmount:0.00}" : string.Empty, background, alignCenter: true);
                         ReturnBodyCell(table, ret.RefundMethod ?? string.Empty, background, alignCenter: true);
