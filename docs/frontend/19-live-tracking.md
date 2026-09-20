@@ -23,105 +23,79 @@ The token is generated in Traccar → Settings → User → API Access. Store it
 
 ## REST Endpoints
 
+> **Do not call Traccar directly from the frontend** — it will be blocked by CORS. All REST calls go through your backend, which proxies to Traccar server-side.
+
 ### 1. Current position of a device
 
 ```http
-GET https://tracking.prohpharmacy.com/api/positions?deviceId=21
-Authorization: Bearer <token>
+GET api/v1/fleet/devices/{backendDeviceId}/position
+Authorization: Bearer <accessToken>
 ```
 
-**Confirmed live response:**
+`backendDeviceId` is the backend UUID from `GET api/v1/fleet/devices/traccar` (`backendDeviceId` field).
+
+**Response:**
 ```json
-[
-  {
-    "id": 1090,
-    "deviceId": 21,
-    "protocol": "osmand",
-    "valid": true,
-    "latitude": 5.728970162899248,
-    "longitude": -0.04652289249332973,
-    "altitude": 41.22,
-    "speed": 0.0,
-    "course": 0.0,
-    "address": null,
-    "accuracy": 7.88,
-    "fixTime": "2026-09-20T23:08:01.000+00:00",
-    "deviceTime": "2026-09-20T23:08:01.000+00:00",
-    "serverTime": "2026-09-20T23:08:18.098+00:00",
-    "geofenceIds": null,
-    "network": null,
-    "attributes": {
-      "batteryLevel": 50.0,
-      "charge": false,
-      "distance": 7.37e-07,
-      "totalDistance": 2040.52,
-      "motion": false
-    }
-  }
-]
+{
+  "deviceId": "...",
+  "deviceName": "Ahafo - Sakoes Vehicle",
+  "staffMemberId": "...",
+  "staffName": "Kofi Mensah",
+  "vehicleId": "...",
+  "vehicleRegistration": "GR-1234-24",
+  "latitude": 5.728970162899248,
+  "longitude": -0.04652289249332973,
+  "speed": 0.0,
+  "course": 0.0,
+  "address": null,
+  "ignition": null,
+  "motion": false,
+  "batteryLevel": 50.0,
+  "fixTime": "2026-09-20T23:08:01.000+00:00",
+  "valid": true
+}
 ```
-
-Returns an array — always read index `[0]`. Returns empty array `[]` if the device has never reported.
 
 ---
 
 ### 2. Route history (for map replay / polyline)
 
 ```http
-GET https://tracking.prohpharmacy.com/api/reports/route?deviceId=21&from=2026-09-20T00:00:00Z&to=2026-09-20T23:59:59Z
-Authorization: Bearer <token>
-Accept: application/json
+GET api/v1/fleet/devices/{backendDeviceId}/position/history?from=2026-09-20T00:00:00Z&to=2026-09-20T23:59:59Z
+Authorization: Bearer <accessToken>
 ```
 
-> **Critical:** you MUST send `Accept: application/json`. Without it Traccar returns an Excel file.
+- Maximum range: **31 days**
+- `from` and `to` are ISO 8601 UTC
 
-**Confirmed live response** (array of all positions in the time range):
+**Response** (array of all GPS pings in the time range):
 ```json
 [
   {
-    "id": 1042,
-    "deviceId": 21,
-    "valid": true,
     "latitude": 5.726709188459911,
     "longitude": -0.04784365750551864,
-    "altitude": 50.59,
     "speed": 0.0,
     "course": 0.0,
+    "address": null,
+    "motion": false,
+    "batteryLevel": 50.0,
     "fixTime": "2026-09-20T10:55:58.000+00:00",
-    "attributes": {
-      "batteryLevel": 50.0,
-      "charge": false,
-      "motion": false,
-      "distance": 292.29,
-      "totalDistance": 292.29
-    }
+    "valid": true
   },
   {
-    "id": 1043,
-    "deviceId": 21,
-    "valid": true,
     "latitude": 5.72645857424132,
     "longitude": -0.04803760617107798,
-    "altitude": 46.08,
     "speed": 2.47,
     "course": 234.55,
+    "motion": true,
+    "batteryLevel": 50.0,
     "fixTime": "2026-09-20T10:56:25.000+00:00",
-    "attributes": {
-      "batteryLevel": 50.0,
-      "motion": true,
-      "distance": 35.21,
-      "totalDistance": 327.50
-    }
+    "valid": true
   }
 ]
 ```
 
-Each entry is one GPS ping. Feed the array of `[latitude, longitude]` pairs into your map library as a polyline to draw the route.
-
-**Date range tips:**
-- Use UTC (`Z` suffix) — Traccar stores everything in UTC
-- Keep ranges to one day at a time for performance
-- `from` and `to` are ISO 8601 — e.g. `2026-09-20T00:00:00Z`
+Feed `[latitude, longitude]` pairs as a polyline to draw the route on the map.
 
 ---
 
@@ -248,6 +222,7 @@ export interface TraccarDeviceStatus {
 
 export interface VehiclePosition {
   traccarDeviceId: number
+  backendDeviceId: string | null   // UUID — use this for REST proxy calls
   vehicleRegistration: string | null
   staffName: string | null
   latitude: number
@@ -338,6 +313,7 @@ export function useTracking() {
             const meta = metaRef.current.get(p.deviceId)
             next.set(p.deviceId, {
               traccarDeviceId: p.deviceId,
+              backendDeviceId: meta?.backendDeviceId ?? null,
               vehicleRegistration: meta?.vehicleRegistration ?? null,
               staffName: meta?.staffName ?? null,
               latitude: p.latitude,
@@ -380,31 +356,24 @@ export function useTracking() {
 ```tsx
 // hooks/useRouteHistory.ts
 import { useState } from 'react'
-
-const TRACCAR_BASE = 'https://tracking.prohpharmacy.com/api'
-const TOKEN = import.meta.env.VITE_TRACCAR_TOKEN
+import api from '@/lib/api'
 
 export function useRouteHistory() {
   const [route, setRoute] = useState<[number, number][]>([])
   const [loading, setLoading] = useState(false)
 
-  async function loadRoute(deviceId: number, date: string) {
+  async function loadRoute(backendDeviceId: string, date: string) {
+    // backendDeviceId — the UUID from GET api/v1/fleet/devices/traccar (backendDeviceId field)
     // date format: 'YYYY-MM-DD'
     setLoading(true)
     try {
       const from = `${date}T00:00:00Z`
       const to = `${date}T23:59:59Z`
-      const res = await fetch(
-        `${TRACCAR_BASE}/reports/route?deviceId=${deviceId}&from=${from}&to=${to}`,
-        {
-          headers: {
-            Authorization: `Bearer ${TOKEN}`,
-            Accept: 'application/json',   // required — omitting returns Excel
-          },
-        }
+      const { data } = await api.get(
+        `/api/v1/fleet/devices/${backendDeviceId}/position/history`,
+        { params: { from, to } }
       )
-      const data: TraccarPosition[] = await res.json()
-      setRoute(data.filter(p => p.valid).map(p => [p.latitude, p.longitude]))
+      setRoute(data.filter((p: any) => p.valid).map((p: any) => [p.latitude, p.longitude]))
     } finally {
       setLoading(false)
     }
@@ -452,9 +421,11 @@ export default function TrackingPage() {
               <p>{(v.speed * 1.852).toFixed(1)} km/h</p>
               {v.batteryLevel != null && <p>Battery: {v.batteryLevel}%</p>}
               <p className="text-xs text-gray-400">{new Date(v.fixTime).toLocaleTimeString()}</p>
-              <button onClick={() => loadRoute(v.traccarDeviceId, new Date().toISOString().slice(0, 10))}>
-                Show today's route
-              </button>
+              {v.backendDeviceId && (
+                <button onClick={() => loadRoute(v.backendDeviceId!, new Date().toISOString().slice(0, 10))}>
+                  Show today's route
+                </button>
+              )}
             </Popup>
           </Marker>
         ))}
