@@ -1,3 +1,4 @@
+using System.Net;
 using Imagekit;
 using Imagekit.Models.Files;
 
@@ -9,7 +10,16 @@ public class ImageKitService(IConfiguration configuration)
     {
         PrivateKey = configuration["ImageKitSettings:PrivateKey"]
             ?? throw new InvalidOperationException("ImageKitSettings:PrivateKey is not configured."),
-        MaxRetries = 0
+        MaxRetries = 0,
+        HttpClient = new HttpClient(new SocketsHttpHandler
+        {
+            EnableMultipleHttp2Connections = false,
+            PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+        })
+        {
+            DefaultRequestVersion = HttpVersion.Version11,
+            DefaultVersionPolicy = HttpVersionPolicy.RequestVersionOrLower
+        }
     };
 
     public async Task<string> UploadAsync(IFormFile file, string folder)
