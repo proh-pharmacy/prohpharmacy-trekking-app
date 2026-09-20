@@ -38,10 +38,11 @@ public static class SyncOfflineActionsByDriverToken
         public string Type { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public Guid? ServerId { get; set; }
+        public Guid? PersonId { get; set; }
         public string? Reason { get; set; }
     }
 
-    internal sealed class Handler(AppDbContext db) : IRequestHandler<Command, Result<SyncResponse>>
+    internal sealed class Handler(AppDbContext db, ILogger<Handler> logger) : IRequestHandler<Command, Result<SyncResponse>>
     {
         public async Task<Result<SyncResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
@@ -62,15 +63,19 @@ public static class SyncOfflineActionsByDriverToken
 
             // In-batch maps: clientId → server Guid for entities created in this batch
             var customerClientMap = new Dictionary<Guid, Guid>();
+            var locationClientMap = new Dictionary<Guid, Guid>();
             var stopClientMap = new Dictionary<Guid, Guid>();
             var returnClientMap = new Dictionary<Guid, Guid>();
+            var regionCustomerOffset = new Dictionary<Guid, int>();
 
             foreach (var action in ordered)
             {
                 var result = action.Type switch
                 {
-                    "RegisterCustomer"   => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, cancellationToken),
-                    "UpdateCustomer"     => await ProcessUpdateCustomerAsync(action, trip, attributedStaffId, cancellationToken),
+                    "RegisterCustomer"        => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, regionCustomerOffset, cancellationToken),
+                    "UpdateCustomer"          => await ProcessUpdateCustomerAsync(action, trip, attributedStaffId, cancellationToken),
+                    "AddCustomerLocation"     => await ProcessAddCustomerLocationAsync(action, trip, attributedStaffId, customerClientMap, locationClientMap, cancellationToken),
+                    "UpdateCustomerLocation"  => await ProcessUpdateCustomerLocationAsync(action, trip, locationClientMap, cancellationToken),
                     "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
                     "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, cancellationToken),
                     "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
@@ -83,6 +88,18 @@ public static class SyncOfflineActionsByDriverToken
 
             await db.SaveChangesAsync(cancellationToken);
 
+            var conflicts = results.Where(r => r.Status == "Conflict").ToList();
+            logger.LogInformation(
+                "Sync completed for token {Token} — {Total} actions: {Created} created, {AlreadySynced} already synced, {Conflicts} conflicts",
+                request.Token, results.Count,
+                results.Count(r => r.Status == "Created"),
+                results.Count(r => r.Status == "AlreadySynced"),
+                conflicts.Count);
+
+            foreach (var conflict in conflicts)
+                logger.LogWarning("Sync conflict — ClientId={ClientId} Type={Type} Reason={Reason}",
+                    conflict.ClientId, conflict.Type, conflict.Reason);
+
             return Result.Success(new SyncResponse { Results = results });
         }
 
@@ -92,14 +109,16 @@ public static class SyncOfflineActionsByDriverToken
             Guid attributedStaffId,
             Guid owningBranchId,
             Dictionary<Guid, Guid> customerClientMap,
+            Dictionary<Guid, int> regionCustomerOffset,
             CancellationToken ct)
         {
             var existing = await db.CustomerAccounts
+                .Include(c => c.People.Where(p => p.IsPrimaryContact))
                 .FirstOrDefaultAsync(c => c.ClientGeneratedId == action.ClientId, ct);
             if (existing is not null)
             {
                 customerClientMap[action.ClientId] = existing.Id;
-                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id };
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id, PersonId = existing.People.FirstOrDefault()?.Id };
             }
 
             var payload = action.Payload;
@@ -110,19 +129,22 @@ public static class SyncOfflineActionsByDriverToken
             if (string.IsNullOrWhiteSpace(businessName) || string.IsNullOrWhiteSpace(phone))
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "businessName and primaryPhoneNumber are required." };
 
-            var phoneExists = await db.CustomerAccounts.AnyAsync(c => c.PrimaryPhoneNumber == phone.Trim(), ct);
-            if (phoneExists)
+            var phoneMatch = await db.CustomerAccounts
+                .Include(c => c.People.Where(p => p.IsPrimaryContact))
+                .FirstOrDefaultAsync(c => c.PrimaryPhoneNumber == phone.Trim(), ct);
+            if (phoneMatch is not null)
             {
-                var match = await db.CustomerAccounts.FirstAsync(c => c.PrimaryPhoneNumber == phone.Trim(), ct);
-                customerClientMap[action.ClientId] = match.Id;
-                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = match.Id };
+                customerClientMap[action.ClientId] = phoneMatch.Id;
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = phoneMatch.Id, PersonId = phoneMatch.People.FirstOrDefault()?.Id };
             }
 
             if (!Enum.TryParse<CustomerType>(customerTypeStr, ignoreCase: true, out var customerType))
                 customerType = CustomerType.RetailPharmacy;
 
             var count = await db.CustomerAccounts.CountAsync(c => c.RegionId == trip.RegionId, ct);
-            var code = $"{trip.Region.Code.ToUpper()}-{(count + 1):D5}";
+            var offset = regionCustomerOffset.GetValueOrDefault(trip.RegionId, 0);
+            var code = $"{trip.Region.Code.ToUpper()}-{(count + offset + 1):D5}";
+            regionCustomerOffset[trip.RegionId] = offset + 1;
 
             var tradingName = payload.TryGetProperty("tradingName", out var tn) ? tn.GetString()?.Trim() : null;
             var whatsApp = payload.TryGetProperty("whatsAppNumber", out var wa) ? wa.GetString()?.Trim() : null;
@@ -147,7 +169,8 @@ public static class SyncOfflineActionsByDriverToken
             };
             db.CustomerAccounts.Add(account);
 
-            if (payload.TryGetProperty("representative", out var rep))
+            Guid? personId = null;
+            if (payload.TryGetProperty("representative", out var rep) && rep.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
                 var firstName = rep.TryGetProperty("firstName", out var fn) ? fn.GetString()?.Trim() ?? string.Empty : string.Empty;
                 var lastName = rep.TryGetProperty("lastName", out var ln) ? ln.GetString()?.Trim() ?? string.Empty : string.Empty;
@@ -160,7 +183,7 @@ public static class SyncOfflineActionsByDriverToken
 
                 if (!string.IsNullOrWhiteSpace(firstName) && !string.IsNullOrWhiteSpace(lastName))
                 {
-                    db.CustomerPersons.Add(new CustomerPerson
+                    var person = new CustomerPerson
                     {
                         CustomerAccountId = account.Id,
                         FirstName = firstName,
@@ -172,36 +195,50 @@ public static class SyncOfflineActionsByDriverToken
                         IsPrimaryContact = true,
                         IsCreditResponsiblePerson = true,
                         CreatedAt = DateTime.UtcNow
-                    });
+                    };
+                    db.CustomerPersons.Add(person);
+                    personId = person.Id;
                 }
             }
 
-            if (payload.TryGetProperty("gps", out var gps))
+            Guid? districtId = payload.TryGetProperty("districtId", out var did) && Guid.TryParse(did.GetString(), out var parsedDid) ? parsedDid : null;
+            var streetAddress = payload.TryGetProperty("streetAddress", out var sa) ? sa.GetString()?.Trim() : null;
+            var landmark = payload.TryGetProperty("landmarkAndDirections", out var lad) ? lad.GetString()?.Trim() : null;
+
+            decimal? lat = null, lon = null, acc = null;
+            var hasGps = false;
+            if (payload.TryGetProperty("gps", out var gps) && gps.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
-                var lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
-                var lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
-                var acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
-                if (lat.HasValue && lon.HasValue)
+                lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
+                lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
+                acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+                hasGps = lat.HasValue && lon.HasValue;
+            }
+
+            var hasAddress = districtId.HasValue || streetAddress is not null || landmark is not null;
+            if (hasGps || hasAddress)
+            {
+                db.CustomerLocations.Add(new CustomerLocation
                 {
-                    db.CustomerLocations.Add(new CustomerLocation
-                    {
-                        CustomerAccountId = account.Id,
-                        LocationType = LocationType.BusinessPremises,
-                        RegionId = trip.RegionId,
-                        Latitude = lat,
-                        Longitude = lon,
-                        AccuracyMetres = acc,
-                        CaptureMethod = CaptureMethod.PwaGps,
-                        VerificationStatus = LocationVerificationStatus.GpsCaptured,
-                        IsPrimary = true,
-                        CapturedByStaffId = attributedStaffId,
-                        CreatedAt = DateTime.UtcNow
-                    });
-                }
+                    CustomerAccountId = account.Id,
+                    LocationType = LocationType.BusinessPremises,
+                    RegionId = trip.RegionId,
+                    DistrictId = districtId,
+                    StreetAddress = streetAddress,
+                    LandmarkAndDirections = landmark,
+                    Latitude = lat,
+                    Longitude = lon,
+                    AccuracyMetres = acc,
+                    CaptureMethod = hasGps ? CaptureMethod.PwaGps : CaptureMethod.ManualLocationSelection,
+                    VerificationStatus = hasGps ? LocationVerificationStatus.GpsCaptured : LocationVerificationStatus.Unverified,
+                    IsPrimary = true,
+                    CapturedByStaffId = attributedStaffId,
+                    CreatedAt = DateTime.UtcNow
+                });
             }
 
             customerClientMap[action.ClientId] = account.Id;
-            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = account.Id };
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = account.Id, PersonId = personId };
         }
 
         private async Task<ActionResult> ProcessUpdateCustomerAsync(
@@ -246,7 +283,7 @@ public static class SyncOfflineActionsByDriverToken
 
             account.UpdatedAt = DateTime.UtcNow;
 
-            if (payload.TryGetProperty("representative", out var rep))
+            if (payload.TryGetProperty("representative", out var rep) && rep.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
                 var person = account.People.FirstOrDefault();
                 if (person is null)
@@ -286,45 +323,225 @@ public static class SyncOfflineActionsByDriverToken
                 person.UpdatedAt = DateTime.UtcNow;
             }
 
-            if (payload.TryGetProperty("gps", out var gps))
-            {
-                var lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
-                var lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
-                var acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+            Guid? updateDistrictId = payload.TryGetProperty("districtId", out var udid) && Guid.TryParse(udid.GetString(), out var parsedUdid) ? parsedUdid : null;
+            var updateStreetAddress = payload.TryGetProperty("streetAddress", out var usa) ? usa.GetString()?.Trim() : null;
+            var updateLandmark = payload.TryGetProperty("landmarkAndDirections", out var ulad) ? ulad.GetString()?.Trim() : null;
 
-                if (lat.HasValue && lon.HasValue)
+            decimal? uLat = null, uLon = null, uAcc = null;
+            var updateHasGps = false;
+            if (payload.TryGetProperty("gps", out var gps) && gps.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                uLat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
+                uLon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
+                uAcc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+                updateHasGps = uLat.HasValue && uLon.HasValue;
+            }
+
+            var updateHasAddress = updateDistrictId.HasValue || updateStreetAddress is not null || updateLandmark is not null;
+            if (updateHasGps || updateHasAddress)
+            {
+                var location = account.Locations.FirstOrDefault();
+                if (location is not null)
                 {
-                    var location = account.Locations.FirstOrDefault();
-                    if (location is not null)
+                    if (updateHasGps)
                     {
-                        location.Latitude = lat;
-                        location.Longitude = lon;
-                        location.AccuracyMetres = acc;
+                        location.Latitude = uLat;
+                        location.Longitude = uLon;
+                        location.AccuracyMetres = uAcc;
                         location.CaptureMethod = CaptureMethod.PwaGps;
                         location.VerificationStatus = LocationVerificationStatus.GpsCaptured;
                         location.CapturedByStaffId = attributedStaffId;
                     }
-                    else
+                    if (updateDistrictId.HasValue) location.DistrictId = updateDistrictId;
+                    if (updateStreetAddress is not null) location.StreetAddress = updateStreetAddress;
+                    if (updateLandmark is not null) location.LandmarkAndDirections = updateLandmark;
+                }
+                else
+                {
+                    db.CustomerLocations.Add(new CustomerLocation
                     {
-                        db.CustomerLocations.Add(new CustomerLocation
-                        {
-                            CustomerAccountId = account.Id,
-                            LocationType = LocationType.BusinessPremises,
-                            RegionId = trip.RegionId,
-                            Latitude = lat,
-                            Longitude = lon,
-                            AccuracyMetres = acc,
-                            CaptureMethod = CaptureMethod.PwaGps,
-                            VerificationStatus = LocationVerificationStatus.GpsCaptured,
-                            IsPrimary = true,
-                            CapturedByStaffId = attributedStaffId,
-                            CreatedAt = DateTime.UtcNow
-                        });
-                    }
+                        CustomerAccountId = account.Id,
+                        LocationType = LocationType.BusinessPremises,
+                        RegionId = trip.RegionId,
+                        DistrictId = updateDistrictId,
+                        StreetAddress = updateStreetAddress,
+                        LandmarkAndDirections = updateLandmark,
+                        Latitude = uLat,
+                        Longitude = uLon,
+                        AccuracyMetres = uAcc,
+                        CaptureMethod = updateHasGps ? CaptureMethod.PwaGps : CaptureMethod.ManualLocationSelection,
+                        VerificationStatus = updateHasGps ? LocationVerificationStatus.GpsCaptured : LocationVerificationStatus.Unverified,
+                        IsPrimary = true,
+                        CapturedByStaffId = attributedStaffId,
+                        CreatedAt = DateTime.UtcNow
+                    });
                 }
             }
 
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = account.Id };
+        }
+
+        private async Task<ActionResult> ProcessAddCustomerLocationAsync(
+            OfflineAction action,
+            Entities.TrekkingTrip trip,
+            Guid attributedStaffId,
+            Dictionary<Guid, Guid> customerClientMap,
+            Dictionary<Guid, Guid> locationClientMap,
+            CancellationToken ct)
+        {
+            var payload = action.Payload;
+
+            Guid customerId;
+            if (payload.TryGetProperty("customerClientId", out var ccid) && Guid.TryParse(ccid.GetString(), out var cClientId))
+            {
+                if (!customerClientMap.TryGetValue(cClientId, out customerId))
+                {
+                    var resolved = await db.CustomerAccounts.FirstOrDefaultAsync(c => c.ClientGeneratedId == cClientId, ct);
+                    if (resolved is null)
+                        return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerClientId could not be resolved to a customer." };
+                    customerId = resolved.Id;
+                }
+            }
+            else if (payload.TryGetProperty("customerId", out var cid) && Guid.TryParse(cid.GetString(), out var directId))
+            {
+                customerId = directId;
+            }
+            else
+            {
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerId or customerClientId is required." };
+            }
+
+            var account = await db.CustomerAccounts
+                .FirstOrDefaultAsync(a => a.Id == customerId &&
+                    (a.RegionId == trip.RegionId || a.Locations.Any(l => l.RegionId == trip.RegionId)), ct);
+            if (account is null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Customer not found in this trek's region." };
+
+            var locationTypeStr = payload.TryGetProperty("locationType", out var lt) ? lt.GetString() : null;
+            if (!Enum.TryParse<Features.Customers.Enums.LocationType>(locationTypeStr, ignoreCase: true, out var locationType))
+                locationType = Features.Customers.Enums.LocationType.BusinessPremises;
+
+            Guid? districtId = payload.TryGetProperty("districtId", out var did) && Guid.TryParse(did.GetString(), out var parsedDid) ? parsedDid : null;
+            var streetAddress = payload.TryGetProperty("streetAddress", out var sa) ? sa.GetString()?.Trim() : null;
+            var landmark = payload.TryGetProperty("landmarkAndDirections", out var lad) ? lad.GetString()?.Trim() : null;
+            var isPrimary = payload.TryGetProperty("isPrimary", out var ip) && ip.GetBoolean();
+
+            decimal? lat = null, lon = null, acc = null;
+            var hasGps = false;
+            if (payload.TryGetProperty("gps", out var gps) && gps.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
+                lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
+                acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+                hasGps = lat.HasValue && lon.HasValue;
+            }
+
+            var captureMethod = hasGps ? CaptureMethod.PwaGps : CaptureMethod.ManualLocationSelection;
+
+            var location = new CustomerLocation
+            {
+                CustomerAccountId = account.Id,
+                LocationType = locationType,
+                RegionId = trip.RegionId,
+                DistrictId = districtId,
+                StreetAddress = streetAddress,
+                LandmarkAndDirections = landmark,
+                Latitude = lat,
+                Longitude = lon,
+                AccuracyMetres = acc,
+                CaptureMethod = captureMethod,
+                VerificationStatus = hasGps ? LocationVerificationStatus.GpsCaptured : LocationVerificationStatus.Unverified,
+                IsPrimary = isPrimary,
+                CapturedByStaffId = attributedStaffId,
+                CreatedAt = DateTime.UtcNow
+            };
+            if (isPrimary)
+            {
+                await db.CustomerLocations
+                    .Where(l => l.CustomerAccountId == account.Id && l.IsPrimary)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.IsPrimary, false), ct);
+
+                foreach (var entry in db.ChangeTracker.Entries<CustomerLocation>()
+                    .Where(e => e.Entity.CustomerAccountId == account.Id && e.Entity.IsPrimary))
+                    entry.Entity.IsPrimary = false;
+            }
+
+            db.CustomerLocations.Add(location);
+            account.UpdatedAt = DateTime.UtcNow;
+            locationClientMap[action.ClientId] = location.Id;
+
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = location.Id };
+        }
+
+        private async Task<ActionResult> ProcessUpdateCustomerLocationAsync(
+            OfflineAction action,
+            Entities.TrekkingTrip trip,
+            Dictionary<Guid, Guid> locationClientMap,
+            CancellationToken ct)
+        {
+            var payload = action.Payload;
+
+            Guid locationId;
+            if (payload.TryGetProperty("locationClientId", out var lcid) && Guid.TryParse(lcid.GetString(), out var locationClientId))
+            {
+                if (!locationClientMap.TryGetValue(locationClientId, out locationId))
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "locationClientId could not be resolved to a location. It may reference a location from a previous batch — use locationId instead." };
+            }
+            else if (payload.TryGetProperty("locationId", out var lid) && Guid.TryParse(lid.GetString(), out var directId))
+            {
+                locationId = directId;
+            }
+            else
+            {
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "locationId or locationClientId is required." };
+            }
+
+            var location = await db.CustomerLocations
+                .FirstOrDefaultAsync(l => l.Id == locationId, ct);
+
+            if (location is null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Location not found." };
+
+            var customerInRegion = await db.CustomerAccounts.AnyAsync(a =>
+                a.Id == location.CustomerAccountId &&
+                (a.RegionId == trip.RegionId || a.Locations.Any(l => l.RegionId == trip.RegionId)), ct);
+
+            if (!customerInRegion)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Location does not belong to a customer in this trek's region." };
+
+            decimal? lat = null, lon = null, acc = null;
+            var hasGps = false;
+            if (payload.TryGetProperty("gps", out var gps) && gps.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
+                lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
+                acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
+                hasGps = lat.HasValue && lon.HasValue;
+            }
+
+            if (hasGps)
+            {
+                location.Latitude = lat;
+                location.Longitude = lon;
+                location.AccuracyMetres = acc;
+                location.CaptureMethod = CaptureMethod.PwaGps;
+                location.VerificationStatus = LocationVerificationStatus.GpsCaptured;
+            }
+
+            if (payload.TryGetProperty("districtId", out var did) && Guid.TryParse(did.GetString(), out var districtId))
+                location.DistrictId = districtId;
+
+            if (payload.TryGetProperty("streetAddress", out var sa) && sa.GetString() is { } streetAddress)
+                location.StreetAddress = streetAddress.Trim();
+
+            if (payload.TryGetProperty("landmarkAndDirections", out var lad) && lad.GetString() is { } landmark)
+                location.LandmarkAndDirections = landmark.Trim();
+
+            var account = await db.CustomerAccounts.FindAsync([location.CustomerAccountId], ct);
+            if (account is not null)
+                account.UpdatedAt = DateTime.UtcNow;
+
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = location.Id };
         }
 
         private async Task<ActionResult> ProcessAddWalkInStopAsync(
@@ -543,7 +760,7 @@ public static class SyncOfflineActionsByDriverToken
             var reason = payload.TryGetProperty("reason", out var rs) ? rs.GetString() : null;
 
             decimal? lat = null, lon = null, acc = null;
-            if (payload.TryGetProperty("gps", out var gps))
+            if (payload.TryGetProperty("gps", out var gps) && gps.ValueKind == System.Text.Json.JsonValueKind.Object)
             {
                 lat = gps.TryGetProperty("latitude", out var la) ? (decimal?)la.GetDecimal() : null;
                 lon = gps.TryGetProperty("longitude", out var lo) ? (decimal?)lo.GetDecimal() : null;
@@ -648,7 +865,7 @@ public class SyncOfflineActionsByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Push queued offline actions in a batch (driver portal)")
-        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, UpdateCustomer, AddWalkInStop, RecordDelivery, RecordUnplannedSale, RecordReturn, VoidReturn.")
+        .WithDescription("Actions are processed in occurredAt order. Idempotent — re-submitting the same batch is safe. Action types: RegisterCustomer, UpdateCustomer, AddCustomerLocation, UpdateCustomerLocation, AddWalkInStop, RecordDelivery, RecordUnplannedSale, RecordReturn, VoidReturn.")
         .Produces<SyncOfflineActionsByDriverToken.SyncResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

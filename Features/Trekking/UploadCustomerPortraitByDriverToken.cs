@@ -65,8 +65,22 @@ public class UploadCustomerPortraitByDriverTokenEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapPost("api/v1/treks/driver/{token:guid}/customers/{customerId:guid}/people/{personId:guid}/portrait",
-            async (Guid token, Guid customerId, Guid personId, IFormFile file, ISender sender) =>
+            async (HttpContext ctx, Guid token, Guid customerId, Guid personId, IFormFile? file, ISender sender,
+                   ILogger<UploadCustomerPortraitByDriverTokenEndpoint> logger) =>
             {
+                if (file is null)
+                {
+                    logger.LogWarning(
+                        "Portrait upload rejected — file binding failed. " +
+                        "ContentType={ContentType} HasFormContentType={HasForm} FormKeys={FormKeys}",
+                        ctx.Request.ContentType,
+                        ctx.Request.HasFormContentType,
+                        ctx.Request.HasFormContentType
+                            ? string.Join(", ", ctx.Request.Form.Files.Select(f => f.Name))
+                            : "n/a");
+                    return Results.BadRequest(new { error = "No file received. Ensure Content-Type is multipart/form-data (set by the browser automatically) and the field name is 'file'." });
+                }
+
                 var result = await sender.Send(new UploadCustomerPortraitByDriverToken.Command
                 {
                     Token = token,
