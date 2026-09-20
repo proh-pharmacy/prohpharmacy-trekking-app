@@ -19,6 +19,7 @@ public static class GetCustomerMapPins
 
     public class CustomerMapPin
     {
+        public Guid LocationId { get; set; }
         public Guid CustomerAccountId { get; set; }
         public string CustomerCode { get; set; } = string.Empty;
         public string BusinessName { get; set; } = string.Empty;
@@ -26,6 +27,7 @@ public static class GetCustomerMapPins
         public string CustomerType { get; set; } = string.Empty;
         public string RegistrationStatus { get; set; } = string.Empty;
         public string PrimaryPhoneNumber { get; set; } = string.Empty;
+        public bool IsPrimary { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public double? AccuracyMetres { get; set; }
@@ -48,27 +50,29 @@ public static class GetCustomerMapPins
                 .Include(a => a.Region)
                 .Include(a => a.OwningBranch)
                 .Include(a => a.People.Where(p => p.IsPrimaryContact && p.IsActive))
-                .Include(a => a.Locations.Where(l => l.IsPrimary && l.Latitude != null && l.Longitude != null))
-                .Where(a => a.Locations.Any(l => l.IsPrimary && l.Latitude != null && l.Longitude != null))
+                .Include(a => a.Locations.Where(l => l.Latitude != null && l.Longitude != null))
+                    .ThenInclude(l => l.Region)
+                .Where(a => a.Locations.Any(l => l.Latitude != null && l.Longitude != null))
                 .AsNoTracking();
 
             if (request.BranchId.HasValue)
                 query = query.Where(a => a.OwningBranchId == request.BranchId.Value);
 
             if (request.RegionId.HasValue)
-                query = query.Where(a => a.RegionId == request.RegionId.Value);
+                query = query.Where(a => a.RegionId == request.RegionId.Value
+                    || a.Locations.Any(l => l.RegionId == request.RegionId.Value));
 
             if (request.DistrictId.HasValue)
-                query = query.Where(a => a.Locations.Any(l => l.IsPrimary && l.DistrictId == request.DistrictId.Value));
+                query = query.Where(a => a.Locations.Any(l => l.DistrictId == request.DistrictId.Value));
 
             var accounts = await query.ToListAsync(cancellationToken);
 
-            var pins = accounts.Select(a =>
+            var pins = accounts.SelectMany(a =>
             {
-                var location = a.Locations.First();
                 var person = a.People.FirstOrDefault();
-                return new CustomerMapPin
+                return a.Locations.Select(location => new CustomerMapPin
                 {
+                    LocationId = location.Id,
                     CustomerAccountId = a.Id,
                     CustomerCode = a.CustomerCode,
                     BusinessName = a.BusinessName,
@@ -76,6 +80,7 @@ public static class GetCustomerMapPins
                     CustomerType = a.CustomerType.ToString(),
                     RegistrationStatus = a.RegistrationStatus.ToString(),
                     PrimaryPhoneNumber = a.PrimaryPhoneNumber,
+                    IsPrimary = location.IsPrimary,
                     Latitude = (double)location.Latitude!,
                     Longitude = (double)location.Longitude!,
                     AccuracyMetres = location.AccuracyMetres.HasValue ? (double?)location.AccuracyMetres.Value : null,
@@ -83,12 +88,12 @@ public static class GetCustomerMapPins
                     LandmarkAndDirections = location.LandmarkAndDirections,
                     BranchId = a.OwningBranchId,
                     BranchName = a.OwningBranch.Name,
-                    RegionId = a.RegionId,
-                    RegionName = a.Region.Name,
+                    RegionId = location.RegionId,
+                    RegionName = location.Region?.Name ?? a.Region.Name,
                     PrimaryContactName = person?.FullName,
                     PrimaryContactPhone = person?.PrimaryPhoneNumber,
                     PrimaryContactPortraitUrl = person?.PortraitUrl
-                };
+                });
             }).ToList();
 
             return Result.Success(pins);
@@ -118,8 +123,9 @@ public class GetCustomerMapPinsEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Customers)
         .WithSummary("Customer map pins")
         .WithDescription(
-            "Returns a flat, unpaginated list of all customers that have a primary GPS location recorded. " +
-            "Use this to seed a customer overview map. Filter by branchId or regionId to scope the result.")
+            "Returns one pin per GPS-recorded location. A customer with multiple locations appears as multiple pins. " +
+            "Use locationId + customerAccountId to identify each pin. isPrimary distinguishes the primary location from additional ones. " +
+            "Region and district filters match any location, not just the primary.")
         .Produces<List<GetCustomerMapPins.CustomerMapPin>>(200)
         .RequireAuthorization();
     }

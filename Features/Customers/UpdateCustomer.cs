@@ -95,8 +95,10 @@ public static class UpdateCustomer
                 .Include(a => a.OwningBranch)
                 .Include(a => a.RegisteredBy)
                 .Include(a => a.People.Where(p => p.IsPrimaryContact && p.IsActive))
-                .Include(a => a.Locations.Where(l => l.IsPrimary))
+                .Include(a => a.Locations)
                     .ThenInclude(l => l.District)
+                .Include(a => a.Locations)
+                    .ThenInclude(l => l.Region)
                 .FirstOrDefaultAsync(a => a.Id == request.Id, cancellationToken);
 
             if (account is null)
@@ -140,7 +142,7 @@ public static class UpdateCustomer
             // Update primary location if provided
             if (request.Location is not null)
             {
-                var location = account.Locations.FirstOrDefault();
+                var location = account.Locations.FirstOrDefault(l => l.IsPrimary);
                 if (location is not null)
                 {
                     if (request.Location.DistrictId != Guid.Empty)
@@ -164,7 +166,8 @@ public static class UpdateCustomer
             await db.SaveChangesAsync(cancellationToken);
 
             var primaryPerson = account.People.FirstOrDefault();
-            var primaryLocation = account.Locations.FirstOrDefault();
+            var primaryLocation = account.Locations.FirstOrDefault(l => l.IsPrimary);
+            var additionalLocations = account.Locations.Where(l => !l.IsPrimary).ToList();
 
             return Result.Success(CreateCustomer.Handler.ToResponse(
                 account,
@@ -173,7 +176,8 @@ public static class UpdateCustomer
                 account.RegisteredBy,
                 primaryPerson,
                 primaryLocation,
-                primaryLocation?.District));
+                primaryLocation?.District,
+                additionalLocations));
         }
     }
 }

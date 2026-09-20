@@ -74,6 +74,7 @@ public static class CreateCustomer
         public DateTime? UpdatedAt { get; set; }
         public CustomerPersonResponse? PrimaryPerson { get; set; }
         public CustomerLocationResponse? PrimaryLocation { get; set; }
+        public List<CustomerLocationResponse> AdditionalLocations { get; set; } = [];
     }
 
     public class CustomerPersonResponse
@@ -90,13 +91,16 @@ public static class CreateCustomer
     public class CustomerLocationResponse
     {
         public Guid Id { get; set; }
+        public string LocationType { get; set; } = string.Empty;
+        public Guid RegionId { get; set; }
+        public string RegionName { get; set; } = string.Empty;
+        public Guid? DistrictId { get; set; }
+        public string DistrictName { get; set; } = string.Empty;
         public decimal? Latitude { get; set; }
         public decimal? Longitude { get; set; }
         public decimal? AccuracyMetres { get; set; }
         public string LandmarkAndDirections { get; set; } = string.Empty;
         public string? StreetAddress { get; set; }
-        public string RegionName { get; set; } = string.Empty;
-        public string DistrictName { get; set; } = string.Empty;
         public string CaptureMethod { get; set; } = string.Empty;
         public string VerificationStatus { get; set; } = string.Empty;
         public bool IsPrimary { get; set; }
@@ -240,7 +244,8 @@ public static class CreateCustomer
             StaffMember registeredBy,
             CustomerPerson? primaryPerson,
             CustomerLocation? primaryLocation,
-            District? district) => new()
+            District? district,
+            IEnumerable<CustomerLocation>? additionalLocations = null) => new()
         {
             Id = account.Id,
             CustomerCode = account.CustomerCode,
@@ -276,17 +281,39 @@ public static class CreateCustomer
             PrimaryLocation = primaryLocation is null ? null : new CustomerLocationResponse
             {
                 Id = primaryLocation.Id,
+                LocationType = primaryLocation.LocationType.ToString(),
+                RegionId = primaryLocation.RegionId,
+                RegionName = primaryLocation.Region?.Name ?? region.Name,
+                DistrictId = primaryLocation.DistrictId,
+                DistrictName = district?.Name ?? string.Empty,
                 Latitude = primaryLocation.Latitude,
                 Longitude = primaryLocation.Longitude,
                 AccuracyMetres = primaryLocation.AccuracyMetres,
-                LandmarkAndDirections = primaryLocation.LandmarkAndDirections,
+                LandmarkAndDirections = primaryLocation.LandmarkAndDirections ?? string.Empty,
                 StreetAddress = primaryLocation.StreetAddress,
-                RegionName = region.Name,
-                DistrictName = district?.Name ?? string.Empty,
                 CaptureMethod = primaryLocation.CaptureMethod.ToString(),
                 VerificationStatus = primaryLocation.VerificationStatus.ToString(),
                 IsPrimary = primaryLocation.IsPrimary
-            }
+            },
+            AdditionalLocations = additionalLocations?
+                .Select(l => new CustomerLocationResponse
+                {
+                    Id = l.Id,
+                    LocationType = l.LocationType.ToString(),
+                    RegionId = l.RegionId,
+                    RegionName = l.Region?.Name ?? string.Empty,
+                    DistrictId = l.DistrictId,
+                    DistrictName = l.District?.Name ?? string.Empty,
+                    Latitude = l.Latitude,
+                    Longitude = l.Longitude,
+                    AccuracyMetres = l.AccuracyMetres,
+                    LandmarkAndDirections = l.LandmarkAndDirections ?? string.Empty,
+                    StreetAddress = l.StreetAddress,
+                    CaptureMethod = l.CaptureMethod.ToString(),
+                    VerificationStatus = l.VerificationStatus.ToString(),
+                    IsPrimary = l.IsPrimary
+                })
+                .ToList() ?? []
         };
     }
 }

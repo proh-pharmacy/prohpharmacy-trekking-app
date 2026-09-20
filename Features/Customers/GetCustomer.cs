@@ -27,8 +27,10 @@ public static class GetCustomer
                 .Include(a => a.OwningBranch)
                 .Include(a => a.RegisteredBy)
                 .Include(a => a.People.Where(p => p.IsPrimaryContact && p.IsActive))
-                .Include(a => a.Locations.Where(l => l.IsPrimary))
+                .Include(a => a.Locations)
                     .ThenInclude(l => l.District)
+                .Include(a => a.Locations)
+                    .ThenInclude(l => l.Region)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(a => a.Id == request.Id, cancellationToken);
 
@@ -36,7 +38,8 @@ public static class GetCustomer
                 return Result.Failure<CreateCustomer.CustomerResponse>(Error.CreateNotFoundError("Customer not found."));
 
             var primaryPerson = account.People.FirstOrDefault();
-            var primaryLocation = account.Locations.FirstOrDefault();
+            var primaryLocation = account.Locations.FirstOrDefault(l => l.IsPrimary);
+            var additionalLocations = account.Locations.Where(l => !l.IsPrimary).ToList();
 
             return Result.Success(CreateCustomer.Handler.ToResponse(
                 account,
@@ -45,7 +48,8 @@ public static class GetCustomer
                 account.RegisteredBy,
                 primaryPerson,
                 primaryLocation,
-                primaryLocation?.District));
+                primaryLocation?.District,
+                additionalLocations));
         }
     }
 }

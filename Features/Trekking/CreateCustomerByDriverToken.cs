@@ -22,6 +22,9 @@ public static class CreateCustomerByDriverToken
         public string? TradingName { get; set; }
         public string? WhatsAppNumber { get; set; }
         public Guid? ClientGeneratedId { get; set; }
+        public Guid? DistrictId { get; set; }
+        public string? StreetAddress { get; set; }
+        public string? LandmarkAndDirections { get; set; }
 
         public RepresentativeInput Representative { get; set; } = new();
         public GpsInput? Gps { get; set; }
@@ -52,6 +55,8 @@ public static class CreateCustomerByDriverToken
             RuleFor(x => x.PrimaryPhoneNumber).NotEmpty().MaximumLength(30);
             RuleFor(x => x.TradingName).MaximumLength(200).When(x => x.TradingName is not null);
             RuleFor(x => x.WhatsAppNumber).MaximumLength(30).When(x => x.WhatsAppNumber is not null);
+            RuleFor(x => x.StreetAddress).MaximumLength(300).When(x => x.StreetAddress is not null);
+            RuleFor(x => x.LandmarkAndDirections).MaximumLength(500).When(x => x.LandmarkAndDirections is not null);
             RuleFor(x => x.Representative).NotNull();
             RuleFor(x => x.Representative.FirstName).NotEmpty().MaximumLength(80);
             RuleFor(x => x.Representative.LastName).NotEmpty().MaximumLength(80);
@@ -147,19 +152,23 @@ public static class CreateCustomerByDriverToken
             _db.CustomerPersons.Add(person);
 
             CustomerLocation? location = null;
-            if (request.Gps is not null)
+            var hasGps = request.Gps is not null;
+            var hasAddress = request.DistrictId.HasValue || request.StreetAddress is not null || request.LandmarkAndDirections is not null;
+            if (hasGps || hasAddress)
             {
                 location = new CustomerLocation
                 {
                     CustomerAccountId = account.Id,
                     LocationType = LocationType.BusinessPremises,
                     RegionId = region.Id,
-                    DistrictId = null,
-                    Latitude = request.Gps.Latitude,
-                    Longitude = request.Gps.Longitude,
-                    AccuracyMetres = request.Gps.AccuracyMetres,
-                    CaptureMethod = CaptureMethod.PwaGps,
-                    VerificationStatus = LocationVerificationStatus.GpsCaptured,
+                    DistrictId = request.DistrictId,
+                    StreetAddress = request.StreetAddress?.Trim(),
+                    LandmarkAndDirections = request.LandmarkAndDirections?.Trim(),
+                    Latitude = request.Gps?.Latitude,
+                    Longitude = request.Gps?.Longitude,
+                    AccuracyMetres = request.Gps?.AccuracyMetres,
+                    CaptureMethod = hasGps ? CaptureMethod.PwaGps : CaptureMethod.ManualLocationSelection,
+                    VerificationStatus = hasGps ? LocationVerificationStatus.GpsCaptured : LocationVerificationStatus.Unverified,
                     IsPrimary = true,
                     CapturedByStaffId = attributedStaffId,
                     CreatedAt = DateTime.UtcNow
@@ -205,6 +214,8 @@ public static class CreateCustomerByDriverToken
                     Latitude = location.Latitude,
                     Longitude = location.Longitude,
                     AccuracyMetres = location.AccuracyMetres,
+                    StreetAddress = location.StreetAddress,
+                    LandmarkAndDirections = location.LandmarkAndDirections ?? string.Empty,
                     CaptureMethod = location.CaptureMethod.ToString(),
                     VerificationStatus = location.VerificationStatus.ToString(),
                     IsPrimary = location.IsPrimary

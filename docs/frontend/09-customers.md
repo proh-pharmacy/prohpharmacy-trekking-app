@@ -11,6 +11,8 @@
 | `POST` | `api/v1/customers/import` | Bulk import customers from Excel |
 | `PATCH` | `api/v1/customers/{id}` | Update customer business details |
 | `POST` | `api/v1/customers/{customerId}/locations` | Add an additional location |
+| `PATCH` | `api/v1/customers/{customerId}/locations/{locationId}` | Update a location |
+| `DELETE` | `api/v1/customers/{customerId}/locations/{locationId}` | Delete a location |
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
 | `POST` | `api/v1/customers/{customerId}/premises-photo` | Upload business premises photo |
 | `POST` | `api/v1/customers/sync` | Batch sync offline-created customers |
@@ -37,21 +39,24 @@
 
 ## GET /api/v1/customers/map-pins
 
-Returns a flat, unpaginated array of every customer that has a primary GPS location recorded. Use this to seed a customer overview map — do not use the paginated list endpoint for this.
+Returns one pin per GPS-recorded location. A customer with multiple GPS locations appears as multiple pins — one per location. Use `locationId` + `customerAccountId` together to uniquely identify each pin. `isPrimary` tells you which pin is the primary location. Region and district filters match any location, not just the primary.
+
+`regionId` and `regionName` on each pin reflect the **location's own region**, not the customer's account registration region. A customer registered in Ahafo with a delivery location in Greater Accra will emit a pin with `regionName: "Greater Accra Region"` for that delivery location.
 
 ### Query parameters
 
 | Parameter | Type | Description |
 |---|---|---|
 | `branchId` | `guid` | Scope to customers belonging to a specific branch |
-| `regionId` | `guid` | Scope to customers in a specific region |
-| `districtId` | `guid` | Scope to customers whose primary location is in a specific district |
+| `regionId` | `guid` | Scope to customers with any location in a specific region |
+| `districtId` | `guid` | Scope to customers with any location in a specific district |
 
 ### Response `200 OK`
 
 ```json
 [
   {
+    "locationId": "...",
     "customerAccountId": "...",
     "customerCode": "GAR-00001",
     "businessName": "Accra Pharmacy Ltd",
@@ -59,6 +64,7 @@ Returns a flat, unpaginated array of every customer that has a primary GPS locat
     "customerType": "RetailPharmacy",
     "registrationStatus": "Active",
     "primaryPhoneNumber": "+233201234567",
+    "isPrimary": true,
     "latitude": 5.6032,
     "longitude": -0.1869,
     "accuracyMetres": 12.5,
@@ -71,6 +77,17 @@ Returns a flat, unpaginated array of every customer that has a primary GPS locat
     "primaryContactName": "Ama Boateng",
     "primaryContactPhone": "+233209876543",
     "primaryContactPortraitUrl": "https://ik.imagekit.io/..."
+  },
+  {
+    "locationId": "...",
+    "customerAccountId": "...",
+    "customerCode": "GAR-00001",
+    "businessName": "Accra Pharmacy Ltd",
+    "isPrimary": false,
+    "latitude": 5.5483,
+    "longitude": -0.2074,
+    "streetAddress": "Makola Street, Accra",
+    "..."
   }
 ]
 ```
@@ -182,19 +199,42 @@ function getCustomerIcon(customerType) {
   },
   "primaryLocation": {
     "id": "...",
+    "locationType": "BusinessPremises",
+    "regionId": "...",
+    "regionName": "Greater Accra Region",
+    "districtId": "...",
+    "districtName": "Accra",
     "latitude": 5.6032,
     "longitude": -0.1869,
     "accuracyMetres": 12.5,
     "landmarkAndDirections": "Next to Accra Mall, ground floor",
     "streetAddress": "12 Liberation Road, Accra",
-    "regionName": "Greater Accra Region",
-    "districtName": "Accra",
     "captureMethod": "PwaGps",
     "verificationStatus": "GpsCaptured",
     "isPrimary": true
-  }
+  },
+  "additionalLocations": [
+    {
+      "id": "...",
+      "locationType": "DeliveryLocation",
+      "regionId": "...",
+      "regionName": "Greater Accra Region",
+      "districtId": "...",
+      "districtName": "Accra",
+      "latitude": 5.5483,
+      "longitude": -0.2074,
+      "accuracyMetres": 8.0,
+      "landmarkAndDirections": "Near Makola Market, ask for Ama",
+      "streetAddress": "Makola Street, Accra",
+      "captureMethod": "PwaGps",
+      "verificationStatus": "GpsCaptured",
+      "isPrimary": false
+    }
+  ]
 }
 ```
+
+`additionalLocations` contains every non-primary location recorded for this customer (delivery points, residential, etc.). The array is empty `[]` when only the primary location exists. Each item has the same shape as `primaryLocation` — including `id`, `locationType`, `regionId`, `districtId`, and `districtName` so the frontend can pre-populate the edit form. Both the list endpoint and the single GET endpoint return this array.
 
 ### Errors
 - `404` — customer not found
@@ -416,6 +456,57 @@ Updates business details, primary representative, and primary location in a sing
 ### Errors
 - `404` — customer or district not found
 - `422` — validation error
+
+---
+
+## PATCH /api/v1/customers/{customerId}/locations/{locationId}
+
+Only fields present in the request body are applied — omit a field to leave it unchanged.
+
+### Request body
+
+```json
+{
+  "locationType": "DeliveryLocation",
+  "districtId": "<district-guid>",
+  "streetAddress": "Makola Street, Accra",
+  "landmarkAndDirections": "Near Makola Market",
+  "latitude": 5.5483,
+  "longitude": -0.2074,
+  "accuracyMetres": 8.0,
+  "isPrimary": true
+}
+```
+
+| Field | Required | Notes |
+|---|---|---|
+| `locationType` | No | `BusinessPremises`, `DeliveryLocation`, `Residential`, `Other` |
+| `districtId` | No | UUID |
+| `streetAddress` | No | Max 300 chars |
+| `landmarkAndDirections` | No | Max 500 chars |
+| `latitude` | No | -90 to 90. When provided, `longitude` and `accuracyMetres` should be sent too |
+| `longitude` | No | -180 to 180 |
+| `accuracyMetres` | No | > 0 |
+| `isPrimary` | No | `true` — demotes the current primary and promotes this location. `false` — demotes this location |
+
+When GPS coordinates are sent, `captureMethod` is set to `PwaGps` and `verificationStatus` to `GpsCaptured`.
+
+### Response `200 OK` — `LocationResponse` (same shape as POST)
+
+### Errors
+- `404` — location not found on this customer
+- `422` — validation error
+
+---
+
+## DELETE /api/v1/customers/{customerId}/locations/{locationId}
+
+Permanently removes the location. Any location can be deleted, including the primary.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — location not found on this customer
 
 ---
 

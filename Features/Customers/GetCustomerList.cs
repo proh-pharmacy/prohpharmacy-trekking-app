@@ -35,15 +35,18 @@ public static class GetCustomerList
                 .Include(a => a.OwningBranch)
                 .Include(a => a.RegisteredBy)
                 .Include(a => a.People.Where(p => p.IsPrimaryContact && p.IsActive))
-                .Include(a => a.Locations.Where(l => l.IsPrimary))
+                .Include(a => a.Locations)
                     .ThenInclude(l => l.District)
+                .Include(a => a.Locations)
+                    .ThenInclude(l => l.Region)
                 .AsNoTracking();
 
             if (request.RegionId.HasValue)
-                query = query.Where(a => a.RegionId == request.RegionId.Value);
+                query = query.Where(a => a.RegionId == request.RegionId.Value
+                    || a.Locations.Any(l => l.RegionId == request.RegionId.Value));
 
             if (request.DistrictId.HasValue)
-                query = query.Where(a => a.Locations.Any(l => l.IsPrimary && l.DistrictId == request.DistrictId.Value));
+                query = query.Where(a => a.Locations.Any(l => l.DistrictId == request.DistrictId.Value));
 
             if (request.BranchId.HasValue)
                 query = query.Where(a => a.OwningBranchId == request.BranchId.Value);
@@ -62,14 +65,14 @@ public static class GetCustomerList
                     nameof(CustomerAccount.PrimaryPhoneNumber))
                 .WithSort(request.Sort ?? "createdAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
-                .BuildAsync(a => CreateCustomer.Handler.ToResponse(
-                    a,
-                    a.Region,
-                    a.OwningBranch,
-                    a.RegisteredBy,
-                    a.People.FirstOrDefault(),
-                    a.Locations.FirstOrDefault(),
-                    a.Locations.FirstOrDefault()?.District));
+                .BuildAsync(a =>
+                {
+                    var primary = a.Locations.FirstOrDefault(l => l.IsPrimary);
+                    var additional = a.Locations.Where(l => !l.IsPrimary).ToList();
+                    return (object)CreateCustomer.Handler.ToResponse(
+                        a, a.Region, a.OwningBranch, a.RegisteredBy,
+                        a.People.FirstOrDefault(), primary, primary?.District, additional);
+                });
 
             return Result.Success(result);
         }

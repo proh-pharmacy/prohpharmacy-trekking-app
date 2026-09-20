@@ -79,10 +79,10 @@ public static class AddCustomerLocation
             if (staff is null)
                 return Result.Failure<LocationResponse>(Error.CreateNotFoundError("Staff member not found."));
 
-            var customerExists = await db.CustomerAccounts
-                .AnyAsync(a => a.Id == request.CustomerId, cancellationToken);
+            var customer = await db.CustomerAccounts
+                .FirstOrDefaultAsync(a => a.Id == request.CustomerId, cancellationToken);
 
-            if (!customerExists)
+            if (customer is null)
                 return Result.Failure<LocationResponse>(Error.CreateNotFoundError("Customer not found."));
 
             var district = await db.Districts
@@ -116,7 +116,15 @@ public static class AddCustomerLocation
                 CreatedAt = DateTime.UtcNow
             };
 
+            if (request.IsPrimary)
+            {
+                await db.CustomerLocations
+                    .Where(l => l.CustomerAccountId == request.CustomerId && l.IsPrimary)
+                    .ExecuteUpdateAsync(s => s.SetProperty(l => l.IsPrimary, false), cancellationToken);
+            }
+
             db.CustomerLocations.Add(location);
+            customer.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);
 
             return Result.Success(new LocationResponse
@@ -128,7 +136,7 @@ public static class AddCustomerLocation
                 RegionName = district.Region?.Name ?? string.Empty,
                 DistrictId = location.DistrictId,
                 DistrictName = district.Name,
-                LandmarkAndDirections = location.LandmarkAndDirections,
+                LandmarkAndDirections = location.LandmarkAndDirections ?? string.Empty,
                 StreetAddress = location.StreetAddress,
                 Latitude = location.Latitude,
                 Longitude = location.Longitude,
