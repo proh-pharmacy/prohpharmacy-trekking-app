@@ -161,50 +161,31 @@ public static class TrekkingSheetPdfGenerator
 
             col.Item().PaddingTop(6).LineHorizontal(0.8f).LineColor(AccentLine);
 
-            col.Item().PaddingTop(6).Row(row =>
+            col.Item().PaddingTop(6).Column(detailsCol =>
             {
-                // Left: Trip Details card
-                row.RelativeItem(1).Column(detailsCol =>
-                {
-                    detailsCol.Spacing(4);
-                    detailsCol.Item().Text("Trip Details").FontSize(9.5f).SemiBold().FontColor(PrimaryColor);
-                    detailsCol.Item()
-                        .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
-                        .PaddingVertical(5).PaddingHorizontal(8)
-                        .Column(card =>
+                detailsCol.Spacing(4);
+                detailsCol.Item().Text("Trek Details").FontSize(9.5f).SemiBold().FontColor(PrimaryColor);
+                detailsCol.Item()
+                    .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
+                    .PaddingVertical(5).PaddingHorizontal(8)
+                    .Column(card =>
+                    {
+                        card.Spacing(3);
+                        InfoRow(card, "Trek No.:", data.TrekNumber, 90);
+                        card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+                        InfoRow(card, "Driver:", data.DriverName, 90);
+                        if (!string.IsNullOrWhiteSpace(data.SalesStaffName))
                         {
-                            card.Spacing(3);
-                            InfoRow(card, "Driver:", data.DriverName, 55);
                             card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                            InfoRow(card, "Vehicle:", data.VehicleDisplayName, 55);
-                            if (!string.IsNullOrWhiteSpace(data.SalesStaffName))
-                            {
-                                card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                                InfoRow(card, "Sales Staff:", data.SalesStaffName, 55);
-                            }
-                        });
-                });
-
-                row.ConstantItem(12);
-
-                // Right: Schedule & Trek card
-                row.RelativeItem(1).Column(scheduleCol =>
-                {
-                    scheduleCol.Spacing(4);
-                    scheduleCol.Item().Text("Schedule & Trek").FontSize(9.5f).SemiBold().FontColor(PrimaryColor);
-                    scheduleCol.Item()
-                        .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
-                        .PaddingVertical(5).PaddingHorizontal(8)
-                        .Column(card =>
-                        {
-                            card.Spacing(3);
-                            InfoRow(card, "Scheduled Date:", data.ScheduledDate.ToString("dd MMM yyyy"), 80);
-                            card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                            InfoRow(card, "Trek Number:", data.TrekNumber, 80);
-                            card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                            InfoRow(card, "Total Stops:", $"{data.Stops.Count} {(data.Stops.Count == 1 ? "Stop" : "Stops")}", 80);
-                        });
-                });
+                            InfoRow(card, "Sales Rep:", data.SalesStaffName, 90);
+                        }
+                        card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+                        InfoRow(card, "Vehicle:", data.VehicleDisplayName, 90);
+                        card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+                        InfoRow(card, "Total Stops:", $"{data.Stops.Count} {(data.Stops.Count == 1 ? "Stop" : "Stops")}", 90);
+                        card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
+                        InfoRow(card, "Scheduled Date:", data.ScheduledDate.ToString("dd MMM yyyy"), 90);
+                    });
             });
         });
     }
