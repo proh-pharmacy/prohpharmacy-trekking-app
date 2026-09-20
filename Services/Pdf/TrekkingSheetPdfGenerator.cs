@@ -99,7 +99,7 @@ public static class TrekkingSheetPdfGenerator
         if (data.DriverToken is null || string.IsNullOrWhiteSpace(data.FrontendUrl))
             return null;
 
-        var url = $"{data.FrontendUrl.TrimEnd('/')}/treks/driver?token={data.DriverToken}";
+        var url = $"{data.FrontendUrl.TrimEnd('/')}/treks/driver?token={data.DriverToken}&source=qr";
         using var qrGenerator = new QRCodeGenerator();
         var qrData = qrGenerator.CreateQrCode(url, QRCodeGenerator.ECCLevel.M);
         var pngCode = new PngByteQRCode(qrData);
