@@ -92,17 +92,27 @@ public static class AddTrekStop
 
             var productDict = products.ToDictionary(p => p.Id);
 
-            var regionMarkups = await _db.RegionalMarkupRules
+            var regionMarkupRules = await _db.RegionalMarkupRules
                 .Where(r => r.RegionId == trip.RegionId &&
                             (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
                 .AsNoTracking()
-                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+                .ToListAsync(cancellationToken);
+            var regionProductMarkups = regionMarkupRules
+                .Where(r => r.ProductId.HasValue)
+                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
+            var regionWideMarkup = regionMarkupRules
+                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
 
-            var customerMarkups = await _db.CustomerMarkupRules
+            var customerMarkupRules = await _db.CustomerMarkupRules
                 .Where(r => r.CustomerAccountId == request.CustomerAccountId &&
                             (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
                 .AsNoTracking()
-                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+                .ToListAsync(cancellationToken);
+            var customerProductMarkups = customerMarkupRules
+                .Where(r => r.ProductId.HasValue)
+                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
+            var customerWideMarkup = customerMarkupRules
+                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
 
             var stopProducts = new List<TrekkingTripStopProduct>();
             foreach (var input in request.Products)
@@ -111,9 +121,9 @@ public static class AddTrekStop
                 var hasPackaging = product.PackagingUnitId.HasValue;
                 var basicQty = input.PlannedBasicQuantity ?? 0;
                 var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
-                var basicPrice = ResolvePrice(product.BasicUnitPrice, product.Id, customerMarkups, regionMarkups);
+                var basicPrice = ResolvePrice(product.BasicUnitPrice, product.Id, customerProductMarkups, customerWideMarkup, regionProductMarkups, regionWideMarkup);
                 var packagingPrice = hasPackaging
-                    ? ResolvePrice(product.PackagingUnitPrice!.Value, product.Id, customerMarkups, regionMarkups)
+                    ? ResolvePrice(product.PackagingUnitPrice!.Value, product.Id, customerProductMarkups, customerWideMarkup, regionProductMarkups, regionWideMarkup)
                     : (decimal?)null;
                 stopProducts.Add(new TrekkingTripStopProduct
                 {
@@ -195,13 +205,15 @@ public static class AddTrekStop
         private static decimal ResolvePrice(
             decimal basePrice,
             Guid productId,
-            Dictionary<Guid?, decimal> customerMarkups,
-            Dictionary<Guid?, decimal> regionMarkups)
+            Dictionary<Guid, decimal> customerProductMarkups,
+            decimal? customerWideMarkup,
+            Dictionary<Guid, decimal> regionProductMarkups,
+            decimal? regionWideMarkup)
         {
-            if (customerMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerMarkups.TryGetValue(null, out var cw)) return ApplyMarkup(basePrice, cw);
-            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
+            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
+            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
             return basePrice;
         }
     }

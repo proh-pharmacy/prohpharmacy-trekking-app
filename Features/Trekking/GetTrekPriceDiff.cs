@@ -81,11 +81,16 @@ public static class GetTrekPriceDiff
                 .AsNoTracking()
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-            var regionMarkups = await db.RegionalMarkupRules
+            var regionMarkupRules = await db.RegionalMarkupRules
                 .Where(r => r.RegionId == trip.RegionId &&
                             (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
                 .AsNoTracking()
-                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+                .ToListAsync(cancellationToken);
+            var regionProductMarkups = regionMarkupRules
+                .Where(r => r.ProductId.HasValue)
+                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
+            var regionWideMarkup = regionMarkupRules
+                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
 
             var customerIds = candidateStopProducts.Select(x => x.Stop.CustomerAccountId).Distinct().ToList();
             var allCustomerMarkupRows = await db.CustomerMarkupRules
@@ -96,7 +101,12 @@ public static class GetTrekPriceDiff
 
             var customerMarkups = allCustomerMarkupRows
                 .GroupBy(r => r.CustomerAccountId)
-                .ToDictionary(g => g.Key, g => g.ToDictionary(r => r.ProductId, r => r.MarkupPercentage));
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Products: g.Where(r => r.ProductId.HasValue).ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage),
+                        Wildcard: g.Where(r => !r.ProductId.HasValue).Select(r => r.MarkupPercentage).Cast<decimal?>().FirstOrDefault()
+                    ));
 
             var diffs = new List<ProductDiff>();
 
@@ -107,17 +117,18 @@ public static class GetTrekPriceDiff
 
                 if (!catalogPrices.TryGetValue(sp.ProductId, out var cat)) continue;
 
-                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCustomerMarkups);
-                stopCustomerMarkups ??= [];
+                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCm);
 
-                var resolvedBasic = ResolvePrice(cat.BasicUnitPrice, sp.ProductId, stopCustomerMarkups, regionMarkups);
+                var resolvedBasic = ResolvePrice(cat.BasicUnitPrice, sp.ProductId,
+                    stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
                 var basicChanged = sp.BasicUnitPrice != resolvedBasic;
                 var hadPackaging = sp.PackagingUnitPrice.HasValue;
                 var nowHasPackaging = cat.PackagingUnitId.HasValue;
                 var packagingAdded = !hadPackaging && nowHasPackaging;
                 var packagingRemoved = hadPackaging && !nowHasPackaging;
                 decimal? resolvedPkg = nowHasPackaging
-                    ? ResolvePrice(cat.PackagingUnitPrice!.Value, sp.ProductId, stopCustomerMarkups, regionMarkups)
+                    ? ResolvePrice(cat.PackagingUnitPrice!.Value, sp.ProductId,
+                        stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup)
                     : null;
                 var packagingPriceChanged = hadPackaging && nowHasPackaging && sp.PackagingUnitPrice != resolvedPkg;
 
@@ -157,13 +168,15 @@ public static class GetTrekPriceDiff
         private static decimal ResolvePrice(
             decimal basePrice,
             Guid productId,
-            Dictionary<Guid?, decimal> customerMarkups,
-            Dictionary<Guid?, decimal> regionMarkups)
+            Dictionary<Guid, decimal> customerProductMarkups,
+            decimal? customerWideMarkup,
+            Dictionary<Guid, decimal> regionProductMarkups,
+            decimal? regionWideMarkup)
         {
-            if (customerMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerMarkups.TryGetValue(null, out var cw)) return ApplyMarkup(basePrice, cw);
-            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
+            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
+            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
             return basePrice;
         }
     }

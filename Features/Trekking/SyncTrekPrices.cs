@@ -52,11 +52,16 @@ public static class SyncTrekPrices
                 .Where(p => stopProductIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-            var regionMarkups = await db.RegionalMarkupRules
+            var regionMarkupRules = await db.RegionalMarkupRules
                 .Where(r => r.RegionId == trip.RegionId &&
                             (r.ProductId == null || stopProductIds.Contains(r.ProductId.Value)))
                 .AsNoTracking()
-                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+                .ToListAsync(cancellationToken);
+            var regionProductMarkups = regionMarkupRules
+                .Where(r => r.ProductId.HasValue)
+                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
+            var regionWideMarkup = regionMarkupRules
+                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
 
             var customerIds = trip.Stops.Select(s => s.CustomerAccountId).Distinct().ToList();
             var allCustomerMarkupRows = await db.CustomerMarkupRules
@@ -67,7 +72,12 @@ public static class SyncTrekPrices
 
             var customerMarkups = allCustomerMarkupRows
                 .GroupBy(r => r.CustomerAccountId)
-                .ToDictionary(g => g.Key, g => g.ToDictionary(r => r.ProductId, r => r.MarkupPercentage));
+                .ToDictionary(
+                    g => g.Key,
+                    g => (
+                        Products: g.Where(r => r.ProductId.HasValue).ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage),
+                        Wildcard: g.Where(r => !r.ProductId.HasValue).Select(r => r.MarkupPercentage).Cast<decimal?>().FirstOrDefault()
+                    ));
 
             var response = new SyncPricesResponse
             {
@@ -79,8 +89,7 @@ public static class SyncTrekPrices
 
             foreach (var stop in trip.Stops)
             {
-                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCustomerMarkups);
-                stopCustomerMarkups ??= [];
+                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCm);
 
                 foreach (var sp in stop.Products.Where(p => trip.Status != TrekStatus.InProgress || !p.DeliveredAt.HasValue))
                 {
@@ -89,7 +98,8 @@ public static class SyncTrekPrices
 
                     var changed = false;
 
-                    var resolvedBasic = ResolvePrice(catalog.BasicUnitPrice, sp.ProductId, stopCustomerMarkups, regionMarkups);
+                    var resolvedBasic = ResolvePrice(catalog.BasicUnitPrice, sp.ProductId,
+                        stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
                     if (sp.BasicUnitPrice != resolvedBasic)
                     {
                         response.Changes.Add($"{catalog.Name}: basic price {sp.BasicUnitPrice:F2} → {resolvedBasic:F2}");
@@ -111,7 +121,8 @@ public static class SyncTrekPrices
                     }
                     else if (!hadPackaging && nowHasPackaging)
                     {
-                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId, stopCustomerMarkups, regionMarkups);
+                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId,
+                            stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
                         response.Changes.Add($"{catalog.Name}: packaging unit added at {resolvedPkg:F2}");
                         sp.PackagingUnitPrice = resolvedPkg;
                         response.PackagingAdded++;
@@ -119,7 +130,8 @@ public static class SyncTrekPrices
                     }
                     else if (hadPackaging && nowHasPackaging)
                     {
-                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId, stopCustomerMarkups, regionMarkups);
+                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId,
+                            stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
                         if (sp.PackagingUnitPrice != resolvedPkg)
                         {
                             response.Changes.Add($"{catalog.Name}: packaging price {sp.PackagingUnitPrice:F2} → {resolvedPkg:F2}");
@@ -153,13 +165,15 @@ public static class SyncTrekPrices
         private static decimal ResolvePrice(
             decimal basePrice,
             Guid productId,
-            Dictionary<Guid?, decimal> customerMarkups,
-            Dictionary<Guid?, decimal> regionMarkups)
+            Dictionary<Guid, decimal> customerProductMarkups,
+            decimal? customerWideMarkup,
+            Dictionary<Guid, decimal> regionProductMarkups,
+            decimal? regionWideMarkup)
         {
-            if (customerMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerMarkups.TryGetValue(null, out var cw)) return ApplyMarkup(basePrice, cw);
-            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
+            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
+            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
             return basePrice;
         }
     }

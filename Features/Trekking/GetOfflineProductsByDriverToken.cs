@@ -50,20 +50,25 @@ public static class GetOfflineProductsByDriverToken
             var products = await query.ToListAsync(cancellationToken);
 
             var productIds = products.Select(p => p.Id).ToList();
-            var regionMarkups = await db.RegionalMarkupRules
+            var regionMarkupRules = await db.RegionalMarkupRules
                 .Where(r => r.RegionId == trip.RegionId &&
                             (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
                 .AsNoTracking()
-                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+                .ToListAsync(cancellationToken);
+            var regionProductMarkups = regionMarkupRules
+                .Where(r => r.ProductId.HasValue)
+                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
+            var regionWideMarkup = regionMarkupRules
+                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
 
             return Result.Success(products.Select(p => new OfflineProductItem
             {
                 Id = p.Id,
                 Name = p.Name,
                 Description = p.Description,
-                BasicUnitPrice = ResolveRegionPrice(p.BasicUnitPrice, p.Id, regionMarkups),
+                BasicUnitPrice = ResolveRegionPrice(p.BasicUnitPrice, p.Id, regionProductMarkups, regionWideMarkup),
                 PackagingUnitPrice = p.PackagingUnitPrice.HasValue
-                    ? ResolveRegionPrice(p.PackagingUnitPrice.Value, p.Id, regionMarkups)
+                    ? ResolveRegionPrice(p.PackagingUnitPrice.Value, p.Id, regionProductMarkups, regionWideMarkup)
                     : null,
                 BasicUnitName = p.BasicUnit?.Name ?? string.Empty,
                 BasicUnitId = p.BasicUnitId,
@@ -76,10 +81,11 @@ public static class GetOfflineProductsByDriverToken
         private static decimal ApplyMarkup(decimal price, decimal pct) =>
             Math.Round(price * (1 + pct / 100m), 2);
 
-        private static decimal ResolveRegionPrice(decimal basePrice, Guid productId, Dictionary<Guid?, decimal> regionMarkups)
+        private static decimal ResolveRegionPrice(decimal basePrice, Guid productId,
+            Dictionary<Guid, decimal> regionProductMarkups, decimal? regionWideMarkup)
         {
-            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
             return basePrice;
         }
     }
