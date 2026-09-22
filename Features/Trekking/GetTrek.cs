@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Trekking.CreateTrek;
 
@@ -66,29 +67,64 @@ public static class GetTrek
                 .Select(s => MapStop(s))
                 .ToList();
 
-            var productIds = trip.Stops
-                .SelectMany(s => s.Products)
-                .Select(p => p.ProductId)
-                .Distinct()
-                .ToList();
+            bool syncRequired;
 
-            var catalogPrices = await _db.Products
-                .Where(p => productIds.Contains(p.Id))
-                .AsNoTracking()
-                .ToDictionaryAsync(p => p.Id, cancellationToken);
+            if (trip.Status == TrekStatus.Completed || trip.Status == TrekStatus.Cancelled)
+            {
+                syncRequired = false;
+            }
+            else
+            {
+                var candidateProducts = trip.Stops
+                    .SelectMany(s => s.Products.Select(p => new { Stop = s, Product = p }))
+                    .Where(x => trip.Status != TrekStatus.InProgress || !x.Product.DeliveredAt.HasValue)
+                    .ToList();
 
-            var syncRequired = trip.Stops
-                .SelectMany(s => s.Products)
-                .Any(sp =>
+                var productIds = candidateProducts
+                    .Select(x => x.Product.ProductId)
+                    .Distinct()
+                    .ToList();
+
+                var catalogPrices = await _db.Products
+                    .Where(p => productIds.Contains(p.Id))
+                    .AsNoTracking()
+                    .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+                var regionMarkups = await _db.RegionalMarkupRules
+                    .Where(r => r.RegionId == trip.RegionId &&
+                                (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
+                    .AsNoTracking()
+                    .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+
+                var customerIds = trip.Stops.Select(s => s.CustomerAccountId).Distinct().ToList();
+                var allCustomerMarkupRows = await _db.CustomerMarkupRules
+                    .Where(r => customerIds.Contains(r.CustomerAccountId) &&
+                                (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
+                    .AsNoTracking()
+                    .ToListAsync(cancellationToken);
+
+                var customerMarkups = allCustomerMarkupRows
+                    .GroupBy(r => r.CustomerAccountId)
+                    .ToDictionary(g => g.Key, g => g.ToDictionary(r => r.ProductId, r => r.MarkupPercentage));
+
+                syncRequired = candidateProducts.Any(x =>
                 {
-                    if (!catalogPrices.TryGetValue(sp.ProductId, out var cat)) return false;
-                    if (sp.BasicUnitPrice != cat.BasicUnitPrice) return true;
-                    var hadPackaging = sp.PackagingUnitPrice.HasValue;
+                    if (!catalogPrices.TryGetValue(x.Product.ProductId, out var cat)) return false;
+                    customerMarkups.TryGetValue(x.Stop.CustomerAccountId, out var cm);
+                    cm ??= [];
+                    var resolvedBasic = ResolvePrice(cat.BasicUnitPrice, x.Product.ProductId, cm, regionMarkups);
+                    if (x.Product.BasicUnitPrice != resolvedBasic) return true;
+                    var hadPackaging = x.Product.PackagingUnitPrice.HasValue;
                     var nowHasPackaging = cat.PackagingUnitId.HasValue;
                     if (hadPackaging != nowHasPackaging) return true;
-                    if (hadPackaging && nowHasPackaging && sp.PackagingUnitPrice != cat.PackagingUnitPrice) return true;
+                    if (hadPackaging && nowHasPackaging)
+                    {
+                        var resolvedPkg = ResolvePrice(cat.PackagingUnitPrice!.Value, x.Product.ProductId, cm, regionMarkups);
+                        if (x.Product.PackagingUnitPrice != resolvedPkg) return true;
+                    }
                     return false;
                 });
+            }
 
             var response = CreateTrek.Handler.ToResponse(
                 trip,
@@ -101,6 +137,22 @@ public static class GetTrek
 
             response.SyncRequired = syncRequired;
             return Result.Success(response);
+        }
+
+        private static decimal ApplyMarkup(decimal price, decimal pct) =>
+            Math.Round(price * (1 + pct / 100m), 2);
+
+        private static decimal ResolvePrice(
+            decimal basePrice,
+            Guid productId,
+            Dictionary<Guid?, decimal> customerMarkups,
+            Dictionary<Guid?, decimal> regionMarkups)
+        {
+            if (customerMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
+            if (customerMarkups.TryGetValue(null, out var cw)) return ApplyMarkup(basePrice, cw);
+            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            return basePrice;
         }
 
         internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop)

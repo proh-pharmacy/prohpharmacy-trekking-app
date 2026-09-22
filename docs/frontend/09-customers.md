@@ -16,6 +16,10 @@
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
 | `POST` | `api/v1/customers/{customerId}/premises-photo` | Upload business premises photo |
 | `POST` | `api/v1/customers/sync` | Batch sync offline-created customers |
+| `GET` | `api/v1/customers/markups` | Get all customer markup rules (across all customers) |
+| `GET` | `api/v1/customers/{customerId}/markups` | Get markup rules for a specific customer |
+| `PUT` | `api/v1/customers/{customerId}/markups` | Create or update a markup rule |
+| `DELETE` | `api/v1/customers/{customerId}/markups/{markupId}` | Remove a markup rule |
 
 ---
 
@@ -256,6 +260,7 @@ Customer, representative, and primary location are created in a single request.
   "primaryPhoneNumber": "+233201234567",
   "whatsAppNumber": "+233201234567",
   "registeredDuringTrekId": null,
+  "openingBalance": 250.00,
   "representative": {
     "firstName": "Ama",
     "middleName": null,
@@ -288,6 +293,7 @@ Customer, representative, and primary location are created in a single request.
 | `tradingName` | No | Max 200 chars |
 | `whatsAppNumber` | No | Max 30 chars |
 | `registeredDuringTrekId` | No | Trek ID if registered during a visit |
+| `openingBalance` | No | Decimal. Amount the customer owes. Must be greater than 0 if provided. Creates an initial Debit ledger entry. |
 
 **Representative fields:**
 
@@ -595,6 +601,7 @@ Bulk-imports customers from an Excel file. The user specifies which column heade
 | `districtNameColumn` | District name — matched within the region |
 | `streetAddressColumn` | Street address |
 | `landmarkColumn` | Landmark and directions |
+| `openingBalanceColumn` | Opening balance amount — creates an initial ledger entry per customer |
 
 Header matching is **case-insensitive**. Omitting an optional column field leaves that field `null` on the created record.
 
@@ -608,7 +615,8 @@ Header matching is **case-insensitive**. Omitting an optional column field leave
 6. **RepRelationship** is matched case-insensitively. Defaults to `Owner` if blank or unrecognised.
 7. `CustomerCode` is auto-generated per region in format `{REGION_CODE}-{SEQUENCE:D5}` e.g. `GAR-00001`.
 8. `owningBranch` is resolved from the authenticated staff member's branch.
-9. All valid rows are committed in a single transaction.
+9. **Opening balance** (if column provided): amount the customer owes. Must be a positive number — zero, negative, and non-numeric values are ignored. Creates a Debit ledger entry.
+10. All valid rows are committed in a single transaction.
 
 > Provide region and district names exactly as configured in the Organisation settings. The frontend should show a reference list of valid names before the user starts filling their spreadsheet.
 
@@ -624,6 +632,7 @@ Header matching is **case-insensitive**. Omitting an optional column field leave
 {
   "imported": 45,
   "skipped": 3,
+  "openingBalancesCreated": 42,
   "skippedRows": [
     "Row 4 (Tema Pharmacy): region 'Accra' not found.",
     "Row 9 (Koforidua Clinic): invalid CustomerType 'Pharmacy'.",
@@ -636,7 +645,108 @@ Header matching is **case-insensitive**. Omitting an optional column field leave
 |---|---|
 | `imported` | Number of customers successfully created |
 | `skipped` | Number of rows skipped |
+| `openingBalancesCreated` | Number of opening balance ledger entries created (≤ `imported`) |
 | `skippedRows` | Descriptions of each skipped row including the row number and business name |
 
 ### Errors
 - `422` — no file provided, unsupported file type, missing required form fields, or specified column header not found in the file
+
+---
+
+## Customer Markup Rules
+
+Customer-specific pricing markup rules override region markup rules when a sale is made to that customer. See [20-pricing-markups.md](./20-pricing-markups.md) for the full pricing resolution logic.
+
+A rule with no `productId` applies to **all products** for that customer. A rule with a `productId` applies to **that product only**.
+
+### GET /api/v1/customers/markups
+
+Returns paginated markup rules across all customers. Useful for a global "Pricing Rules" admin view.
+
+#### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | `string` | Filter by customer name or product name |
+| `customerId` | `guid` | Scope to a specific customer |
+| `productId` | `guid` | See all customers that have a rule for a specific product |
+| `pageNumber` | `int` | Default: 1 |
+| `pageSize` | `int` | Default: unpaginated if omitted |
+
+#### Response `200 OK` — `PaginatedData<CustomerMarkupRuleResponse>`
+
+Results are ordered by customer name, then customer-wide rules first, then by product name.
+
+---
+
+### GET /api/v1/customers/{customerId}/markups
+
+Returns paginated markup rules for the customer. The customer-wide rule (no `productId`) is always listed first, then product-specific rules sorted by product name. Search filters by product name.
+
+#### Query parameters
+
+| Parameter | Type | Description |
+|---|---|---|
+| `search` | `string` | Filter by product name |
+| `pageNumber` | `int` | Default: 1 |
+| `pageSize` | `int` | Default: unpaginated if omitted |
+
+#### Response `200 OK` — `PaginatedData<CustomerMarkupRuleResponse>`
+
+```json
+[
+  {
+    "id": "...",
+    "customerId": "...",
+    "customerName": "Accra Pharmacy Ltd",
+    "productId": null,
+    "productName": null,
+    "markupPercentage": 5.00,
+    "createdAt": "2026-09-22T10:00:00Z",
+    "updatedAt": null
+  },
+  {
+    "id": "...",
+    "customerId": "...",
+    "customerName": "Accra Pharmacy Ltd",
+    "productId": "<product-guid>",
+    "productName": "Paracetamol 500mg",
+    "markupPercentage": -2.50,
+    "createdAt": "2026-09-22T10:00:00Z",
+    "updatedAt": null
+  }
+]
+```
+
+### PUT /api/v1/customers/{customerId}/markups
+
+Creates or updates a markup rule. Sending the same `productId` (or `null`) again updates the existing rule rather than creating a duplicate.
+
+#### Request body
+
+```json
+{
+  "productId": "<product-guid-or-null>",
+  "markupPercentage": 5.00
+}
+```
+
+| Field | Required | Constraints |
+|---|---|---|
+| `productId` | No | Omit (or send `null`) for a customer-wide rule; send a product GUID for a product-specific rule |
+| `markupPercentage` | Yes | Between `-99.99` and `500`. Positive = price increase, negative = reduction |
+
+#### Response `200 OK` — same shape as list item above
+
+#### Errors
+- `404` — customer or product not found
+- `422` — validation error
+
+### DELETE /api/v1/customers/{customerId}/markups/{markupId}
+
+Removes the markup rule. The customer reverts to region markup (or base price) for the affected products.
+
+#### Response `204 No Content`
+
+#### Errors
+- `404` — rule not found on this customer

@@ -33,9 +33,10 @@ public static class GetOfflineProductsByDriverToken
     {
         public async Task<Result<List<OfflineProductItem>>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var tripExists = await db.TrekkingTrips
-                .AnyAsync(t => t.DriverToken == request.Token, cancellationToken);
-            if (!tripExists)
+            var trip = await db.TrekkingTrips
+                .AsNoTracking()
+                .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
+            if (trip is null)
                 return Result.Failure<List<OfflineProductItem>>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
             var query = db.Products
@@ -48,19 +49,38 @@ public static class GetOfflineProductsByDriverToken
 
             var products = await query.ToListAsync(cancellationToken);
 
+            var productIds = products.Select(p => p.Id).ToList();
+            var regionMarkups = await db.RegionalMarkupRules
+                .Where(r => r.RegionId == trip.RegionId &&
+                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
+                .AsNoTracking()
+                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+
             return Result.Success(products.Select(p => new OfflineProductItem
             {
                 Id = p.Id,
                 Name = p.Name,
                 Description = p.Description,
-                BasicUnitPrice = p.BasicUnitPrice,
-                PackagingUnitPrice = p.PackagingUnitPrice,
+                BasicUnitPrice = ResolveRegionPrice(p.BasicUnitPrice, p.Id, regionMarkups),
+                PackagingUnitPrice = p.PackagingUnitPrice.HasValue
+                    ? ResolveRegionPrice(p.PackagingUnitPrice.Value, p.Id, regionMarkups)
+                    : null,
                 BasicUnitName = p.BasicUnit?.Name ?? string.Empty,
                 BasicUnitId = p.BasicUnitId,
                 PackagingUnitName = p.PackagingUnit?.Name,
                 PackagingUnitId = p.PackagingUnitId,
                 IsActive = p.IsActive
             }).ToList());
+        }
+
+        private static decimal ApplyMarkup(decimal price, decimal pct) =>
+            Math.Round(price * (1 + pct / 100m), 2);
+
+        private static decimal ResolveRegionPrice(decimal basePrice, Guid productId, Dictionary<Guid?, decimal> regionMarkups)
+        {
+            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            return basePrice;
         }
     }
 }

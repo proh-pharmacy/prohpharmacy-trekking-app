@@ -92,6 +92,18 @@ public static class AddTrekStop
 
             var productDict = products.ToDictionary(p => p.Id);
 
+            var regionMarkups = await _db.RegionalMarkupRules
+                .Where(r => r.RegionId == trip.RegionId &&
+                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
+                .AsNoTracking()
+                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+
+            var customerMarkups = await _db.CustomerMarkupRules
+                .Where(r => r.CustomerAccountId == request.CustomerAccountId &&
+                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
+                .AsNoTracking()
+                .ToDictionaryAsync(r => r.ProductId, r => r.MarkupPercentage, cancellationToken);
+
             var stopProducts = new List<TrekkingTripStopProduct>();
             foreach (var input in request.Products)
             {
@@ -99,8 +111,10 @@ public static class AddTrekStop
                 var hasPackaging = product.PackagingUnitId.HasValue;
                 var basicQty = input.PlannedBasicQuantity ?? 0;
                 var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
-                var basicPrice = product.BasicUnitPrice;
-                var packagingPrice = hasPackaging ? product.PackagingUnitPrice : null;
+                var basicPrice = ResolvePrice(product.BasicUnitPrice, product.Id, customerMarkups, regionMarkups);
+                var packagingPrice = hasPackaging
+                    ? ResolvePrice(product.PackagingUnitPrice!.Value, product.Id, customerMarkups, regionMarkups)
+                    : (decimal?)null;
                 stopProducts.Add(new TrekkingTripStopProduct
                 {
                     ProductId = input.ProductId,
@@ -173,6 +187,22 @@ public static class AddTrekStop
             };
 
             return Result.Success(response);
+        }
+
+        private static decimal ApplyMarkup(decimal price, decimal pct) =>
+            Math.Round(price * (1 + pct / 100m), 2);
+
+        private static decimal ResolvePrice(
+            decimal basePrice,
+            Guid productId,
+            Dictionary<Guid?, decimal> customerMarkups,
+            Dictionary<Guid?, decimal> regionMarkups)
+        {
+            if (customerMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
+            if (customerMarkups.TryGetValue(null, out var cw)) return ApplyMarkup(basePrice, cw);
+            if (regionMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
+            if (regionMarkups.TryGetValue(null, out var rw)) return ApplyMarkup(basePrice, rw);
+            return basePrice;
         }
     }
 }

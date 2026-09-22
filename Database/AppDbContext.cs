@@ -22,6 +22,7 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<Region> Regions => Set<Region>();
         public DbSet<District> Districts => Set<District>();
         public DbSet<Branch> Branches => Set<Branch>();
+        public DbSet<RegionalMarkupRule> RegionalMarkupRules => Set<RegionalMarkupRule>();
 
         // Fleet
         public DbSet<Vehicle> Vehicles => Set<Vehicle>();
@@ -33,6 +34,7 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
         public DbSet<CustomerPerson> CustomerPersons => Set<CustomerPerson>();
         public DbSet<CustomerLocation> CustomerLocations => Set<CustomerLocation>();
+        public DbSet<CustomerMarkupRule> CustomerMarkupRules => Set<CustomerMarkupRule>();
 
         // Products
         public DbSet<Product> Products => Set<Product>();
@@ -104,6 +106,25 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasOne(b => b.District).WithMany(d => d.Branches).HasForeignKey(b => b.DistrictId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(b => b.Code).IsUnique();
                 entity.HasIndex(b => b.Name);
+            });
+
+            modelBuilder.Entity<RegionalMarkupRule>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.MarkupPercentage).HasPrecision(7, 2).IsRequired();
+                entity.HasOne(r => r.Region)
+                    .WithMany()
+                    .HasForeignKey(r => r.RegionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(r => r.Product)
+                    .WithMany()
+                    .HasForeignKey(r => r.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired(false);
+                entity.HasIndex(r => new { r.RegionId, r.ProductId }).IsUnique()
+                    .HasFilter("\"ProductId\" IS NOT NULL");
+                entity.HasIndex(r => r.RegionId).IsUnique()
+                    .HasFilter("\"ProductId\" IS NULL");
             });
 
             // ── Fleet ─────────────────────────────────────────────────────────────
@@ -234,6 +255,25 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasOne(l => l.Region).WithMany().HasForeignKey(l => l.RegionId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(l => l.District).WithMany().HasForeignKey(l => l.DistrictId).OnDelete(DeleteBehavior.Restrict).IsRequired(false);
                 entity.HasOne(l => l.CapturedBy).WithMany().HasForeignKey(l => l.CapturedByStaffId).OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<CustomerMarkupRule>(entity =>
+            {
+                entity.HasKey(r => r.Id);
+                entity.Property(r => r.MarkupPercentage).HasPrecision(7, 2).IsRequired();
+                entity.HasOne(r => r.CustomerAccount)
+                    .WithMany()
+                    .HasForeignKey(r => r.CustomerAccountId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(r => r.Product)
+                    .WithMany()
+                    .HasForeignKey(r => r.ProductId)
+                    .OnDelete(DeleteBehavior.Cascade)
+                    .IsRequired(false);
+                entity.HasIndex(r => new { r.CustomerAccountId, r.ProductId }).IsUnique()
+                    .HasFilter("\"ProductId\" IS NOT NULL");
+                entity.HasIndex(r => r.CustomerAccountId).IsUnique()
+                    .HasFilter("\"ProductId\" IS NULL");
             });
 
             // ── Products ──────────────────────────────────────────────────────────
