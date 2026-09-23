@@ -128,6 +128,7 @@ builder.Services.AddCors(options =>
                 "http://localhost:3000",
                 "http://localhost:5173",
                 "https://trekking.prohpharmacy.com",
+                "https://staging.trekking.prohpharmacy.com",
                 "http://192.168.1.193:3000/",
                 "https://prohpharmacy.com")
             .AllowAnyHeader()
