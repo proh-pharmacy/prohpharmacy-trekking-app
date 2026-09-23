@@ -13,6 +13,7 @@ FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS runtime
 WORKDIR /app
 
 COPY --from=build /app/publish .
+COPY --from=build /src/Templates ./Templates
 COPY --from=build /src/.env .
 COPY --from=build /src/entrypoint.sh .
 
