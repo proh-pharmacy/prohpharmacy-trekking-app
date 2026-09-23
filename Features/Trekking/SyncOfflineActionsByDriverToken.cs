@@ -552,14 +552,7 @@ public static class SyncOfflineActionsByDriverToken
             CancellationToken ct)
         {
             var existing = await db.TrekkingTripStops
-                .FirstOrDefaultAsync(s => s.TrekkingTripId == trip.Id
-                    && s.CustomerAccount.ClientGeneratedId == action.ClientId, ct);
-
-            if (existing is null)
-            {
-                existing = await db.TrekkingTripStops
-                    .FirstOrDefaultAsync(s => s.Id == action.ClientId, ct);
-            }
+                .FirstOrDefaultAsync(s => s.ClientGeneratedId == action.ClientId, ct);
 
             if (existing is not null)
             {
@@ -607,7 +600,8 @@ public static class SyncOfflineActionsByDriverToken
                 CustomerAccountId = customerId,
                 Sequence = seq,
                 IsWalkIn = true,
-                Notes = notes?.Trim()
+                Notes = notes?.Trim(),
+                ClientGeneratedId = action.ClientId
             };
             db.TrekkingTripStops.Add(stop);
 
@@ -622,7 +616,7 @@ public static class SyncOfflineActionsByDriverToken
             CancellationToken ct)
         {
             var existing = await db.TrekkingTripStopProducts
-                .FirstOrDefaultAsync(p => p.Id == action.ClientId, ct);
+                .FirstOrDefaultAsync(p => p.ClientGeneratedId == action.ClientId, ct);
             if (existing is not null)
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id };
 
@@ -670,7 +664,8 @@ public static class SyncOfflineActionsByDriverToken
                 AmtPaid = amtPaid,
                 Balance = balance,
                 IsUnplanned = true,
-                DeliveredAt = action.OccurredAt
+                DeliveredAt = action.OccurredAt,
+                ClientGeneratedId = action.ClientId
             });
 
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
@@ -806,8 +801,12 @@ public static class SyncOfflineActionsByDriverToken
             {
                 if (returnClientMap.TryGetValue(returnClientId, out returnId))
                 {
-                    // Created in this batch — remove from the tracked set and don't persist it
                     returnClientMap.Remove(returnClientId);
+                    var inFlight = db.ChangeTracker.Entries<TrekkingTripStopReturn>()
+                        .FirstOrDefault(e => e.Entity.Id == returnId);
+                    if (inFlight != null)
+                        db.TrekkingTripStopReturns.Remove(inFlight.Entity);
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
                 }
                 else
                 {

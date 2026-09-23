@@ -10,6 +10,7 @@ public class TrekkingTripStop
     public int Sequence { get; set; }
     public bool IsWalkIn { get; set; }
     public string? Notes { get; set; }
+    public Guid? ClientGeneratedId { get; set; }
 
     public TrekkingTrip TrekkingTrip { get; set; } = null!;
     public CustomerAccount CustomerAccount { get; set; } = null!;

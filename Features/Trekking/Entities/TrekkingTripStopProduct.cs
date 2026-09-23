@@ -21,6 +21,7 @@ public class TrekkingTripStopProduct
     public bool IsUnplanned { get; set; }
     public string? Notes { get; set; }
     public DateTime? DeliveredAt { get; set; }
+    public Guid? ClientGeneratedId { get; set; }
 
     public TrekkingTripStop TrekkingTripStop { get; set; } = null!;
     public Product Product { get; set; } = null!;

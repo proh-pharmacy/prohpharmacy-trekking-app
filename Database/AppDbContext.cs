@@ -380,6 +380,8 @@ namespace prohpharmacy_trekking_app.Database
                     .HasForeignKey(s => s.CustomerAccountId)
                     .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(s => new { s.TrekkingTripId, s.Sequence }).IsUnique();
+                entity.HasIndex(s => s.ClientGeneratedId).IsUnique()
+                    .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
             });
 
             modelBuilder.Entity<TrekkingTripStopProduct>(entity =>
@@ -404,6 +406,8 @@ namespace prohpharmacy_trekking_app.Database
                     .WithMany()
                     .HasForeignKey(p => p.ProductId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(p => p.ClientGeneratedId).IsUnique()
+                    .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
             });
 
             modelBuilder.Entity<TrekkingTripStopReturn>(entity =>
