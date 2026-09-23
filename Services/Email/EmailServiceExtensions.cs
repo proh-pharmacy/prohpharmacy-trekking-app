@@ -94,12 +94,12 @@ public static class EmailServiceExtensions
 
 public class ResendSender : ISender
 {
-    private readonly HttpClient _http;
+    private readonly IHttpClientFactory _httpFactory;
     private readonly IConfiguration _config;
 
-    public ResendSender(HttpClient http, IConfiguration config)
+    public ResendSender(IHttpClientFactory httpFactory, IConfiguration config)
     {
-        _http = http;
+        _httpFactory = httpFactory;
         _config = config;
     }
 
@@ -141,7 +141,8 @@ public class ResendSender : ISender
         };
 
         var ct = token ?? CancellationToken.None;
-        var response = await _http.SendAsync(request, ct);
+        using var http = _httpFactory.CreateClient();
+        var response = await http.SendAsync(request, ct);
 
         if (response.IsSuccessStatusCode)
             return new SendResponse();
