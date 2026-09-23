@@ -69,5 +69,61 @@ public class EmailPreviewModule : ICarterModule
         .WithTags("Preview")
         .WithSummary("Preview — Trek Assignment Email")
         .AllowAnonymous();
+
+        app.MapPost("preview/send-invitation-email", async (IEmailService emailService) =>
+        {
+            var model = new StaffInvitationEmailModel
+            {
+                StaffFullName = "Kwame Asante",
+                InvitationLink = "https://yourapp.com/accept-invitation?token=SAMPLE_TOKEN_FOR_PREVIEW",
+                ExpiresAt = DateTime.UtcNow.AddHours(48).ToString("dd MMM yyyy, h:mm tt") + " UTC",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+            await emailService.SendStaffInvitationEmailAsync("akorlicourage@gmail.com", model);
+            return Results.Ok("Invitation email sent to akorlicourage@gmail.com");
+        })
+        .WithTags("Preview")
+        .WithSummary("Send sample — Staff Invitation Email")
+        .AllowAnonymous();
+
+        app.MapPost("preview/send-welcome-email", async (IEmailService emailService) =>
+        {
+            var model = new StaffWelcomeEmailModel
+            {
+                StaffFullName = "Ama Owusu",
+                EmployeeNumber = "EMP-2026-0012",
+                Email = "a.owusu@prohpharmacy.com",
+                InitialPassword = "amaowusu",
+                LoginUrl = "https://yourapp.com/login",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+            await emailService.SendStaffWelcomeEmailAsync("akorlicourage@gmail.com", model);
+            return Results.Ok("Welcome email sent to akorlicourage@gmail.com");
+        })
+        .WithTags("Preview")
+        .WithSummary("Send sample — Staff Welcome Email")
+        .AllowAnonymous();
+
+        app.MapPost("preview/send-trek-assignment-email", async (IEmailService emailService) =>
+        {
+            var model = new TrekAssignmentEmailModel
+            {
+                RecipientName = "Kofi Mensah",
+                TrekNumber = "TRK-00001",
+                ScheduledDate = "06 Sep 2026",
+                DriverName = "Kwame Asante",
+                BranchName = "Tema Branch",
+                DriverLinkUrl = "https://yourapp.com/treks/driver?token=00000000-0000-0000-0000-000000000001",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+            await emailService.SendTrekAssignmentEmailAsync("akorlicourage@gmail.com", model, []);
+            return Results.Ok("Trek assignment email sent to akorlicourage@gmail.com");
+        })
+        .WithTags("Preview")
+        .WithSummary("Send sample — Trek Assignment Email")
+        .AllowAnonymous();
     }
 }
