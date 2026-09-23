@@ -13,6 +13,7 @@ namespace prohpharmacy_trekking_app.Services.Email;
 
 public class StaffInvitationEmailModel
 {
+    public string Title { get; set; } = "Staff Invitation";
     public string StaffFullName { get; set; } = string.Empty;
     public string InvitationLink { get; set; } = string.Empty;
     public string ExpiresAt { get; set; } = string.Empty;
@@ -23,6 +24,7 @@ public class StaffInvitationEmailModel
 
 public class StaffWelcomeEmailModel
 {
+    public string Title { get; set; } = "Welcome Aboard";
     public string StaffFullName { get; set; } = string.Empty;
     public string EmployeeNumber { get; set; } = string.Empty;
     public string Email { get; set; } = string.Empty;
@@ -35,6 +37,7 @@ public class StaffWelcomeEmailModel
 
 public class TrekAssignmentEmailModel
 {
+    public string Title { get; set; } = "Trek Assignment";
     public string RecipientName { get; set; } = string.Empty;
     public string TrekNumber { get; set; } = string.Empty;
     public string ScheduledDate { get; set; } = string.Empty;
@@ -69,7 +72,7 @@ public static class EmailServiceExtensions
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            services.AddFluentEmail(fromEmail, fromName).AddRazorRenderer();
+            services.AddFluentEmail(fromEmail, fromName).AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), "Templates"));
             services.AddScoped<IEmailService, NullEmailService>();
             return services;
         }
@@ -79,7 +82,7 @@ public static class EmailServiceExtensions
 
         services
             .AddFluentEmail(fromEmail, fromName)
-            .AddRazorRenderer();
+            .AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), "Templates"));
 
         services.AddScoped<IEmailService, EmailService>();
 
