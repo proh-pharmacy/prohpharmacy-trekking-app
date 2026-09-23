@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -50,7 +51,11 @@ public static class ResendInvitation
             var staff = user.StaffMember;
             var plainPassword = $"{staff.FirstName.ToLower()}{staff.LastName.ToLower()}";
 
+            var setupToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
+            user.PasswordResetToken = setupToken;
+            user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(7);
             user.UpdatedAt = DateTime.UtcNow;
             await _db.SaveChangesAsync(cancellationToken);
 
@@ -64,7 +69,7 @@ public static class ResendInvitation
                 EmployeeNumber = staff.EmployeeNumber ?? string.Empty,
                 Email = staff.EmailAddress,
                 InitialPassword = plainPassword,
-                LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(staff.EmailAddress)}",
+                LoginUrl = $"{frontendUrl}/auth/reset-password?token={setupToken}",
                 AppName = appName,
                 SupportEmail = supportEmail
             });

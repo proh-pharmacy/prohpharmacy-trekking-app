@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
@@ -21,12 +22,16 @@ internal static class StaffAccessHelper
             ? $"{staff.FirstName.ToLower()}{staff.LastName.ToLower()}"
             : requestedPassword;
 
+        var setupToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
         var appUser = new ApplicationUser
         {
             StaffMemberId = staff.Id,
             Email = staff.EmailAddress,
             PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword),
             IsActive = true,
+            PasswordResetToken = setupToken,
+            PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(7),
             CreatedAt = DateTime.UtcNow
         };
 
@@ -53,7 +58,7 @@ internal static class StaffAccessHelper
             EmployeeNumber = staff.EmployeeNumber ?? string.Empty,
             Email = staff.EmailAddress,
             InitialPassword = plainPassword,
-            LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(staff.EmailAddress)}",
+            LoginUrl = $"{frontendUrl}/auth/reset-password?token={setupToken}",
             AppName = appName,
             SupportEmail = supportEmail
         });

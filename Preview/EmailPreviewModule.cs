@@ -16,7 +16,7 @@ public class EmailPreviewModule : ICarterModule
                 EmployeeNumber = "EMP-2026-0012",
                 Email = "a.owusu@prohpharmacy.com",
                 InitialPassword = "amaowusu",
-                LoginUrl = "https://yourapp.com/auth/reset-password?email=a.owusu%40prohpharmacy.com",
+                LoginUrl = "https://yourapp.com/auth/reset-password?token=SAMPLE_SETUP_TOKEN_FOR_PREVIEW",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"
             };
@@ -59,7 +59,7 @@ public class EmailPreviewModule : ICarterModule
                 EmployeeNumber = "EMP-2026-0012",
                 Email = "a.owusu@prohpharmacy.com",
                 InitialPassword = "amaowusu",
-                LoginUrl = "https://yourapp.com/auth/reset-password?email=a.owusu%40prohpharmacy.com",
+                LoginUrl = "https://yourapp.com/auth/reset-password?token=SAMPLE_SETUP_TOKEN_FOR_PREVIEW",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"
             };

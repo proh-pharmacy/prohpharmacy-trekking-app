@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -75,7 +76,11 @@ public static class ResetPassword
                 ? $"{user.StaffMember.FirstName.ToLower()}{user.StaffMember.LastName.ToLower()}"
                 : request.NewPassword!;
 
+            var setupToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+
             user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(plainPassword);
+            user.PasswordResetToken = setupToken;
+            user.PasswordResetTokenExpiresAt = DateTime.UtcNow.AddDays(7);
             user.UpdatedAt = DateTime.UtcNow;
             user.FailedLoginAttempts = 0;
             user.LockoutUntil = null;
@@ -99,7 +104,7 @@ public static class ResetPassword
                 EmployeeNumber = user.StaffMember.EmployeeNumber,
                 Email = user.Email,
                 InitialPassword = plainPassword,
-                LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(user.Email)}",
+                LoginUrl = $"{frontendUrl}/auth/reset-password?token={setupToken}",
                 AppName = appName,
                 SupportEmail = supportEmail
             });
