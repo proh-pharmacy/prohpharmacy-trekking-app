@@ -570,7 +570,7 @@ The `premisesPhotoUrl` is also reflected on the customer's full response from th
 
 ## POST /api/v1/customers/import
 
-Bulk-imports customers from an Excel file. The user specifies which column header maps to each field — the file layout is flexible and not fixed.
+Bulk-imports customers from a multi-sheet Excel workbook. Each sheet name must match a Ghana region name. The user specifies which column header maps to each field — the file layout is flexible and not fixed.
 
 ### Request
 
@@ -580,25 +580,24 @@ Bulk-imports customers from an Excel file. The user specifies which column heade
 
 | Field | Description |
 |---|---|
-| `file` | `.xlsx` or `.xls` file |
+| `file` | `.xlsx` or `.xls` workbook |
 | `businessNameColumn` | Exact header text for business name, e.g. `"Business Name"` |
-| `customerTypeColumn` | Exact header text for customer type, e.g. `"Type"` |
-| `regionNameColumn` | Exact header text for region name, e.g. `"Region"` |
-| `primaryPhoneColumn` | Exact header text for primary phone, e.g. `"Phone"` |
-| `repFirstNameColumn` | Exact header text for representative first name |
-| `repLastNameColumn` | Exact header text for representative last name |
-| `repPhoneColumn` | Exact header text for representative phone |
-| `repRelationshipColumn` | Exact header text for representative relationship type |
 
 **Optional form fields:**
 
 | Field | Description |
 |---|---|
+| `customerTypeColumn` | Customer type — defaults to `Other` if absent or unrecognised |
+| `primaryPhoneColumn` | Primary phone number |
+| `repFirstNameColumn` | Representative first name |
+| `repLastNameColumn` | Representative last name |
+| `repPhoneColumn` | Representative phone |
+| `repRelationshipColumn` | Representative relationship type — defaults to `Owner` if blank |
 | `tradingNameColumn` | Trading/DBA name |
 | `whatsAppColumn` | WhatsApp number |
 | `repMiddleNameColumn` | Representative middle name |
 | `ghanaCardColumn` | Ghana Card number |
-| `districtNameColumn` | District name — matched within the region |
+| `districtNameColumn` | District name — matched within the sheet's region |
 | `streetAddressColumn` | Street address |
 | `landmarkColumn` | Landmark and directions |
 | `openingBalanceColumn` | Opening balance amount — creates an initial ledger entry per customer |
@@ -607,49 +606,56 @@ Header matching is **case-insensitive**. Omitting an optional column field leave
 
 ### How the file is processed
 
-1. Row 1 is the header row. All specified column names are located by text match.
-2. Every row from row 2 onwards is processed. Blank business name rows are silently skipped.
-3. **Region** is matched by name (case-insensitive). Rows with an unrecognised region are skipped.
-4. **District** (if column provided) is matched by name within the matched region. Rows where the district name is not found in that region are skipped.
-5. **CustomerType** must match one of the valid enum values (case-insensitive). Rows with an invalid type are skipped.
-6. **RepRelationship** is matched case-insensitively. Defaults to `Owner` if blank or unrecognised.
-7. `CustomerCode` is auto-generated per region in format `{REGION_CODE}-{SEQUENCE:D5}` e.g. `GAR-00001`.
-8. `owningBranch` is resolved from the authenticated staff member's branch.
-9. **Opening balance** (if column provided): amount the customer owes. Must be a positive number — zero, negative, and non-numeric values are ignored. Creates a Debit ledger entry.
-10. All valid rows are committed in a single transaction.
+1. **Each sheet = one region.** The sheet name is matched case-insensitively against the DB region list. Sheets with no matching region are skipped and reported in `skippedSheets`.
+2. The **first sheet's header row** is the reference. All subsequent sheets must have identical headers — sheets with mismatched headers are skipped and reported in `skippedSheets`.
+3. Row 1 of each sheet is the header row. Rows from row 2 onwards are processed. Blank business name rows are silently skipped.
+4. **Upsert:** if a customer with the exact same business name already exists in that region, their record is updated with any new data provided. No duplicate is created.
+5. **District** (if column provided) is matched by name within the sheet's region. Rows where the district name is not found in that region are skipped.
+6. **CustomerType** defaults to `Other` if the column is absent, blank, or the value is unrecognised.
+7. **Rep details** (first name, last name, phone) are optional. A `CustomerPerson` record is only created or updated when all three are present in the row.
+8. **RepRelationship** is matched case-insensitively. Defaults to `Owner` if blank or unrecognised.
+9. `CustomerCode` is auto-generated per region in format `{REGION_CODE}-{SEQUENCE:D5}` e.g. `GAR-00001`.
+10. `owningBranch` is resolved from the authenticated staff member's branch.
+11. **Opening balance** (if column provided): amount the customer owes. Must be a positive number — zero, negative, and non-numeric values are ignored. Creates a Debit ledger entry (new customers only).
+12. All changes are committed in a single transaction.
 
-> Provide region and district names exactly as configured in the Organisation settings. The frontend should show a reference list of valid names before the user starts filling their spreadsheet.
+> Name each sheet exactly after its Ghana region (e.g. `Greater Accra Region`, `Ashanti Region`). The frontend should show a reference list of valid region names before the user prepares their workbook.
 
 ### Valid enum values
 
 **`customerType`:** `RetailPharmacy` `WholesalePharmacy` `OTCMedicineSeller` `Clinic` `Hospital` `ChemicalShop` `LicensedHealthFacility` `Other`
 
-**`repRelationship`:** `Owner` `Proprietor` `Director` `Manager` `PrimaryContact` `CreditResponsiblePerson` `Guarantor` `Other` (defaults to `Owner` if blank)
+**`repRelationship`:** `Owner` `Proprietor` `Director` `Manager` `PrimaryContact` `CreditResponsiblePerson` `Guarantor` `Other`
 
 ### Response `200 OK`
 
 ```json
 {
   "imported": 45,
-  "skipped": 3,
+  "updated": 8,
+  "skipped": 2,
   "openingBalancesCreated": 42,
+  "skippedSheets": [
+    "Sheet 'Northern': no matching region found — skipped.",
+    "Sheet 'Volta Region': headers do not match the first sheet — skipped."
+  ],
   "skippedRows": [
-    "Row 4 (Tema Pharmacy): region 'Accra' not found.",
-    "Row 9 (Koforidua Clinic): invalid CustomerType 'Pharmacy'.",
-    "Row 14 (Cape Coast Drug Store): representative first name, last name, and phone are required."
+    "Sheet 'Greater Accra Region' Row 6 (Tema Pharmacy): district 'Cantonments' not found in region 'Greater Accra Region'."
   ]
 }
 ```
 
 | Field | Description |
 |---|---|
-| `imported` | Number of customers successfully created |
+| `imported` | Number of new customers created |
+| `updated` | Number of existing customers updated |
 | `skipped` | Number of rows skipped |
 | `openingBalancesCreated` | Number of opening balance ledger entries created (≤ `imported`) |
-| `skippedRows` | Descriptions of each skipped row including the row number and business name |
+| `skippedSheets` | Sheets that were skipped with the reason |
+| `skippedRows` | Rows that were skipped with the reason, sheet name, row number, and business name |
 
 ### Errors
-- `422` — no file provided, unsupported file type, missing required form fields, or specified column header not found in the file
+- `422` — no file provided, unsupported file type, `businessNameColumn` missing, or the specified business name column header not found in the first sheet
 
 ---
 
