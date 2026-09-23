@@ -179,9 +179,9 @@ public static class ExportCollectionsReport
             WriteSection(branch_titleRow, "COLLECTIONS BY BRANCH",
                 byBranch.Select(b => (b.Branch, b.Total, b.Count)));
 
-            ws.Column(1).Width = 30;
-            ws.Column(2).Width = 24;
-            ws.Column(3).Width = 16;
+            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             ws.Row(1).Height = 22;
 

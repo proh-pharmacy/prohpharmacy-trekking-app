@@ -218,15 +218,9 @@ public static class ExportCustomerLedger
                 balance < 0 ? Color.FromArgb(185, 28, 28) :
                 borderColor);
 
-            // ── Column widths ────────────────────────────────────────────────
-            ws.Column(1).Width = 18;
-            ws.Column(2).Width = 12;
-            ws.Column(3).Width = 18;
-            ws.Column(4).Width = 38;
-            ws.Column(5).Width = 14;
-            ws.Column(6).Width = 18;
-            ws.Column(7).Width = 18;
-            ws.Column(8).Width = 22;
+            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             ws.Row(1).Height = 22;
             ws.View.FreezePanes(headerRow + 1, 1);

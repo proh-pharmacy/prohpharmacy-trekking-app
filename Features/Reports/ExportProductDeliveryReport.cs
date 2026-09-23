@@ -197,15 +197,9 @@ public static class ExportProductDeliveryReport
             TotalCell(8, totalOutstanding, applyRedIfPositive: true);
             ws.Cells[totalsRow, 9].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
 
-            ws.Column(1).Width = 5;
-            ws.Column(2).Width = 32;
-            ws.Column(3).Width = 12;
-            ws.Column(4).Width = 14;
-            ws.Column(5).Width = 12;
-            ws.Column(6).Width = 14;
-            ws.Column(7).Width = 20;
-            ws.Column(8).Width = 20;
-            ws.Column(9).Width = 8;
+            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             ws.Row(1).Height = 22;
             ws.View.FreezePanes(headerRow + 1, 1);
