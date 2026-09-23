@@ -190,6 +190,7 @@ using (var scope = app.Services.CreateScope())
     await db.Database.MigrateAsync();
     await RoleSeeder.SeedAsync(db);
     await GhanaRegionSeeder.SeedAsync(db);
+    await SuperAdminSeeder.SeedAsync(db, builder.Configuration);
 }
 
 app.Run();
