@@ -244,7 +244,15 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 ```http
 POST /api/v1/auth/logout
 Authorization: Bearer <accessToken>
+Content-Type: application/json
+
+{
+  "refreshToken": "<stored-refresh-token>"
+}
 ```
+
+- `200` — refresh token revoked
+- The access token remains valid until it expires naturally (15 min max)
 
 On success (or even on failure):
 1. Clear the access token from memory.
@@ -265,7 +273,8 @@ Content-Type: application/json
 
 {
   "currentPassword": "oldpass",
-  "newPassword": "newpass"
+  "newPassword": "newpass",
+  "confirmNewPassword": "newpass"
 }
 ```
 
