@@ -55,7 +55,7 @@ public static class ResendInvitation
             await _db.SaveChangesAsync(cancellationToken);
 
             var appName = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
-            var loginUrl = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
+            var frontendUrl = (_config["SiteSettings:FrontendUrl"] ?? string.Empty).TrimEnd('/');
             var supportEmail = _config["EmailSettings:SupportEmail"] ?? string.Empty;
 
             _ = _email.SendStaffWelcomeEmailAsync(staff.EmailAddress, new StaffWelcomeEmailModel
@@ -64,7 +64,7 @@ public static class ResendInvitation
                 EmployeeNumber = staff.EmployeeNumber ?? string.Empty,
                 Email = staff.EmailAddress,
                 InitialPassword = plainPassword,
-                LoginUrl = loginUrl,
+                LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(staff.EmailAddress)}",
                 AppName = appName,
                 SupportEmail = supportEmail
             });

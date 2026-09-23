@@ -71,7 +71,7 @@ public static class ForgotPassword
             _ = _email.SendPasswordResetEmailAsync(user.Email, new PasswordResetEmailModel
             {
                 StaffFullName = user.StaffMember.FullName,
-                ResetLink = $"{frontendUrl}/reset-password?token={token}",
+                ResetLink = $"{frontendUrl}/auth/reset-password?token={token}",
                 ExpiresAt = expiresAt.ToString("dd MMM yyyy, h:mm tt") + " UTC",
                 AppName = appName,
                 SupportEmail = supportEmail

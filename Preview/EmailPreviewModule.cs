@@ -16,7 +16,7 @@ public class EmailPreviewModule : ICarterModule
                 EmployeeNumber = "EMP-2026-0012",
                 Email = "a.owusu@prohpharmacy.com",
                 InitialPassword = "amaowusu",
-                LoginUrl = "https://yourapp.com/login",
+                LoginUrl = "https://yourapp.com/auth/reset-password?email=a.owusu%40prohpharmacy.com",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"
             };
@@ -59,7 +59,7 @@ public class EmailPreviewModule : ICarterModule
                 EmployeeNumber = "EMP-2026-0012",
                 Email = "a.owusu@prohpharmacy.com",
                 InitialPassword = "amaowusu",
-                LoginUrl = "https://yourapp.com/login",
+                LoginUrl = "https://yourapp.com/auth/reset-password?email=a.owusu%40prohpharmacy.com",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"
             };
@@ -75,7 +75,7 @@ public class EmailPreviewModule : ICarterModule
             var model = new PasswordResetEmailModel
             {
                 StaffFullName = "Kwame Asante",
-                ResetLink = "https://yourapp.com/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
+                ResetLink = "https://yourapp.com/auth/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
                 ExpiresAt = DateTime.UtcNow.AddHours(1).ToString("dd MMM yyyy, h:mm tt") + " UTC",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"
@@ -94,7 +94,7 @@ public class EmailPreviewModule : ICarterModule
             var model = new PasswordResetEmailModel
             {
                 StaffFullName = "Kwame Asante",
-                ResetLink = "https://yourapp.com/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
+                ResetLink = "https://yourapp.com/auth/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
                 ExpiresAt = DateTime.UtcNow.AddHours(1).ToString("dd MMM yyyy, h:mm tt") + " UTC",
                 AppName = "Proh Pharmacy Trekking",
                 SupportEmail = "support@prohpharmacy.com"

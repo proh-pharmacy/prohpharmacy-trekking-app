@@ -44,7 +44,7 @@ internal static class StaffAccessHelper
         await db.SaveChangesAsync(cancellationToken);
 
         var appName = config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
-        var loginUrl = config["SiteSettings:FrontendUrl"] ?? string.Empty;
+        var frontendUrl = (config["SiteSettings:FrontendUrl"] ?? string.Empty).TrimEnd('/');
         var supportEmail = config["EmailSettings:SupportEmail"] ?? string.Empty;
 
         _ = email.SendStaffWelcomeEmailAsync(staff.EmailAddress, new StaffWelcomeEmailModel
@@ -53,7 +53,7 @@ internal static class StaffAccessHelper
             EmployeeNumber = staff.EmployeeNumber ?? string.Empty,
             Email = staff.EmailAddress,
             InitialPassword = plainPassword,
-            LoginUrl = loginUrl,
+            LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(staff.EmailAddress)}",
             AppName = appName,
             SupportEmail = supportEmail
         });

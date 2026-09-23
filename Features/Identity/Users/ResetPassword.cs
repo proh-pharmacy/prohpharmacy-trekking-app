@@ -90,7 +90,7 @@ public static class ResetPassword
             await _db.SaveChangesAsync(cancellationToken);
 
             var appName = _config["SiteSettings:AppName"] ?? "Proh Pharmacy Trekking";
-            var loginUrl = _config["SiteSettings:FrontendUrl"] ?? string.Empty;
+            var frontendUrl = (_config["SiteSettings:FrontendUrl"] ?? string.Empty).TrimEnd('/');
             var supportEmail = _config["EmailSettings:SupportEmail"] ?? string.Empty;
 
             _ = _email.SendStaffWelcomeEmailAsync(user.Email, new StaffWelcomeEmailModel
@@ -99,7 +99,7 @@ public static class ResetPassword
                 EmployeeNumber = user.StaffMember.EmployeeNumber,
                 Email = user.Email,
                 InitialPassword = plainPassword,
-                LoginUrl = loginUrl,
+                LoginUrl = $"{frontendUrl}/auth/reset-password?email={Uri.EscapeDataString(user.Email)}",
                 AppName = appName,
                 SupportEmail = supportEmail
             });
