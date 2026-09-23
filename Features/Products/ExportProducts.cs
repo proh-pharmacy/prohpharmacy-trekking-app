@@ -70,7 +70,12 @@ public static class ExportProducts
 
             if (!isPricing)
             {
-                ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "PACKAGING UNIT", "PACKAGING PRICE", "ACTIVE" });
+                var hasPackaging = products.Any(p => p.PackagingUnit != null && p.PackagingUnitPrice.HasValue);
+
+                if (hasPackaging)
+                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "PACKAGING UNIT", "PACKAGING PRICE", "ACTIVE" });
+                else
+                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "ACTIVE" });
 
                 int row = 2;
                 foreach (var p in products)
@@ -78,11 +83,21 @@ public static class ExportProducts
                     ws.Cells[row, 1].Value = p.Name;
                     ws.Cells[row, 2].Value = p.BasicUnit.Name;
                     ws.Cells[row, 3].Value = p.BasicUnitPrice;
-                    ws.Cells[row, 4].Value = p.PackagingUnit?.Name;
-                    ws.Cells[row, 5].Value = p.PackagingUnitPrice;
-                    ws.Cells[row, 6].Value = p.IsActive ? "Yes" : "No";
 
-                    var activeCell = ws.Cells[row, 6];
+                    int activeCol;
+                    if (hasPackaging)
+                    {
+                        ws.Cells[row, 4].Value = p.PackagingUnit?.Name;
+                        ws.Cells[row, 5].Value = p.PackagingUnitPrice;
+                        activeCol = 6;
+                    }
+                    else
+                    {
+                        activeCol = 4;
+                    }
+
+                    ws.Cells[row, activeCol].Value = p.IsActive ? "Yes" : "No";
+                    var activeCell = ws.Cells[row, activeCol];
                     activeCell.Style.Font.Bold = true;
                     activeCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
                     activeCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
