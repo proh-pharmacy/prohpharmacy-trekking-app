@@ -115,6 +115,8 @@ public static class ExportCustomers
                 }
 
                 ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                for (var i = 1; i <= ws.Dimension.Columns; i++)
+                    ws.Column(i).Width += 2;
             }
 
             var fileName = $"customers_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
