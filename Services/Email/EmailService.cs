@@ -16,28 +16,6 @@ public class EmailService : IEmailService
         _logger = logger;
     }
 
-    public async Task SendStaffInvitationEmailAsync(string to, StaffInvitationEmailModel model)
-    {
-        try
-        {
-            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffInvitationEmail.cshtml");
-
-            var response = await _factory.Create()
-                .To(to)
-                .Subject($"You're invited to join {model.AppName}")
-                .UsingTemplateFromFile(templatePath, model)
-                .SendAsync(CancellationToken.None);
-
-            if (!response.Successful)
-                _logger.LogWarning("Failed to send invitation email to {Email}: {Errors}",
-                    to, string.Join(", ", response.ErrorMessages));
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error sending invitation email to {Email}", to);
-        }
-    }
-
     public async Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes)
     {
         try

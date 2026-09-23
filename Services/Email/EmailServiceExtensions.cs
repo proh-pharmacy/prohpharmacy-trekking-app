@@ -11,17 +11,6 @@ namespace prohpharmacy_trekking_app.Services.Email;
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
-public class StaffInvitationEmailModel
-{
-    public string Title { get; set; } = "Staff Invitation";
-    public string StaffFullName { get; set; } = string.Empty;
-    public string InvitationLink { get; set; } = string.Empty;
-    public string ExpiresAt { get; set; } = string.Empty;
-    public string AppName { get; set; } = string.Empty;
-    public string SupportEmail { get; set; } = string.Empty;
-    public string Year { get; } = DateTime.UtcNow.Year.ToString();
-}
-
 public class StaffWelcomeEmailModel
 {
     public string Title { get; set; } = "Welcome Aboard";
@@ -53,7 +42,6 @@ public class TrekAssignmentEmailModel
 
 public interface IEmailService
 {
-    Task SendStaffInvitationEmailAsync(string to, StaffInvitationEmailModel model);
     Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model);
     Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes);
 }
@@ -158,12 +146,6 @@ public class NullEmailService : IEmailService
     private readonly ILogger<NullEmailService> _logger;
 
     public NullEmailService(ILogger<NullEmailService> logger) => _logger = logger;
-
-    public Task SendStaffInvitationEmailAsync(string to, StaffInvitationEmailModel model)
-    {
-        _logger.LogWarning("[NullEmailService] Invitation email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
-        return Task.CompletedTask;
-    }
 
     public Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
     {

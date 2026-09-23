@@ -8,25 +8,6 @@ public class EmailPreviewModule : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("preview/invitation-email", (IFluentEmailFactory factory) =>
-        {
-            var model = new StaffInvitationEmailModel
-            {
-                StaffFullName = "Kwame Asante",
-                InvitationLink = "https://yourapp.com/accept-invitation?token=SAMPLE_TOKEN_FOR_PREVIEW",
-                ExpiresAt = DateTime.UtcNow.AddHours(48).ToString("dd MMM yyyy, h:mm tt") + " UTC",
-                AppName = "Proh Pharmacy Trekking",
-                SupportEmail = "support@prohpharmacy.com"
-            };
-
-            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "StaffInvitationEmail.cshtml");
-            var email = factory.Create().UsingTemplateFromFile(templatePath, model);
-            return Results.Content(email.Data.Body, "text/html");
-        })
-        .WithTags("Preview")
-        .WithSummary("Preview — Staff Invitation Email")
-        .AllowAnonymous();
-
         app.MapGet("preview/welcome-email", (IFluentEmailFactory factory) =>
         {
             var model = new StaffWelcomeEmailModel
@@ -68,23 +49,6 @@ public class EmailPreviewModule : ICarterModule
         })
         .WithTags("Preview")
         .WithSummary("Preview — Trek Assignment Email")
-        .AllowAnonymous();
-
-        app.MapPost("preview/send-invitation-email", async (IEmailService emailService) =>
-        {
-            var model = new StaffInvitationEmailModel
-            {
-                StaffFullName = "Kwame Asante",
-                InvitationLink = "https://yourapp.com/accept-invitation?token=SAMPLE_TOKEN_FOR_PREVIEW",
-                ExpiresAt = DateTime.UtcNow.AddHours(48).ToString("dd MMM yyyy, h:mm tt") + " UTC",
-                AppName = "Proh Pharmacy Trekking",
-                SupportEmail = "support@prohpharmacy.com"
-            };
-            await emailService.SendStaffInvitationEmailAsync("akorlicourage@gmail.com", model);
-            return Results.Ok("Invitation email sent to akorlicourage@gmail.com");
-        })
-        .WithTags("Preview")
-        .WithSummary("Send sample — Staff Invitation Email")
         .AllowAnonymous();
 
         app.MapPost("preview/send-welcome-email", async (IEmailService emailService) =>
