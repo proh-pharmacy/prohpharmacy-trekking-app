@@ -102,6 +102,36 @@ public static class ExportProducts
             }
             else
             {
+                void ApplyPriceDeviation(ExcelRange cell, decimal regionalPrice, decimal basePrice)
+                {
+                    if (basePrice == 0) return;
+                    var deviation = (regionalPrice - basePrice) / basePrice * 100m;
+                    if (deviation == 0) return;
+
+                    Color bg, fg;
+                    if (deviation > 0)
+                        (bg, fg) = deviation switch
+                        {
+                            <= 5m  => (Color.FromArgb(240, 253, 244), Color.FromArgb(21, 128, 61)),
+                            <= 10m => (Color.FromArgb(187, 247, 208), Color.FromArgb(22, 101, 52)),
+                            _      => (Color.FromArgb(134, 239, 172), Color.FromArgb(20, 83, 45))
+                        };
+                    else
+                    {
+                        var abs = Math.Abs(deviation);
+                        (bg, fg) = abs switch
+                        {
+                            <= 5m  => (Color.FromArgb(255, 251, 235), Color.FromArgb(180, 83, 9)),
+                            <= 10m => (Color.FromArgb(254, 215, 170), Color.FromArgb(154, 52, 18)),
+                            _      => (Color.FromArgb(254, 202, 202), Color.FromArgb(185, 28, 28))
+                        };
+                    }
+
+                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(bg);
+                    cell.Style.Font.Color.SetColor(fg);
+                }
+
                 var regions = await db.Regions
                     .OrderBy(r => r.Name)
                     .AsNoTracking()
@@ -156,9 +186,11 @@ public static class ExportProducts
                         else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                             markup = regionMarkup;
 
-                        ws.Cells[row, 4 + i].Value = markup.HasValue
+                        var regionalPrice = markup.HasValue
                             ? Math.Round(p.BasicUnitPrice * (1 + markup.Value / 100m), 2)
                             : p.BasicUnitPrice;
+                        ws.Cells[row, 4 + i].Value = regionalPrice;
+                        ApplyPriceDeviation(ws.Cells[row, 4 + i], regionalPrice, p.BasicUnitPrice);
                     }
                     row++;
                 }
@@ -205,9 +237,11 @@ public static class ExportProducts
                             else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                                 markup = regionMarkup;
 
-                            ws2.Cells[row2, 4 + i].Value = markup.HasValue
+                            var pkgRegionalPrice = markup.HasValue
                                 ? Math.Round(basePrice * (1 + markup.Value / 100m), 2)
                                 : basePrice;
+                            ws2.Cells[row2, 4 + i].Value = pkgRegionalPrice;
+                            ApplyPriceDeviation(ws2.Cells[row2, 4 + i], pkgRegionalPrice, basePrice);
                         }
                         row2++;
                     }
