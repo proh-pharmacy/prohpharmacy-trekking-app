@@ -557,7 +557,51 @@ await seedLocal('trek',       `/api/v1/treks/driver/${token}/offline/trek?since=
 
 ### GET .../offline/products
 
-Full product catalogue — name, unit prices, basic and packaging unit names.
+Returns a bundle containing the full product catalogue and per-stop customer price overrides.
+
+**Response `200 OK`**
+
+```json
+{
+  "products": [
+    {
+      "id": "...",
+      "name": "Paracetamol 500mg",
+      "description": null,
+      "basicUnitPrice": 2.50,
+      "packagingUnitPrice": 22.00,
+      "basicUnitName": "Strip",
+      "basicUnitId": "...",
+      "packagingUnitName": "Box",
+      "packagingUnitId": "...",
+      "isActive": true
+    }
+  ],
+  "stopPriceOverrides": {
+    "<stopId>": {
+      "<productId>": {
+        "basicUnitPrice": 2.25,
+        "packagingUnitPrice": 19.80
+      }
+    }
+  }
+}
+```
+
+**`products`** — the region-adjusted catalogue. Prices have the trek's regional markup rules applied (product-specific first, then region-wide, then catalog base).
+
+**`stopPriceOverrides`** — keyed by stop ID, then product ID. Only populated for stops whose customer has markup rules that produce a price different from the region baseline. When displaying a product price for an unplanned sale at a specific stop, check `stopPriceOverrides[stopId][productId]` first; fall back to the product's price in `products` if no override entry exists. Walk-in stops added during the trek (not yet in the database) will not have entries here — they fall back to the region price.
+
+```js
+function resolvePrice(stopId, productId, stopPriceOverrides, products) {
+  const override = stopPriceOverrides[stopId]?.[productId];
+  const product = products.find(p => p.id === productId);
+  return {
+    basicUnitPrice:    override?.basicUnitPrice    ?? product?.basicUnitPrice    ?? 0,
+    packagingUnitPrice: override?.packagingUnitPrice ?? product?.packagingUnitPrice ?? null,
+  };
+}
+```
 
 ### GET .../offline/customers
 
@@ -778,6 +822,8 @@ When connectivity returns, push all queued actions in one request. Actions are p
       "payload": {
         "stopClientId": "<device-uuid-4>",
         "productId": "<product-guid>",
+        "basicUnitPrice": 2.25,
+        "packagingUnitPrice": 19.80,
         "basicQtyDelivered": 10,
         "paymentMethod": "Cash",
         "amtPaid": 250.00,
@@ -926,11 +972,15 @@ Records the delivery outcome for a **planned** stop product (one that already ex
 | `stopClientId` | Either/or | Use when the stop was added offline in this batch |
 | `stopId` | Either/or | Use when the stop already exists on the server |
 | `productId` | Yes | |
+| `basicUnitPrice` | No | Resolved price shown to the driver — see pricing note below |
+| `packagingUnitPrice` | No | Resolved packaging price — omit if product has no packaging unit |
 | `basicQtyDelivered` | Yes | |
 | `packagingQtyDelivered` | No | |
 | `paymentMethod` | No | |
 | `amtPaid` | No | |
 | `balance` | No | |
+
+**Pricing:** the frontend resolves the correct unit price using `stopPriceOverrides` from the product catalogue seed (customer-specific markup if one exists, otherwise region markup, otherwise catalog base price). Include `basicUnitPrice` and `packagingUnitPrice` in the payload so the amount the driver sees matches what gets recorded — the backend re-resolves the price server-side using the same hierarchy (customer-product → customer-wide → region-product → region-wide → catalog) regardless, so the stored price is always authoritative.
 
 The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, that `serverId` is the `stopProductId` of the newly created stop product — use it with `POST api/v1/treks/driver/{token}/record` to update quantities, payment, or balance exactly like a planned product. No separate endpoint exists for editing unplanned sales.
 
@@ -943,12 +993,16 @@ The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, t
 | `stopId` | Either/or | Server stop ID |
 | `stopClientId` | Either/or | Offline stop — resolved from this batch |
 | `productId` | Yes | |
+| `basicUnitPrice` | No | Resolved price shown to the driver — same lookup as `RecordUnplannedSale` |
+| `packagingUnitPrice` | No | Resolved packaging price — omit if product has no packaging unit |
 | `basicQtyReturned` | Yes | |
 | `packagingQtyReturned` | No | |
-| `refundAmount` | No | |
+| `refundAmount` | No | Calculated from resolved unit prices × returned quantities |
 | `refundMethod` | No | |
 | `reason` | No | Max 500 chars |
 | `gps` | No | Optional |
+
+**Pricing:** same resolution as `RecordUnplannedSale` — use `stopPriceOverrides` to find the customer-specific price, include it in the payload, and the backend stores the server-resolved price regardless.
 
 **`VoidReturn`**
 
@@ -1078,9 +1132,13 @@ const returnClientId = await queueAction('RecordReturn', {
 await queueAction('VoidReturn', { returnClientId });
 
 // Example — record an unplanned sale at the offline walk-in stop:
+// Resolve the customer-specific price first using the stopPriceOverrides seed
+const { basicUnitPrice, packagingUnitPrice } = resolvePrice(stopServerId, selectedProductId, stopPriceOverrides, products);
 await queueAction('RecordUnplannedSale', {
   stopClientId,       // references the stop added above
   productId: selectedProductId,
+  basicUnitPrice,
+  packagingUnitPrice,
   basicQtyDelivered: 10,
   paymentMethod: 'Cash',
   amtPaid: 250.00,
