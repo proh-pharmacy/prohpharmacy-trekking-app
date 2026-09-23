@@ -51,6 +51,8 @@ public static class ExportRegionalMarkupRules
             }
 
             ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             var fileName = $"regional_markup_rules_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
             return Result.Success(new ExportResult { FileBytes = package.GetAsByteArray(), FileName = fileName });

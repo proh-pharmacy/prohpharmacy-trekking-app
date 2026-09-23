@@ -139,6 +139,8 @@ public static class ExportProducts
             }
 
             ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             var mode = isPricing ? "pricing" : "catalog";
             var fileName = $"products_{mode}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
