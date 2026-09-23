@@ -102,7 +102,7 @@ public static class ExportCustomerLedger
 
             // ── Column headers ───────────────────────────────────────────────
             int headerRow = 9;
-            var headers = new[] { "Date", "Type", "Payment Method", "Description", "Trek No.", "Debit (GHS)", "Credit (GHS)", "Recorded By" };
+            var headers = new[] { "DATE", "TYPE", "PAYMENT METHOD", "DESCRIPTION", "TREK NO.", "DEBIT (GHS)", "CREDIT (GHS)", "RECORDED BY" };
 
             for (int c = 0; c < headers.Length; c++)
             {

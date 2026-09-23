@@ -3,9 +3,11 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Shared;
+using System.Drawing;
 
 namespace prohpharmacy_trekking_app.Features.Products;
 
@@ -49,16 +51,26 @@ public static class ExportProducts
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Products");
 
+            var brandGreen = Color.FromArgb(0, 191, 111);
+
+            void ApplyGreenHeader(ExcelWorksheet sheet, string[] labels)
+            {
+                for (int c = 0; c < labels.Length; c++)
+                {
+                    var cell = sheet.Cells[1, c + 1];
+                    cell.Value = labels[c];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Font.Size = 11;
+                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(brandGreen);
+                    cell.Style.Font.Color.SetColor(Color.White);
+                    cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                }
+            }
+
             if (!isPricing)
             {
-                ws.Cells[1, 1].Value = "Product Name";
-                ws.Cells[1, 2].Value = "Unit";
-                ws.Cells[1, 3].Value = "Basic Price";
-                ws.Cells[1, 4].Value = "Packaging Unit";
-                ws.Cells[1, 5].Value = "Packaging Price";
-                ws.Cells[1, 6].Value = "Active";
-
-                using (var h = ws.Cells[1, 1, 1, 6]) h.Style.Font.Bold = true;
+                ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "PACKAGING UNIT", "PACKAGING PRICE", "ACTIVE" });
 
                 int row = 2;
                 foreach (var p in products)
@@ -69,6 +81,22 @@ public static class ExportProducts
                     ws.Cells[row, 4].Value = p.PackagingUnit?.Name;
                     ws.Cells[row, 5].Value = p.PackagingUnitPrice;
                     ws.Cells[row, 6].Value = p.IsActive ? "Yes" : "No";
+
+                    var activeCell = ws.Cells[row, 6];
+                    activeCell.Style.Font.Bold = true;
+                    activeCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    activeCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    if (p.IsActive)
+                    {
+                        activeCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(240, 253, 244));
+                        activeCell.Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                    }
+                    else
+                    {
+                        activeCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(248, 250, 252));
+                        activeCell.Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
+                    }
+
                     row++;
                 }
             }
@@ -97,20 +125,18 @@ public static class ExportProducts
                         g => g.ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage));
 
                 // Headers
-                ws.Cells[1, 1].Value = "Product Name";
-                ws.Cells[1, 2].Value = "Unit";
-                ws.Cells[1, 3].Value = "Basic Price";
-
+                var pricingSheet1Labels = new string[3 + regions.Count];
+                pricingSheet1Labels[0] = "PRODUCT NAME";
+                pricingSheet1Labels[1] = "UNIT";
+                pricingSheet1Labels[2] = "BASIC PRICE";
                 for (int i = 0; i < regions.Count; i++)
                 {
                     var region = regions[i];
-                    var header = regionWide.TryGetValue(region.Id, out var pct)
+                    pricingSheet1Labels[3 + i] = regionWide.TryGetValue(region.Id, out var pct)
                         ? $"{region.Name} ({pct:0.##}%)"
                         : region.Name;
-                    ws.Cells[1, 4 + i].Value = header;
                 }
-
-                using (var h = ws.Cells[1, 1, 1, 3 + regions.Count]) h.Style.Font.Bold = true;
+                ApplyGreenHeader(ws, pricingSheet1Labels);
 
                 int row = 2;
                 foreach (var p in products)
@@ -130,9 +156,18 @@ public static class ExportProducts
                         else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                             markup = regionMarkup;
 
-                        ws.Cells[row, 4 + i].Value = markup.HasValue
+                        var regionalPrice = markup.HasValue
                             ? Math.Round(p.BasicUnitPrice * (1 + markup.Value / 100m), 2)
                             : p.BasicUnitPrice;
+                        ws.Cells[row, 4 + i].Value = regionalPrice;
+
+                        if (regionalPrice == p.BasicUnitPrice)
+                        {
+                            var priceCell = ws.Cells[row, 4 + i];
+                            priceCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                            priceCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 251, 235));
+                            priceCell.Style.Font.Color.SetColor(Color.FromArgb(180, 83, 9));
+                        }
                     }
                     row++;
                 }
@@ -147,20 +182,18 @@ public static class ExportProducts
                 {
                     var ws2 = package.Workbook.Worksheets.Add("Packaging Unit Pricing");
 
-                    ws2.Cells[1, 1].Value = "Product Name";
-                    ws2.Cells[1, 2].Value = "Packaging Unit";
-                    ws2.Cells[1, 3].Value = "Packaging Price";
-
+                    var pricingSheet2Labels = new string[3 + regions.Count];
+                    pricingSheet2Labels[0] = "PRODUCT NAME";
+                    pricingSheet2Labels[1] = "PACKAGING UNIT";
+                    pricingSheet2Labels[2] = "PACKAGING PRICE";
                     for (int i = 0; i < regions.Count; i++)
                     {
                         var region = regions[i];
-                        var header = regionWide.TryGetValue(region.Id, out var pct)
+                        pricingSheet2Labels[3 + i] = regionWide.TryGetValue(region.Id, out var pct)
                             ? $"{region.Name} ({pct:0.##}%)"
                             : region.Name;
-                        ws2.Cells[1, 4 + i].Value = header;
                     }
-
-                    using (var h = ws2.Cells[1, 1, 1, 3 + regions.Count]) h.Style.Font.Bold = true;
+                    ApplyGreenHeader(ws2, pricingSheet2Labels);
 
                     int row2 = 2;
                     foreach (var p in packagingProducts)
@@ -181,9 +214,18 @@ public static class ExportProducts
                             else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                                 markup = regionMarkup;
 
-                            ws2.Cells[row2, 4 + i].Value = markup.HasValue
+                            var pkgRegionalPrice = markup.HasValue
                                 ? Math.Round(basePrice * (1 + markup.Value / 100m), 2)
                                 : basePrice;
+                            ws2.Cells[row2, 4 + i].Value = pkgRegionalPrice;
+
+                            if (pkgRegionalPrice == basePrice)
+                            {
+                                var pkgPriceCell = ws2.Cells[row2, 4 + i];
+                                pkgPriceCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                                pkgPriceCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 251, 235));
+                                pkgPriceCell.Style.Font.Color.SetColor(Color.FromArgb(180, 83, 9));
+                            }
                         }
                         row2++;
                     }

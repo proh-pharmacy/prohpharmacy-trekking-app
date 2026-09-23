@@ -3,10 +3,12 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Customers.Enums;
 using prohpharmacy_trekking_app.Shared;
+using System.Drawing;
 
 namespace prohpharmacy_trekking_app.Features.Customers;
 
@@ -76,21 +78,18 @@ public static class ExportCustomers
             {
                 var ws = package.Workbook.Worksheets.Add(group.Key);
 
-                ws.Cells[1, 1].Value = "Customer Code";
-                ws.Cells[1, 2].Value = "Business Name";
-                ws.Cells[1, 3].Value = "Trading Name";
-                ws.Cells[1, 4].Value = "Customer Type";
-                ws.Cells[1, 5].Value = "District";
-                ws.Cells[1, 6].Value = "Primary Phone";
-                ws.Cells[1, 7].Value = "WhatsApp";
-                ws.Cells[1, 8].Value = "Representative";
-                ws.Cells[1, 9].Value = "Rep Phone";
-                ws.Cells[1, 10].Value = "Status";
-
-                // Bold header row
-                using (var headerRange = ws.Cells[1, 1, 1, 10])
+                var brandGreen = Color.FromArgb(0, 191, 111);
+                var headerLabels = new[] { "CUSTOMER CODE", "BUSINESS NAME", "TRADING NAME", "CUSTOMER TYPE", "DISTRICT", "PRIMARY PHONE", "WHATSAPP", "REPRESENTATIVE", "REP PHONE", "STATUS" };
+                for (int c = 0; c < headerLabels.Length; c++)
                 {
-                    headerRange.Style.Font.Bold = true;
+                    var cell = ws.Cells[1, c + 1];
+                    cell.Value = headerLabels[c];
+                    cell.Style.Font.Bold = true;
+                    cell.Style.Font.Size = 11;
+                    cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    cell.Style.Fill.BackgroundColor.SetColor(brandGreen);
+                    cell.Style.Font.Color.SetColor(Color.White);
+                    cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
                 }
 
                 int row = 2;
@@ -111,6 +110,22 @@ public static class ExportCustomers
                         : null;
                     ws.Cells[row, 9].Value = person?.PrimaryPhoneNumber;
                     ws.Cells[row, 10].Value = customer.RegistrationStatus.ToString();
+
+                    var statusCell = ws.Cells[row, 10];
+                    statusCell.Style.Font.Bold = true;
+                    statusCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                    statusCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                    (Color bg, Color fg) statusColors = customer.RegistrationStatus switch
+                    {
+                        RegistrationStatus.Active => (Color.FromArgb(240, 253, 244), Color.FromArgb(21, 128, 61)),
+                        RegistrationStatus.Suspended => (Color.FromArgb(255, 251, 235), Color.FromArgb(180, 83, 9)),
+                        RegistrationStatus.Inactive => (Color.FromArgb(248, 250, 252), Color.FromArgb(100, 116, 139)),
+                        RegistrationStatus.PendingReview => (Color.FromArgb(239, 246, 255), Color.FromArgb(29, 78, 216)),
+                        _ => (Color.White, Color.FromArgb(71, 85, 105))
+                    };
+                    statusCell.Style.Fill.BackgroundColor.SetColor(statusColors.bg);
+                    statusCell.Style.Font.Color.SetColor(statusColors.fg);
+
                     row++;
                 }
 

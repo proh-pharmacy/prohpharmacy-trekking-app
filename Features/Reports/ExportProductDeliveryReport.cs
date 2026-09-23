@@ -108,7 +108,7 @@ public static class ExportProductDeliveryReport
             ws.Cells["A3"].Style.Font.Size = 9;
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
-            var headers = new[] { "#", "Product Name", "Basic Unit", "Basic Qty", "Pkg Unit", "Pkg Qty", "Collected (GHS)", "Outstanding (GHS)", "Treks" };
+            var headers = new[] { "#", "PRODUCT NAME", "BASIC UNIT", "BASIC QTY", "PKG UNIT", "PKG QTY", "COLLECTED (GHS)", "OUTSTANDING (GHS)", "TREKS" };
             int headerRow = 5;
 
             for (int c = 0; c < headers.Length; c++)

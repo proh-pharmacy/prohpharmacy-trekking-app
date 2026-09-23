@@ -3,9 +3,11 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Shared;
+using System.Drawing;
 
 namespace prohpharmacy_trekking_app.Features.Organisation;
 
@@ -35,11 +37,19 @@ public static class ExportRegionalMarkupRules
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Regional Markup Rules");
 
-            ws.Cells[1, 1].Value = "Region";
-            ws.Cells[1, 2].Value = "Product";
-            ws.Cells[1, 3].Value = "Markup %";
-
-            using (var h = ws.Cells[1, 1, 1, 3]) h.Style.Font.Bold = true;
+            var brandGreen = Color.FromArgb(0, 191, 111);
+            var markupHeaders = new[] { "REGION", "PRODUCT", "MARKUP %" };
+            for (int c = 0; c < markupHeaders.Length; c++)
+            {
+                var cell = ws.Cells[1, c + 1];
+                cell.Value = markupHeaders[c];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.Size = 11;
+                cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                cell.Style.Fill.BackgroundColor.SetColor(brandGreen);
+                cell.Style.Font.Color.SetColor(Color.White);
+                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            }
 
             int row = 2;
             foreach (var rule in rules)
@@ -47,6 +57,18 @@ public static class ExportRegionalMarkupRules
                 ws.Cells[row, 1].Value = rule.Region.Name;
                 ws.Cells[row, 2].Value = rule.Product?.Name ?? "All Products";
                 ws.Cells[row, 3].Value = rule.MarkupPercentage;
+
+                var markupCell = ws.Cells[row, 3];
+                markupCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                markupCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                (Color bg, Color fg) markupColors = rule.MarkupPercentage <= 5
+                    ? (Color.FromArgb(240, 253, 244), Color.FromArgb(21, 128, 61))
+                    : rule.MarkupPercentage <= 10
+                        ? (Color.FromArgb(255, 251, 235), Color.FromArgb(180, 83, 9))
+                        : (Color.FromArgb(254, 242, 242), Color.FromArgb(185, 28, 28));
+                markupCell.Style.Fill.BackgroundColor.SetColor(markupColors.bg);
+                markupCell.Style.Font.Color.SetColor(markupColors.fg);
+
                 row++;
             }
 

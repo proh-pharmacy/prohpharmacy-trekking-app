@@ -3,9 +3,11 @@ using MediatR;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using OfficeOpenXml;
+using OfficeOpenXml.Style;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Shared;
+using System.Drawing;
 
 namespace prohpharmacy_trekking_app.Features.Customers;
 
@@ -45,13 +47,19 @@ public static class ExportCustomerMarkupRules
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Customer Markup Rules");
 
-            ws.Cells[1, 1].Value = "Customer Code";
-            ws.Cells[1, 2].Value = "Customer Name";
-            ws.Cells[1, 3].Value = "Region";
-            ws.Cells[1, 4].Value = "Product";
-            ws.Cells[1, 5].Value = "Markup %";
-
-            using (var h = ws.Cells[1, 1, 1, 5]) h.Style.Font.Bold = true;
+            var brandGreen = Color.FromArgb(0, 191, 111);
+            var custMarkupHeaders = new[] { "CUSTOMER CODE", "CUSTOMER NAME", "REGION", "PRODUCT", "MARKUP %" };
+            for (int c = 0; c < custMarkupHeaders.Length; c++)
+            {
+                var cell = ws.Cells[1, c + 1];
+                cell.Value = custMarkupHeaders[c];
+                cell.Style.Font.Bold = true;
+                cell.Style.Font.Size = 11;
+                cell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                cell.Style.Fill.BackgroundColor.SetColor(brandGreen);
+                cell.Style.Font.Color.SetColor(Color.White);
+                cell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+            }
 
             int row = 2;
             foreach (var rule in rules)
@@ -61,6 +69,18 @@ public static class ExportCustomerMarkupRules
                 ws.Cells[row, 3].Value = rule.CustomerAccount.Region.Name;
                 ws.Cells[row, 4].Value = rule.Product?.Name ?? "All Products";
                 ws.Cells[row, 5].Value = rule.MarkupPercentage;
+
+                var markupCell = ws.Cells[row, 5];
+                markupCell.Style.HorizontalAlignment = ExcelHorizontalAlignment.Center;
+                markupCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
+                (Color bg, Color fg) custMarkupColors = rule.MarkupPercentage <= 5
+                    ? (Color.FromArgb(240, 253, 244), Color.FromArgb(21, 128, 61))
+                    : rule.MarkupPercentage <= 10
+                        ? (Color.FromArgb(255, 251, 235), Color.FromArgb(180, 83, 9))
+                        : (Color.FromArgb(254, 242, 242), Color.FromArgb(185, 28, 28));
+                markupCell.Style.Fill.BackgroundColor.SetColor(custMarkupColors.bg);
+                markupCell.Style.Font.Color.SetColor(custMarkupColors.fg);
+
                 row++;
             }
 

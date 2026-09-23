@@ -124,7 +124,7 @@ public static class ExportLedgerSummary
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
             // ── Column headers ───────────────────────────────────────────────
-            var headers = new[] { "#", "Customer Code", "Business Name", "Region", "Branch", "Rep Name", "Rep Tel", "Total Debits (GHS)", "Total Credits (GHS)", "Outstanding Balance (GHS)" };
+            var headers = new[] { "#", "CUSTOMER CODE", "BUSINESS NAME", "REGION", "BRANCH", "REP NAME", "REP TEL", "TOTAL DEBITS (GHS)", "TOTAL CREDITS (GHS)", "OUTSTANDING BALANCE (GHS)" };
             ws.Cells["A:J"].Style.Font.Name = "Calibri";
 
             ws.Cells["A1:J1"].Merge = true;

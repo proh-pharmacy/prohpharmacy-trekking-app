@@ -112,7 +112,7 @@ public static class ExportCollectionsReport
                 ws.Cells[titleRow, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Left;
 
                 int colHeaderRow = titleRow + 1;
-                string[] colHeaders = { "Name", "Total Collected (GHS)", "Transactions" };
+                string[] colHeaders = { "NAME", "TOTAL COLLECTED (GHS)", "TRANSACTIONS" };
                 for (int c = 0; c < colHeaders.Length; c++)
                 {
                     var cell = ws.Cells[colHeaderRow, c + 1];

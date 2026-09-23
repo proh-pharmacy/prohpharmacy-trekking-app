@@ -100,7 +100,7 @@ public static class ExportTrekReport
             ws.Cells["A3"].Style.Font.Size = 9;
             ws.Cells["A3"].Style.Font.Color.SetColor(Color.FromArgb(100, 116, 139));
 
-            var headers = new[] { "#", "Trek No.", "Scheduled Date", "Driver", "Region", "Status", "Stops", "Collected (GHS)", "Outstanding (GHS)" };
+            var headers = new[] { "#", "TREK NO.", "SCHEDULED DATE", "DRIVER", "REGION", "STATUS", "STOPS", "COLLECTED (GHS)", "OUTSTANDING (GHS)" };
             int headerRow = 5;
 
             for (int c = 0; c < headers.Length; c++)
@@ -192,15 +192,9 @@ public static class ExportTrekReport
             TotalCell(8, totalCollected);
             TotalCell(9, totalOutstanding);
 
-            ws.Column(1).Width = 5;
-            ws.Column(2).Width = 16;
-            ws.Column(3).Width = 18;
-            ws.Column(4).Width = 26;
-            ws.Column(5).Width = 22;
-            ws.Column(6).Width = 14;
-            ws.Column(7).Width = 8;
-            ws.Column(8).Width = 20;
-            ws.Column(9).Width = 20;
+            ws.Cells[ws.Dimension.Address].AutoFitColumns();
+            for (var i = 1; i <= ws.Dimension.Columns; i++)
+                ws.Column(i).Width += 2;
 
             ws.Row(1).Height = 22;
             ws.View.FreezePanes(headerRow + 1, 1);
