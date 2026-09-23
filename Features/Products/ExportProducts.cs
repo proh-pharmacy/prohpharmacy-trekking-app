@@ -133,8 +133,8 @@ public static class ExportProducts
                 {
                     var region = regions[i];
                     pricingSheet1Labels[3 + i] = regionWide.TryGetValue(region.Id, out var pct)
-                        ? $"{region.Name} ({pct:0.##}%)"
-                        : region.Name;
+                        ? $"{region.Name.ToUpper()} ({pct:0.##}%)"
+                        : region.Name.ToUpper();
                 }
                 ApplyGreenHeader(ws, pricingSheet1Labels);
 
@@ -156,18 +156,9 @@ public static class ExportProducts
                         else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                             markup = regionMarkup;
 
-                        var regionalPrice = markup.HasValue
+                        ws.Cells[row, 4 + i].Value = markup.HasValue
                             ? Math.Round(p.BasicUnitPrice * (1 + markup.Value / 100m), 2)
                             : p.BasicUnitPrice;
-                        ws.Cells[row, 4 + i].Value = regionalPrice;
-
-                        if (regionalPrice == p.BasicUnitPrice)
-                        {
-                            var priceCell = ws.Cells[row, 4 + i];
-                            priceCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                            priceCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 251, 235));
-                            priceCell.Style.Font.Color.SetColor(Color.FromArgb(180, 83, 9));
-                        }
                     }
                     row++;
                 }
@@ -190,8 +181,8 @@ public static class ExportProducts
                     {
                         var region = regions[i];
                         pricingSheet2Labels[3 + i] = regionWide.TryGetValue(region.Id, out var pct)
-                            ? $"{region.Name} ({pct:0.##}%)"
-                            : region.Name;
+                            ? $"{region.Name.ToUpper()} ({pct:0.##}%)"
+                            : region.Name.ToUpper();
                     }
                     ApplyGreenHeader(ws2, pricingSheet2Labels);
 
@@ -214,18 +205,9 @@ public static class ExportProducts
                             else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
                                 markup = regionMarkup;
 
-                            var pkgRegionalPrice = markup.HasValue
+                            ws2.Cells[row2, 4 + i].Value = markup.HasValue
                                 ? Math.Round(basePrice * (1 + markup.Value / 100m), 2)
                                 : basePrice;
-                            ws2.Cells[row2, 4 + i].Value = pkgRegionalPrice;
-
-                            if (pkgRegionalPrice == basePrice)
-                            {
-                                var pkgPriceCell = ws2.Cells[row2, 4 + i];
-                                pkgPriceCell.Style.Fill.PatternType = ExcelFillStyle.Solid;
-                                pkgPriceCell.Style.Fill.BackgroundColor.SetColor(Color.FromArgb(255, 251, 235));
-                                pkgPriceCell.Style.Font.Color.SetColor(Color.FromArgb(180, 83, 9));
-                            }
                         }
                         row2++;
                     }
