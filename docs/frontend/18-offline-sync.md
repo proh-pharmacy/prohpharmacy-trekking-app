@@ -901,6 +901,8 @@ Updates GPS coordinates and/or address fields on an existing location. Intended 
 | `sequence` | Yes | > 0 |
 | `notes` | No | |
 
+**Idempotency:** the action's `clientId` is stored as `ClientGeneratedId` on the stop. Re-submitting the same batch (e.g. after a network timeout) returns `AlreadySynced` with the existing `serverId` — no duplicate stop is created.
+
 **`RecordDelivery`**
 
 Records the delivery outcome for a **planned** stop product (one that already exists in the trek plan). This is the offline equivalent of the existing driver delivery page. `stopProductId` is the server ID of the `TrekkingTripStopProduct` row — it is available in the offline trek seed (`stops[].products[].stopProductId`). Only fields present in the payload are applied; omitted fields keep their current values.
@@ -931,6 +933,8 @@ Records the delivery outcome for a **planned** stop product (one that already ex
 | `balance` | No | |
 
 The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, that `serverId` is the `stopProductId` of the newly created stop product — use it with `POST api/v1/treks/driver/{token}/record` to update quantities, payment, or balance exactly like a planned product. No separate endpoint exists for editing unplanned sales.
+
+**Idempotency:** the action's `clientId` is stored as `ClientGeneratedId` on the stop product. Re-submitting the same batch returns `AlreadySynced` with the existing `serverId` — no duplicate sale record is created.
 
 **`RecordReturn`**
 
@@ -994,6 +998,8 @@ The server processes all actions in `occurredAt` order and builds in-memory maps
 | `returnClientMap` | `RecordReturn` | `VoidReturn` via `returnClientId` |
 
 `customerClientMap`, `stopClientMap`, and `returnClientMap` also fall back to a DB lookup — so references to records created in **previous batches** resolve correctly. `locationClientMap` does **not** have a DB fallback (locations have no `clientGeneratedId` column) — use the server `locationId` from a previous batch's response when referencing locations across batches.
+
+**Same-batch `VoidReturn`:** if `returnClientId` in a `VoidReturn` payload matches a `RecordReturn` in the **same** batch, the return entity is removed from the EF change tracker before `SaveChangesAsync` runs — it is never persisted. Both actions return `Created`.
 
 ### Offline work on other regional treks
 
