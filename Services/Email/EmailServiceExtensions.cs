@@ -72,7 +72,7 @@ public static class EmailServiceExtensions
 
         if (string.IsNullOrWhiteSpace(apiKey))
         {
-            services.AddFluentEmail(fromEmail, fromName).AddRazorRenderer();
+            services.AddFluentEmail(fromEmail, fromName).AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), "Templates"));
             services.AddScoped<IEmailService, NullEmailService>();
             return services;
         }
@@ -82,7 +82,7 @@ public static class EmailServiceExtensions
 
         services
             .AddFluentEmail(fromEmail, fromName)
-            .AddRazorRenderer();
+            .AddRazorRenderer(Path.Combine(Directory.GetCurrentDirectory(), "Templates"));
 
         services.AddScoped<IEmailService, EmailService>();
 
