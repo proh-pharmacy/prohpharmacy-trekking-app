@@ -111,14 +111,25 @@ Single sheet. One row per product with base pricing only.
 
 ### `pricing` mode
 
-Single sheet. One row per product with one price column per region, showing the resolved selling price after applying the applicable markup (product-specific markup takes precedence over region-wide markup; base price shown if no markup rule exists).
+Two sheets in the same workbook. Both use the same markup resolution logic: product-specific markup takes precedence over region-wide markup; base price shown if no markup rule exists. Region column headers include the region-wide markup percentage where one is configured.
+
+**Sheet 1 — Basic Unit Pricing.** One row per product.
 
 | Column | Description |
 |---|---|
-| # | Row number |
 | Product Name | Full product name |
 | Basic Unit | Unit of measure |
-| `<Region Name>` × N | One column per active region — resolved price in GHS |
+| Basic Price | Base price before markup |
+| `<Region Name>` × N | One column per region — resolved basic unit price in GHS |
+
+**Sheet 2 — Packaging Unit Pricing.** Only products that have a packaging unit. Omitted entirely if no products have a packaging unit.
+
+| Column | Description |
+|---|---|
+| Product Name | Full product name |
+| Packaging Unit | e.g. Box, Carton |
+| Packaging Price | Base packaging price before markup |
+| `<Region Name>` × N | One column per region — resolved packaging unit price in GHS |
 
 ### Usage
 

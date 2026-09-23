@@ -136,6 +136,66 @@ public static class ExportProducts
                     }
                     row++;
                 }
+
+                ws.Cells[ws.Dimension.Address].AutoFitColumns();
+                for (var i = 1; i <= ws.Dimension.Columns; i++)
+                    ws.Column(i).Width += 2;
+
+                // Sheet 2 — packaging unit pricing (only products with a packaging unit)
+                var packagingProducts = products.Where(p => p.PackagingUnit != null && p.PackagingUnitPrice.HasValue).ToList();
+                if (packagingProducts.Count > 0)
+                {
+                    var ws2 = package.Workbook.Worksheets.Add("Packaging Unit Pricing");
+
+                    ws2.Cells[1, 1].Value = "Product Name";
+                    ws2.Cells[1, 2].Value = "Packaging Unit";
+                    ws2.Cells[1, 3].Value = "Packaging Price";
+
+                    for (int i = 0; i < regions.Count; i++)
+                    {
+                        var region = regions[i];
+                        var header = regionWide.TryGetValue(region.Id, out var pct)
+                            ? $"{region.Name} ({pct:0.##}%)"
+                            : region.Name;
+                        ws2.Cells[1, 4 + i].Value = header;
+                    }
+
+                    using (var h = ws2.Cells[1, 1, 1, 3 + regions.Count]) h.Style.Font.Bold = true;
+
+                    int row2 = 2;
+                    foreach (var p in packagingProducts)
+                    {
+                        var basePrice = p.PackagingUnitPrice!.Value;
+                        ws2.Cells[row2, 1].Value = p.Name;
+                        ws2.Cells[row2, 2].Value = p.PackagingUnit!.Name;
+                        ws2.Cells[row2, 3].Value = basePrice;
+
+                        for (int i = 0; i < regions.Count; i++)
+                        {
+                            var region = regions[i];
+
+                            decimal? markup = null;
+                            if (productSpecific.TryGetValue(region.Id, out var productRules) &&
+                                productRules.TryGetValue(p.Id, out var productMarkup))
+                                markup = productMarkup;
+                            else if (regionWide.TryGetValue(region.Id, out var regionMarkup))
+                                markup = regionMarkup;
+
+                            ws2.Cells[row2, 4 + i].Value = markup.HasValue
+                                ? Math.Round(basePrice * (1 + markup.Value / 100m), 2)
+                                : basePrice;
+                        }
+                        row2++;
+                    }
+
+                    ws2.Cells[ws2.Dimension.Address].AutoFitColumns();
+                    for (var i = 1; i <= ws2.Dimension.Columns; i++)
+                        ws2.Column(i).Width += 2;
+                }
+
+                // early return — column widths already applied per sheet above
+                var pricingFileName = $"products_pricing_{DateTime.UtcNow:yyyyMMdd_HHmmss}.xlsx";
+                return Result.Success(new ExportResult { FileBytes = package.GetAsByteArray(), FileName = pricingFileName });
             }
 
             ws.Cells[ws.Dimension.Address].AutoFitColumns();
