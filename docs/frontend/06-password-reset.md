@@ -1,12 +1,17 @@
-# 06 — Forgot Password / Password Reset
+# 06 — Password Reset
 
 ## Overview
 
-Self-service password reset for users who cannot log in. The user submits their email, receives a reset link, clicks it, and sets a new password.
+A single page `/auth/reset-password` handles three entry points:
 
-> **Backend note:** These two endpoints do not exist yet and need to be built before this flow can be implemented.
-> - `POST api/v1/auth/forgot-password`
-> - `POST api/v1/auth/reset-password`
+| Entry | URL | Who lands here |
+|---|---|---|
+| New staff / account created | `/auth/reset-password?email=...` | Welcome email "Set Your Password" button |
+| Admin-reset password | `/auth/reset-password?email=...` | Welcome email "Set Your Password" button |
+| Forgot password | `/auth/reset-password?email=...` | Staff clicks "Forgot password?" on login |
+| Token from email | `/auth/reset-password?token=...` | Staff clicks link in reset email |
+
+The page reads the URL params and renders the correct step automatically.
 
 ---
 
@@ -14,25 +19,14 @@ Self-service password reset for users who cannot log in. The user submits their 
 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `api/v1/auth/forgot-password` | Anonymous | Request a password reset email |
-| `POST` | `api/v1/auth/reset-password` | Anonymous | Submit new password using the reset token |
+| `POST` | `api/v1/auth/forgot-password` | Anonymous | Send reset token email |
+| `POST` | `api/v1/auth/reset-password` | Anonymous | Set new password using token |
 
 ---
 
-## Flow
+## Step 1 — Request a Reset Email
 
-```
-/forgot-password page
-  └── User enters email → POST /auth/forgot-password
-        └── Backend sends reset email with link
-              └── User clicks link → /reset-password?token=<token>
-                    └── User sets new password → POST /auth/reset-password
-                          └── Redirect to /login
-```
-
----
-
-## 1. Request a Reset Email
+Triggered on the page when `?email=` is present (pre-filled) or when the user arrives via "Forgot password?" from the login page.
 
 ```http
 POST /api/v1/auth/forgot-password
@@ -43,18 +37,19 @@ Content-Type: application/json
 }
 ```
 
-- `200` — always return success (do not reveal whether the email exists)
+- `200` — always returns success regardless of whether the email exists
 - `422` — invalid email format
 
 ### Frontend behaviour
-- Show a generic success message regardless of outcome: **"If that email is registered, a reset link has been sent."**
-- Disable the submit button after the first attempt to prevent spamming.
+- Pre-fill the email field from `?email=` if present
+- Show a generic success message after submit: **"If that email is registered, a reset link has been sent."**
+- Disable the submit button after the first attempt to prevent spamming
 
 ---
 
-## 2. Reset the Password
+## Step 2 — Set New Password
 
-When the user clicks the link in their email, the frontend reads `?token=` from the URL and presents a set-new-password form.
+When the user clicks the link in the reset email they are sent to `/auth/reset-password?token=...`. The page reads the token and shows a set-password form.
 
 ```http
 POST /api/v1/auth/reset-password
@@ -63,45 +58,44 @@ Content-Type: application/json
 {
   "token": "<token-from-url>",
   "newPassword": "theirNewPassword",
-  "confirmPassword": "theirNewPassword"
+  "confirmNewPassword": "theirNewPassword"
 }
 ```
 
-- `200` — password updated, redirect to `/login`
-- `422` — token expired, already used, or passwords don't match
+- `200` — password updated, redirect to `/login` with toast "Password updated — please log in."
+- `422` — token expired / invalid, or passwords do not match
 
 ### Token expiry
-Tokens should expire after **1 hour**. If the token is invalid or expired, show: **"This link has expired or already been used. Request a new one."** with a link back to `/forgot-password`.
+Tokens expire after **1 hour**. On failure show: **"This link has expired or has already been used."** with a button to go back to the email step.
 
 ---
 
-## UI Flow
+## Page Logic (single `/auth/reset-password` route)
 
 ```
-/login page
-  └── "Forgot password?" link → /forgot-password
+On load:
+  ├── ?token=... present  → show Step 2 (set new password form)
+  └── else                → show Step 1 (email form, pre-fill from ?email= if present)
 
-/forgot-password
-  └── Email input + Submit button
-        └── On submit → POST /auth/forgot-password
-              └── Show: "If that email is registered, a reset link has been sent."
+Step 1 submit → POST /auth/forgot-password
+  └── Always show success message, do not redirect
 
-/reset-password?token=<token>
-  └── New password + Confirm password fields
-        └── On submit → POST /auth/reset-password
-              ├── On success → redirect to /login with toast "Password updated — please log in."
-              └── On failure (expired/invalid) → show error + link back to /forgot-password
+Step 2 submit → POST /auth/reset-password
+  ├── Success → redirect to /login with success toast
+  └── Failure → show error + "Request a new link" button (goes back to Step 1)
 ```
 
 ---
 
 ## Implementation Checklist
 
-- [ ] *(Backend)* `POST /api/v1/auth/forgot-password` endpoint
-- [ ] *(Backend)* `POST /api/v1/auth/reset-password` endpoint
-- [ ] *(Backend)* Reset email template
-- [ ] "Forgot password?" link on the login page
-- [ ] `/forgot-password` page — email form, generic success message
-- [ ] `/reset-password` page — reads `?token` from URL, new password form
-- [ ] Expired/invalid token error state with link back to `/forgot-password`
-- [ ] Redirect to `/login` with success toast on completion
+- [x] *(Backend)* `POST /api/v1/auth/forgot-password`
+- [x] *(Backend)* `POST /api/v1/auth/reset-password`
+- [x] *(Backend)* Password reset email template
+- [x] *(Backend)* Welcome email "Set Your Password" button links to `/auth/reset-password?email=...`
+- [ ] `/auth/reset-password` page — reads `?email` and `?token` params
+- [ ] Step 1: email form, pre-filled from `?email=`, generic success message after submit
+- [ ] Step 2: new password + confirm form, reads `?token` from URL
+- [ ] Expired/invalid token error state with "Request a new link" action
+- [ ] "Forgot password?" link on the login page → `/auth/reset-password`
+- [ ] Redirect to `/login` with success toast on password set

@@ -1,8 +1,8 @@
-# 05 — User Onboarding (Invitations)
+# 05 — User Onboarding (Granting App Access)
 
 ## Overview
 
-Users are accounts that can log into the system. They are either created automatically when a staff member is granted app access (see `04-staff-onboarding.md`) or invited directly as standalone admin/manager accounts. This doc covers the direct invitation flow and the first-time setup flow.
+A "user" is an `ApplicationUser` — a login account linked to a staff member. Users are created by granting a staff member app access. There is no separate invitation-accept step; the account is created immediately and the staff member sets their own password via the password reset flow.
 
 ---
 
@@ -10,16 +10,15 @@ Users are accounts that can log into the system. They are either created automat
 
 | Method | Endpoint | Auth | Purpose |
 |---|---|---|---|
-| `POST` | `api/v1/invitations` | Required | Send an invitation to a new user |
-| `POST` | `api/v1/invitations/{id}/resend` | Required | Resend an expired invitation |
-| `POST` | `api/v1/invitations/accept` | Anonymous | Accept invitation and set password |
-| `POST` | `api/v1/auth/setup` | Anonymous | First-time system setup (creates super admin) |
+| `POST` | `api/v1/auth/setup` | Anonymous | First-time super admin setup |
+| `POST` | `api/v1/invitations` | Required | Grant app access to a staff member |
+| `POST` | `api/v1/invitations/resend` | Required | Reset password + resend welcome email |
 
 ---
 
 ## 1. First-Time System Setup
 
-On a fresh deployment, before any user exists, the backend exposes a one-time setup endpoint. This should only be used once — the frontend should check if setup is needed on first load and redirect to a setup page if so.
+On a fresh deployment, before any user exists, a one-time setup endpoint creates the super admin account.
 
 ```http
 POST /api/v1/auth/setup
@@ -33,17 +32,16 @@ Content-Type: application/json
 }
 ```
 
-- `200` — super admin created, system ready
-- `422` — setup already completed (system already has users)
+- `200` — super admin created
+- `422` — setup already done (users exist)
 
-### Frontend handling
-On app load, if login fails with a specific indicator that no users exist, redirect to `/setup`. After successful setup, redirect to `/login`.
+On app load, redirect to `/setup` if no users exist yet. After success redirect to `/login`.
 
 ---
 
-## 2. Inviting a User
+## 2. Grant App Access (Create Account)
 
-Admins can invite users directly (without linking to a staff record).
+A staff member must already exist before they can be given app access. This endpoint creates their login account, assigns roles, and sends them a welcome email.
 
 ```http
 POST /api/v1/invitations
@@ -51,101 +49,69 @@ Authorization: Bearer <token>
 Content-Type: application/json
 
 {
-  "email": "manager@prohpharmacy.com",
-  "firstName": "Ama",
-  "lastName": "Owusu",
-  "roles": ["Manager"]
+  "staffMemberId": "uuid",
+  "roleNames": ["Driver"],
+  "initialPassword": null
 }
 ```
 
-- `201` — invitation sent
-- `422` — email already has an account, invalid role
+- `201` — account created, welcome email sent
+- `404` — staff member not found
+- `422` — staff already has an account, invalid role, or offboarded staff
+
+`initialPassword` is optional. If omitted the backend derives it as `firstnamelastname`. The plain password is returned once in the response — display it to the admin so they can share it as a fallback.
 
 ### What happens
-1. A pending user account is created
-2. An invitation email is sent with a link: `{FrontendUrl}/accept-invitation?token=<token>`
-3. The link is valid for 48 hours
+1. `ApplicationUser` is created with a hashed temporary password
+2. Roles are assigned
+3. A welcome email is sent to the staff member's email address
+4. The "Set Your Password" button in the email links to `/auth/reset-password?email=...`
+5. Staff triggers the forgot-password flow from that page to set their own password
 
 ---
 
-## 3. Resending an Invitation
+## 3. Resend Welcome Email
 
-If the original invitation expired or was lost:
+Resets the password back to the default (`firstnamelastname`) and resends the welcome email.
 
 ```http
-POST /api/v1/invitations/{id}/resend
+POST /api/v1/invitations/resend
 Authorization: Bearer <token>
-```
-
-- `200` — new invitation email sent with a fresh token
-
----
-
-## 4. Accepting an Invitation
-
-When the invited user clicks the link in their email, the frontend reads `?token=` from the URL and presents a "Set your password" form.
-
-```http
-POST /api/v1/invitations/accept
 Content-Type: application/json
 
 {
-  "token": "<token-from-url>",
-  "password": "theirChosenPassword",
-  "confirmPassword": "theirChosenPassword"
+  "staffMemberId": "uuid"
 }
 ```
 
-- `200` — account activated
-- `422` — token invalid, expired, or passwords don't match
-
-After success, redirect to `/login` with a success message: "Your account is ready — please log in."
-
----
-
-## 5. Pending Invitations UI
-
-Show admins which invitations are pending so they can resend if needed.
-
-```http
-GET /api/v1/users
-Authorization: Bearer <token>
-```
-
-Filter for users with status `Pending` or similar to list unaccepted invitations.
+- `200` — password reset, welcome email resent
+- `404` — no account found for this staff member
 
 ---
 
 ## UI Flow
 
 ```
-Settings → Users & Roles
-  ├── Invite User button
-  │     └── Modal: email, name, role selection → POST /invitations
-  │
-  ├── Users list
-  │     ├── Active users (manage roles, suspend, etc.)
-  │     └── Pending users (resend invitation button)
-  │
-  └── (First run only) /setup page → POST /auth/setup
-```
+Staff detail page → "Grant App Access" action
+  └── Modal: role selection (multi-select), optional initial password
+        └── POST /api/v1/invitations
+              ├── Show plain password to admin (returned once in response)
+              └── Staff receives welcome email → clicks "Set Your Password"
+                    └── /auth/reset-password?email=... (see 06-password-reset.md)
 
-```
-/accept-invitation?token=<token>   (public route)
-  └── Set password form → POST /invitations/accept
-        └── On success → redirect to /login
+Staff detail page (account exists) → "Resend Welcome Email" action
+  └── POST /api/v1/invitations/resend
+        └── Staff receives new welcome email with reset password
 ```
 
 ---
 
 ## Implementation Checklist
 
+- [x] *(Backend)* `POST /api/v1/invitations` — creates account, sends welcome email
+- [x] *(Backend)* `POST /api/v1/invitations/resend` — resets password, resends email
+- [x] *(Backend)* Welcome email "Set Your Password" button → `/auth/reset-password?email=...`
 - [ ] `/setup` page — shown only if no users exist yet
-- [ ] Invite user modal (email, name, role multi-select)
-- [ ] Pending invitations visible in users list
-- [ ] Resend invitation action (per user row)
-- [ ] `/accept-invitation` public page
-  - [ ] Reads `?token` from URL
-  - [ ] Shows set-password form (password + confirm)
-  - [ ] Handles expired/invalid token with a clear error and resend prompt
-  - [ ] Redirects to `/login` on success
+- [ ] "Grant App Access" action on staff detail page (role selector modal)
+- [ ] Display plain password to admin after account creation
+- [ ] "Resend Welcome Email" action on staff detail page (when account exists)
