@@ -70,6 +70,42 @@ public class EmailPreviewModule : ICarterModule
         .WithSummary("Send sample — Staff Welcome Email")
         .AllowAnonymous();
 
+        app.MapGet("preview/password-reset-email", (IFluentEmailFactory factory) =>
+        {
+            var model = new PasswordResetEmailModel
+            {
+                StaffFullName = "Kwame Asante",
+                ResetLink = "https://yourapp.com/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
+                ExpiresAt = DateTime.UtcNow.AddHours(1).ToString("dd MMM yyyy, h:mm tt") + " UTC",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "PasswordResetEmail.cshtml");
+            var email = factory.Create().UsingTemplateFromFile(templatePath, model);
+            return Results.Content(email.Data.Body, "text/html");
+        })
+        .WithTags("Preview")
+        .WithSummary("Preview — Password Reset Email")
+        .AllowAnonymous();
+
+        app.MapPost("preview/send-password-reset-email", async (IEmailService emailService) =>
+        {
+            var model = new PasswordResetEmailModel
+            {
+                StaffFullName = "Kwame Asante",
+                ResetLink = "https://yourapp.com/reset-password?token=SAMPLE_TOKEN_FOR_PREVIEW",
+                ExpiresAt = DateTime.UtcNow.AddHours(1).ToString("dd MMM yyyy, h:mm tt") + " UTC",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+            await emailService.SendPasswordResetEmailAsync("akorlicourage@gmail.com", model);
+            return Results.Ok("Password reset email sent to akorlicourage@gmail.com");
+        })
+        .WithTags("Preview")
+        .WithSummary("Send sample — Password Reset Email")
+        .AllowAnonymous();
+
         app.MapPost("preview/send-trek-assignment-email", async (IEmailService emailService) =>
         {
             var model = new TrekAssignmentEmailModel

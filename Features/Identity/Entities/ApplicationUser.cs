@@ -12,6 +12,8 @@ public class ApplicationUser
     public DateTime? LastLoginAt { get; set; }
     public int FailedLoginAttempts { get; set; }
     public DateTime? LockoutUntil { get; set; }
+    public string? PasswordResetToken { get; set; }
+    public DateTime? PasswordResetTokenExpiresAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }
 

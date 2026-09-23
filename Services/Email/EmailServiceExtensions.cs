@@ -24,6 +24,17 @@ public class StaffWelcomeEmailModel
     public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
+public class PasswordResetEmailModel
+{
+    public string Title { get; set; } = "Password Reset";
+    public string StaffFullName { get; set; } = string.Empty;
+    public string ResetLink { get; set; } = string.Empty;
+    public string ExpiresAt { get; set; } = string.Empty;
+    public string AppName { get; set; } = string.Empty;
+    public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
+}
+
 public class TrekAssignmentEmailModel
 {
     public string Title { get; set; } = "Trek Assignment";
@@ -43,6 +54,7 @@ public class TrekAssignmentEmailModel
 public interface IEmailService
 {
     Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model);
+    Task SendPasswordResetEmailAsync(string to, PasswordResetEmailModel model);
     Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes);
 }
 
@@ -150,6 +162,12 @@ public class NullEmailService : IEmailService
     public Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
     {
         _logger.LogWarning("[NullEmailService] Welcome email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
+        return Task.CompletedTask;
+    }
+
+    public Task SendPasswordResetEmailAsync(string to, PasswordResetEmailModel model)
+    {
+        _logger.LogWarning("[NullEmailService] Password reset email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
         return Task.CompletedTask;
     }
 

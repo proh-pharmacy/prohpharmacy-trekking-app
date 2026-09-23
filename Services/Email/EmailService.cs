@@ -16,6 +16,28 @@ public class EmailService : IEmailService
         _logger = logger;
     }
 
+    public async Task SendPasswordResetEmailAsync(string to, PasswordResetEmailModel model)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "PasswordResetEmail.cshtml");
+
+            var response = await _factory.Create()
+                .To(to)
+                .Subject($"Reset your {model.AppName} password")
+                .UsingTemplateFromFile(templatePath, model)
+                .SendAsync(CancellationToken.None);
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send password reset email to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending password reset email to {Email}", to);
+        }
+    }
+
     public async Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes)
     {
         try
