@@ -125,5 +125,55 @@ public class EmailPreviewModule : ICarterModule
         .WithTags("Preview")
         .WithSummary("Send sample — Trek Assignment Email")
         .AllowAnonymous();
+
+        app.MapGet("preview/sos-alert-email", (IFluentEmailFactory factory) =>
+        {
+            var model = new SosAlertEmailModel
+            {
+                RecipientName = "Kofi Mensah",
+                TrekNumber = "TRK-00042",
+                RegionName = "Greater Accra Region",
+                VehicleDisplayName = "Toyota Hiace — GT 1234-24",
+                DriverName = "Kwame Asante",
+                SalesRepName = "Ama Owusu",
+                SosTime = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm"),
+                Latitude = 5.603717,
+                Longitude = -0.186964,
+                GoogleMapsUrl = "https://maps.google.com/?q=5.603717,-0.186964",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "SosAlertEmail.cshtml");
+            var email = factory.Create().UsingTemplateFromFile(templatePath, model);
+            return Results.Content(email.Data.Body, "text/html");
+        })
+        .WithTags("Preview")
+        .WithSummary("Preview — SOS Alert Email")
+        .AllowAnonymous();
+
+        app.MapPost("preview/send-sos-alert-email", async (IEmailService emailService) =>
+        {
+            var model = new SosAlertEmailModel
+            {
+                RecipientName = "Kofi Mensah",
+                TrekNumber = "TRK-00042",
+                RegionName = "Greater Accra Region",
+                VehicleDisplayName = "Toyota Hiace — GT 1234-24",
+                DriverName = "Kwame Asante",
+                SalesRepName = "Ama Owusu",
+                SosTime = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm"),
+                Latitude = 5.603717,
+                Longitude = -0.186964,
+                GoogleMapsUrl = "https://maps.google.com/?q=5.603717,-0.186964",
+                AppName = "Proh Pharmacy Trekking",
+                SupportEmail = "support@prohpharmacy.com"
+            };
+            await emailService.SendSosAlertEmailAsync("akorlicourage@gmail.com", model);
+            return Results.Ok("SOS alert email sent to akorlicourage@gmail.com");
+        })
+        .WithTags("Preview")
+        .WithSummary("Send sample — SOS Alert Email")
+        .AllowAnonymous();
     }
 }
