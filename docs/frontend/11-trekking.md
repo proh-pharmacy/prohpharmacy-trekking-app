@@ -20,6 +20,7 @@
 | `POST` | `api/v1/treks/{id}/send-email` | Resend trek sheet email to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
 | `GET` | `api/v1/treks/driver/{token}` | Get trek via driver token | None |
+| `POST` | `api/v1/treks/driver/{token}/start` | Driver explicitly starts the trek (Scheduled → InProgress) | None |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | Download delivery sheet PDF via driver token | None |
 | `POST` | `api/v1/treks/driver/{token}/record` | Record deliveries via driver token | None |
 | `GET` | `api/v1/treks/sheet/preview` | Preview sample trek sheet PDF | None |
@@ -196,7 +197,7 @@ Returns the trek with all stops and their products fully populated.
 
 Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 
-**When transitioning to `InProgress`:** the backend automatically generates the driver token (if one doesn't already exist) and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). No extra call is needed — the email fires as part of the status change.
+**When transitioning to `Scheduled`:** the backend automatically generates the driver token (if one doesn't already exist) and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). No extra call is needed — the email fires as part of this status change.
 
 ### Response `200 OK` — `TrekResponse`
 
@@ -550,6 +551,23 @@ GET /api/v1/treks/driver/3fa85f64-5717-4562-b3fc-2c963f66afa6/sheet/pdf
 
 ---
 
+## POST /api/v1/treks/driver/{token}/start
+
+Explicitly starts the trek — transitions status from `Scheduled` to `InProgress`. The driver calls this when they are ready to begin the route.
+
+- **Idempotent:** returns `204 No Content` if the trek is already `InProgress` — safe to call on page load.
+- Returns `422` if the trek is `Completed` or `Cancelled`.
+
+**Auto-start:** the driver does not need to call this endpoint before recording deliveries. Any mutation via a driver token (`record`, `add walk-in stop`, `add unplanned sale`, `sync offline`) will automatically flip a `Scheduled` trek to `InProgress` as a side effect.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — token not found
+- `422` — trek is `Completed` or `Cancelled`
+
+---
+
 ## POST /api/v1/treks/driver/{token}/record
 
 Anonymous delivery recording via driver link. Identical request/response shape to the admin record endpoint.
@@ -577,7 +595,7 @@ Same as `POST /api/v1/treks/{id}/record`
 
 ## POST /api/v1/treks/{id}/send-email
 
-Resends the trek sheet (with PDF attachment and driver form link) to one or more staff members. Use this for manual resends — for example when a driver loses their link. The email is sent automatically to the assigned driver and sales staff when the trek transitions to `InProgress`; this endpoint is only needed beyond that.
+Resends the trek sheet (with PDF attachment and driver form link) to one or more staff members. Use this for manual resends — for example when a driver loses their link. The email is sent automatically to the assigned driver and sales staff when the trek transitions to `Scheduled`; this endpoint is only needed beyond that.
 
 ### Request body
 

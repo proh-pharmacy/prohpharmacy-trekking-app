@@ -9,9 +9,11 @@ Trek operations covers the day-to-day execution of a trekking route — from pla
 ```
 Admin creates trek (Draft) → adds stops → schedules trek (Scheduled)
         ↓
-Admin marks trek InProgress → email + driver link auto-sent to Driver and SalesStaff
+Trek transitions to Scheduled → email + driver link auto-sent to Driver and SalesStaff
         ↓
-Driver opens link (no login) → sees route → records deliveries stop by stop
+Driver opens link (no login) → calls start endpoint OR makes any delivery action → trek becomes InProgress
+        ↓
+Driver records deliveries stop by stop
         ↓
 Admin marks trek Completed → ledger auto-updated per customer
         ↓
@@ -33,7 +35,7 @@ Draft and Scheduled treks can be deleted at any time. Once a trek is InProgress 
 | `POST` | `api/v1/treks/{id}/stops` | Required | Add a customer stop |
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}` | Required | Update stop sequence, notes, or products |
 | `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}` | Required | Remove a stop |
-| `PATCH` | `api/v1/treks/{id}/status` | Required | Change trek status (InProgress auto-emails driver) |
+| `PATCH` | `api/v1/treks/{id}/status` | Required | Change trek status (Scheduled auto-emails driver) |
 | `DELETE` | `api/v1/treks/{id}` | Required | Delete trek (Draft/Scheduled only) |
 | `POST` | `api/v1/treks/{id}/generate-link` | Required | Generate driver token URL |
 | `POST` | `api/v1/treks/{id}/send-email` | Required | Resend sheet + link to staff |
@@ -43,6 +45,7 @@ Draft and Scheduled treks can be deleted at any time. Once a trek is InProgress 
 | `GET` | `api/v1/treks/{trekId}/price-diff` | Required | Get price differences between trek and current catalog |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
+| `POST` | `api/v1/treks/driver/{token}/start` | None | Driver starts the trek (Scheduled → InProgress) |
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
 | `POST` | `api/v1/treks/driver/{token}/record` | None | Driver records deliveries |
 | `POST` | `api/v1/treks/{trekId}/stops/{stopId}/returns` | Required | Admin records a product return at a stop |
@@ -322,7 +325,7 @@ Changes the trek status. No restrictions on transitions — the frontend control
 { "status": "InProgress" }
 ```
 
-**When transitioning to `InProgress`:** the backend automatically generates the driver token (if not already set) and emails the trek sheet PDF + driver link to the assigned Driver and SalesStaff (if present). No extra call needed — it happens as part of this status change.
+**When transitioning to `Scheduled`:** the backend automatically generates the driver token (if not already set) and emails the trek sheet PDF + driver link to the assigned Driver and SalesStaff (if present). No extra call needed — it happens as part of this status change.
 
 ### Response `200 OK` — full `TrekResponse`
 
@@ -370,7 +373,7 @@ Generates a permanent token-based URL for the driver. The token is stable — ca
 
 ## POST /api/v1/treks/{id}/send-email
 
-Resends the trekking sheet PDF + driver link to one or more staff members by email. The email is sent automatically to the Driver and SalesStaff when the trek transitions to `InProgress` — use this endpoint only for manual resends (e.g., the driver lost their link). Generates the driver token automatically if not yet set.
+Resends the trekking sheet PDF + driver link to one or more staff members by email. The email is sent automatically to the Driver and SalesStaff when the trek transitions to `Scheduled` — use this endpoint only for manual resends (e.g., the driver lost their link). Generates the driver token automatically if not yet set.
 
 ### Request body
 
@@ -491,6 +494,23 @@ Fetches the full trek for the driver view.
 
 ### Errors
 - `404` — invalid token
+
+---
+
+### POST /api/v1/treks/driver/{token}/start
+
+Starts the trek — transitions status from `Scheduled` to `InProgress`. Call this when the driver taps "Start Trek" on their portal.
+
+- **Idempotent:** returns `204 No Content` if the trek is already `InProgress` — safe to call on app launch.
+- Returns `422` if the trek is `Completed` or `Cancelled`.
+
+**Auto-start:** the driver does not need to call this explicitly. Any mutation via a driver token (record delivery, add walk-in stop, add unplanned sale, sync offline actions) will automatically start the trek as a side effect. Call this endpoint when you want an explicit "start" button that commits the driver to the route before any deliveries are recorded.
+
+### Response `204 No Content`
+
+### Errors
+- `404` — invalid token
+- `422` — trek is `Completed` or `Cancelled`
 
 ---
 

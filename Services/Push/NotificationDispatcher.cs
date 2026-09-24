@@ -5,7 +5,7 @@ using prohpharmacy_trekking_app.Features.Notifications.Entities;
 
 namespace prohpharmacy_trekking_app.Services.Push;
 
-public class NotificationDispatcher(AppDbContext db, IWebPushService push)
+public class NotificationDispatcher(IServiceScopeFactory scopeFactory, IWebPushService push)
 {
     public async Task DispatchAsync(
         string type,
@@ -17,6 +17,9 @@ public class NotificationDispatcher(AppDbContext db, IWebPushService push)
     {
         var recipients = recipientIds.Distinct().ToList();
         if (recipients.Count == 0) return;
+
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
         var now = DateTime.UtcNow;
         var notifications = recipients.Select(id => new AppNotification

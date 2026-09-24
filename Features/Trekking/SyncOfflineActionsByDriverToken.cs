@@ -55,6 +55,13 @@ public static class SyncOfflineActionsByDriverToken
             if (trip is null)
                 return Result.Failure<SyncResponse>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
+            if (trip.Status == TrekStatus.Scheduled)
+            {
+                trip.Status = TrekStatus.InProgress;
+                trip.UpdatedAt = DateTime.UtcNow;
+                await db.SaveChangesAsync(cancellationToken);
+            }
+
             var attributedStaffId = trip.SalesStaffId ?? trip.DriverStaffId;
             var owningBranchId = (trip.SalesStaff ?? trip.Driver)?.BranchId ?? trip.Driver.BranchId;
 
