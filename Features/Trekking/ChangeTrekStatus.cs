@@ -73,7 +73,9 @@ public static class ChangeTrekStatus
                 trip.Status = request.Status;
                 trip.UpdatedAt = DateTime.UtcNow;
 
-                if (request.Status == TrekStatus.InProgress)
+                if (request.Status == TrekStatus.Scheduled)
+                    trip.DriverToken ??= Guid.NewGuid();
+                else if (request.Status == TrekStatus.InProgress)
                     trip.DriverToken ??= Guid.NewGuid();
                 else if (request.Status == TrekStatus.Completed)
                     await SyncLedgerOnCompletionAsync(trip, cancellationToken);
@@ -83,7 +85,7 @@ public static class ChangeTrekStatus
                 await _db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                if (request.Status == TrekStatus.InProgress)
+                if (request.Status == TrekStatus.Scheduled)
                     _jobs.Enqueue<TrekEmailJob>(j => j.SendTrekStartEmailsAsync(trip.Id, trip.DriverToken!.Value));
 
                 DispatchTrekNotificationAsync(trip, request.Status);
