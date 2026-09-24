@@ -33,6 +33,12 @@ public static class RecordTrekDeliveryByToken
             if (trip.Status == TrekStatus.Completed)
                 return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("This trek is completed and can no longer be modified."));
 
+            if (trip.Status == TrekStatus.Scheduled)
+            {
+                trip.Status = TrekStatus.InProgress;
+                trip.UpdatedAt = DateTime.UtcNow;
+            }
+
             var productMap = trip.Stops
                 .SelectMany(s => s.Products)
                 .ToDictionary(p => p.Id);

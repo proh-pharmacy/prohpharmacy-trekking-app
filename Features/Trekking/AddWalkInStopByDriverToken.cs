@@ -73,6 +73,12 @@ public static class AddWalkInStopByDriverToken
             if (targetTrip.Status == TrekStatus.Completed || targetTrip.Status == TrekStatus.Cancelled)
                 return Result.Failure<TrekStopResponse>(Error.BadRequest($"Cannot add a stop to a {targetTrip.Status} trek."));
 
+            if (targetTrip.Status == TrekStatus.Scheduled)
+            {
+                targetTrip.Status = TrekStatus.InProgress;
+                targetTrip.UpdatedAt = DateTime.UtcNow;
+            }
+
             if (request.ClientGeneratedId.HasValue)
             {
                 var duplicate = await _db.TrekkingTripStops

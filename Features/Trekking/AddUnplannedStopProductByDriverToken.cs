@@ -70,6 +70,12 @@ public static class AddUnplannedStopProductByDriverToken
             if (trip.Status == TrekStatus.Completed || trip.Status == TrekStatus.Cancelled)
                 return Result.Failure<TrekStopProductResponse>(Error.BadRequest($"Cannot add products to a {trip.Status} trek."));
 
+            if (trip.Status == TrekStatus.Scheduled)
+            {
+                trip.Status = TrekStatus.InProgress;
+                trip.UpdatedAt = DateTime.UtcNow;
+            }
+
             if (request.ClientGeneratedId.HasValue)
             {
                 var dup = await _db.TrekkingTripStopProducts
