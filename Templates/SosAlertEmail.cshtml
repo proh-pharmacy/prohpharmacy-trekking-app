@@ -1,55 +1,52 @@
 @model prohpharmacy_trekking_app.Services.Email.SosAlertEmailModel
 @{ Layout = "_Layout.cshtml"; }
 
+<p style="margin:0 0 26px;font-size:14.5px;color:#64748b;line-height:1.65;font-weight:400;">
+  Hi @Model.RecipientName, an SOS alert was received at <strong style="color:#64748b;font-weight:600;">@Model.SosTime UTC</strong> from the driver on trek <strong style="color:#64748b;font-weight:600;">@Model.TrekNumber</strong>. Please verify their safety immediately.
+</p>
+
 <table width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="background-color:#fef2f2;border:1px solid #fecaca;border-radius:4px;margin-bottom:28px;">
+       style="background-color:#fef2f2;border-radius:4px;margin-bottom:28px;">
   <tr>
-    <td style="padding:14px 18px;">
-      <p style="margin:0;font-size:14px;font-weight:600;color:#b91c1c;line-height:1.5;">
-        SOS Alert — Immediate Attention Required
-      </p>
-      <p style="margin:4px 0 0;font-size:13px;color:#b91c1c;line-height:1.5;font-weight:400;">
-        A driver on one of your treks has triggered an SOS. Please verify their safety immediately.
+    <td style="padding:11px 14px;">
+      <p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.5;font-weight:400;">
+        <span style="font-weight:500;">SOS Alert — Immediate Attention Required:</span> A driver on one of your treks has triggered an emergency SOS.
       </p>
     </td>
   </tr>
 </table>
-
-<p style="margin:0 0 24px;font-size:14.5px;color:#475569;line-height:1.65;">
-  Hi @Model.RecipientName, an SOS alert was received at <strong style="color:#1e293b;">@Model.SosTime UTC</strong> from the driver on trek <strong style="color:#1e293b;">@Model.TrekNumber</strong>.
-</p>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0"
        style="border:1.5px solid #00bf6f;border-radius:4px;background-color:#f2faf5;margin-bottom:28px;">
   <tr>
     <td class="card-cell" style="padding:24px 24px 18px;">
 
-      <p style="margin:0 0 16px;font-size:15px;font-weight:600;color:#1e293b;">
+      <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#64748b;">
         Trek Details
       </p>
 
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
         <tr>
           <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;width:36%;">Trek Number</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#1e293b;font-weight:600;">@Model.TrekNumber</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:600;">@Model.TrekNumber</td>
         </tr>
         <tr>
           <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">Region</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#1e293b;">@Model.RegionName</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">@Model.RegionName</td>
         </tr>
         <tr>
           <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">Vehicle</td>
-          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#1e293b;">@Model.VehicleDisplayName</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">@Model.VehicleDisplayName</td>
         </tr>
         <tr>
           <td style="padding:10px 8px;border-bottom:@(Model.SalesRepName != null ? "1px solid #e2f0e8" : "0");font-size:13.5px;color:#64748b;font-weight:500;">Driver</td>
-          <td style="padding:10px 8px;border-bottom:@(Model.SalesRepName != null ? "1px solid #e2f0e8" : "0");font-size:13.5px;color:#1e293b;">@Model.DriverName</td>
+          <td style="padding:10px 8px;border-bottom:@(Model.SalesRepName != null ? "1px solid #e2f0e8" : "0");font-size:13.5px;color:#64748b;font-weight:500;">@Model.DriverName</td>
         </tr>
         @if (Model.SalesRepName != null)
         {
           <tr>
             <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">Sales Rep</td>
-            <td style="padding:10px 8px;font-size:13.5px;color:#1e293b;">@Model.SalesRepName</td>
+            <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">@Model.SalesRepName</td>
           </tr>
         }
       </table>
@@ -59,24 +56,36 @@
 </table>
 
 <table width="100%" cellpadding="0" cellspacing="0" border="0"
-       style="border:1px solid #e2e8f0;border-radius:4px;margin-bottom:28px;">
+       style="border:1.5px solid #00bf6f;border-radius:4px;background-color:#f2faf5;margin-bottom:28px;">
   <tr>
-    <td class="card-cell" style="padding:20px 24px;">
+    <td class="card-cell" style="padding:24px 24px 18px;">
 
-      <p style="margin:0 0 12px;font-size:15px;font-weight:600;color:#1e293b;">
+      <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#64748b;">
         SOS Location
       </p>
 
-      <p style="margin:0 0 6px;font-size:13px;color:#64748b;">
-        Coordinates: <span style="color:#1e293b;font-weight:500;">@Model.Latitude.ToString("F6"), @Model.Longitude.ToString("F6")</span>
-      </p>
-
-      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:16px;">
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border-collapse:collapse;margin-bottom:20px;">
         <tr>
-          <td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;width:36%;">Latitude</td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">@Model.Latitude.ToString("F6")</td>
+        </tr>
+        <tr>
+          <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">Longitude</td>
+          <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">@Model.Longitude.ToString("F6")</td>
+        </tr>
+      </table>
+
+      <div style="border-top:1px solid #d6ece0;margin:4px 0 18px;"></div>
+
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="btn-label" valign="middle" style="font-size:13px;color:#64748b;">
+            Tap to open the exact location on Google Maps.
+          </td>
+          <td class="btn-action" align="right" valign="middle">
             <a href="@Model.GoogleMapsUrl"
-               style="display:inline-block;padding:9px 22px;background-color:#b91c1c;color:#ffffff;text-decoration:none;font-size:13.5px;font-weight:500;border-radius:3px;">
-              View on Google Maps
+               style="display:inline-block;padding:9px 22px;background-color:#00bf6f;color:#ffffff;text-decoration:none;font-size:13.5px;font-weight:500;border-radius:3px;">
+              View on Maps
             </a>
           </td>
         </tr>
@@ -86,6 +95,6 @@
   </tr>
 </table>
 
-<p style="margin:0;font-size:13px;color:#94a3b8;line-height:1.6;">
+<p style="margin:0;font-size:13px;color:#64748b;line-height:1.6;">
   If you need assistance, contact us at <a href="mailto:@Model.SupportEmail" style="color:#00bf6f;text-decoration:none;">@Model.SupportEmail</a>.
 </p>
