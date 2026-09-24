@@ -74,7 +74,7 @@ public class EmailService : IEmailService
 
             var response = await _factory.Create()
                 .To(to)
-                .Subject($"Action Required! SOS Alert — {model.TrekNumber} ({model.DriverName})")
+                .Subject("Action Required!")
                 .UsingTemplateFromFile(templatePath, model)
                 .SendAsync(CancellationToken.None);
 
