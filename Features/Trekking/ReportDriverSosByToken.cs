@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Services.Email;
 using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Shared;
 
@@ -29,12 +30,16 @@ public static class ReportDriverSosByToken
         }
     }
 
-    internal sealed class Handler(AppDbContext db, ITraccarService traccar) : IRequestHandler<Command, Result>
+    internal sealed class Handler(AppDbContext db, ITraccarService traccar, IEmailService email, IConfiguration config)
+        : IRequestHandler<Command, Result>
     {
         public async Task<Result> Handle(Command request, CancellationToken cancellationToken)
         {
             var trip = await db.TrekkingTrips
-                .AsNoTracking()
+                .Include(t => t.Driver)
+                .Include(t => t.SalesStaff)
+                .Include(t => t.Region)
+                .Include(t => t.Vehicle)
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
             if (trip is null)
@@ -56,6 +61,35 @@ public static class ReportDriverSosByToken
                 accuracy: request.Accuracy,
                 alarm: "sos",
                 ct: cancellationToken);
+
+            var creator = await db.ApplicationUsers
+                .Include(u => u.StaffMember)
+                .AsNoTracking()
+                .FirstOrDefaultAsync(u => u.Id == trip.CreatedBy, cancellationToken);
+
+            if (creator is not null && !string.IsNullOrWhiteSpace(creator.Email))
+            {
+                var settings = config.GetSection("EmailSettings");
+                var model = new SosAlertEmailModel
+                {
+                    RecipientName = $"{creator.StaffMember.FirstName} {creator.StaffMember.LastName}",
+                    TrekNumber = trip.TrekNumber,
+                    RegionName = trip.Region.Name,
+                    VehicleDisplayName = trip.Vehicle.DisplayName,
+                    DriverName = $"{trip.Driver.FirstName} {trip.Driver.LastName}",
+                    SalesRepName = trip.SalesStaff is not null
+                        ? $"{trip.SalesStaff.FirstName} {trip.SalesStaff.LastName}"
+                        : null,
+                    SosTime = DateTime.UtcNow.ToString("dd MMM yyyy HH:mm"),
+                    Latitude = request.Latitude,
+                    Longitude = request.Longitude,
+                    GoogleMapsUrl = $"https://maps.google.com/?q={request.Latitude},{request.Longitude}",
+                    AppName = settings["AppName"] ?? "Proh Pharmacy Trekking",
+                    SupportEmail = settings["SupportEmail"] ?? string.Empty
+                };
+
+                _ = email.SendSosAlertEmailAsync(creator.Email, model);
+            }
 
             return Result.Success();
         }

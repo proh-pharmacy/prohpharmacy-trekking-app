@@ -35,6 +35,24 @@ public class PasswordResetEmailModel
     public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
+public class SosAlertEmailModel
+{
+    public string Title { get; set; } = "SOS Alert";
+    public string RecipientName { get; set; } = string.Empty;
+    public string TrekNumber { get; set; } = string.Empty;
+    public string RegionName { get; set; } = string.Empty;
+    public string VehicleDisplayName { get; set; } = string.Empty;
+    public string DriverName { get; set; } = string.Empty;
+    public string? SalesRepName { get; set; }
+    public string SosTime { get; set; } = string.Empty;
+    public double Latitude { get; set; }
+    public double Longitude { get; set; }
+    public string GoogleMapsUrl { get; set; } = string.Empty;
+    public string AppName { get; set; } = string.Empty;
+    public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
+}
+
 public class TrekAssignmentEmailModel
 {
     public string Title { get; set; } = "Trek Assignment";
@@ -56,6 +74,7 @@ public interface IEmailService
     Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model);
     Task SendPasswordResetEmailAsync(string to, PasswordResetEmailModel model);
     Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes);
+    Task SendSosAlertEmailAsync(string to, SosAlertEmailModel model);
 }
 
 // ── Registration ──────────────────────────────────────────────────────────────
@@ -175,6 +194,12 @@ public class NullEmailService : IEmailService
     public Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes)
     {
         _logger.LogWarning("[NullEmailService] Trek assignment email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
+        return Task.CompletedTask;
+    }
+
+    public Task SendSosAlertEmailAsync(string to, SosAlertEmailModel model)
+    {
+        _logger.LogWarning("[NullEmailService] SOS alert email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
         return Task.CompletedTask;
     }
 }

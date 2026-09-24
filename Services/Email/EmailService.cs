@@ -66,6 +66,28 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendSosAlertEmailAsync(string to, SosAlertEmailModel model)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "SosAlertEmail.cshtml");
+
+            var response = await _factory.Create()
+                .To(to)
+                .Subject($"🚨 SOS Alert — {model.TrekNumber} ({model.DriverName})")
+                .UsingTemplateFromFile(templatePath, model)
+                .SendAsync(CancellationToken.None);
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send SOS alert email to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending SOS alert email to {Email}", to);
+        }
+    }
+
     public async Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
     {
         try
