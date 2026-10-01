@@ -29,6 +29,8 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<TrackingDevice> TrackingDevices => Set<TrackingDevice>();
         public DbSet<VehicleStaffAssignment> VehicleStaffAssignments => Set<VehicleStaffAssignment>();
         public DbSet<FleetDriver> FleetDrivers => Set<FleetDriver>();
+        public DbSet<VehicleProductStock> VehicleProductStocks => Set<VehicleProductStock>();
+        public DbSet<VehicleStockLedger> VehicleStockLedger => Set<VehicleStockLedger>();
 
         // Customers
         public DbSet<CustomerAccount> CustomerAccounts => Set<CustomerAccount>();
@@ -45,9 +47,12 @@ namespace prohpharmacy_trekking_app.Database
 
         // Trekking
         public DbSet<TrekkingTrip> TrekkingTrips => Set<TrekkingTrip>();
+        public DbSet<TrekStockLoad> TrekStockLoads => Set<TrekStockLoad>();
         public DbSet<TrekkingTripStop> TrekkingTripStops => Set<TrekkingTripStop>();
         public DbSet<TrekkingTripStopProduct> TrekkingTripStopProducts => Set<TrekkingTripStopProduct>();
         public DbSet<TrekkingTripStopReturn> TrekkingTripStopReturns => Set<TrekkingTripStopReturn>();
+        public DbSet<SaleInvoice> SaleInvoices => Set<SaleInvoice>();
+        public DbSet<InvoiceNumberTracker> InvoiceNumberTrackers => Set<InvoiceNumberTracker>();
 
         // Staff
         public DbSet<StaffMember> StaffMembers => Set<StaffMember>();
@@ -197,6 +202,48 @@ namespace prohpharmacy_trekking_app.Database
                 entity.HasIndex(a => new { a.VehicleId, a.UnassignedAt });
             });
 
+            modelBuilder.Entity<VehicleProductStock>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.BasicQuantityOnHand).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.PackagingQuantityOnHand).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.LowStockThreshold).HasPrecision(10, 3);
+                entity.HasOne(s => s.Vehicle)
+                    .WithMany()
+                    .HasForeignKey(s => s.VehicleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(s => s.Product)
+                    .WithMany()
+                    .HasForeignKey(s => s.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(s => new { s.VehicleId, s.ProductId }).IsUnique();
+            });
+
+            modelBuilder.Entity<VehicleStockLedger>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.ChangeType).HasConversion<string>().HasMaxLength(20).IsRequired();
+                entity.Property(l => l.Source).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(l => l.BasicQtyChange).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.PackagingQtyChange).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.BalanceAfter).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.Reason).HasMaxLength(300).IsRequired();
+                entity.HasOne(l => l.Vehicle)
+                    .WithMany()
+                    .HasForeignKey(l => l.VehicleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.Product)
+                    .WithMany()
+                    .HasForeignKey(l => l.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.Author)
+                    .WithMany()
+                    .HasForeignKey(l => l.AuthorStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(l => new { l.VehicleId, l.ProductId, l.RecordedAt });
+                entity.HasIndex(l => l.ReferenceId);
+            });
+
             // ── Customers ─────────────────────────────────────────────────────────
 
             modelBuilder.Entity<CustomerAccount>(entity =>
@@ -210,6 +257,12 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(a => a.WhatsAppNumber).HasMaxLength(30);
                 entity.Property(a => a.PremisesPhotoUrl).HasMaxLength(500);
                 entity.Property(a => a.RegistrationStatus).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(a => a.IdDocumentType).HasConversion<string>().HasMaxLength(40);
+                entity.Property(a => a.IdDocumentNumber).HasMaxLength(100);
+                entity.Property(a => a.IdCardFrontUrl).HasMaxLength(500);
+                entity.Property(a => a.IdCardBackUrl).HasMaxLength(500);
+                entity.HasIndex(a => a.IdDocumentNumber).IsUnique()
+                    .HasFilter("\"IdDocumentNumber\" IS NOT NULL");
                 entity.HasOne(a => a.Region).WithMany().HasForeignKey(a => a.RegionId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(a => a.OwningBranch).WithMany().HasForeignKey(a => a.OwningBranchId).OnDelete(DeleteBehavior.Restrict);
                 entity.HasOne(a => a.RegisteredBy).WithMany().HasForeignKey(a => a.RegisteredByStaffId).OnDelete(DeleteBehavior.Restrict);
@@ -431,13 +484,74 @@ namespace prohpharmacy_trekking_app.Database
                     .WithMany()
                     .HasForeignKey(r => r.ProductId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.Property(r => r.ApprovalStatus).HasConversion<string>().HasMaxLength(20).IsRequired();
+                entity.Property(r => r.RejectionReason).HasMaxLength(500);
                 entity.HasOne(r => r.RecordedBy)
                     .WithMany()
                     .HasForeignKey(r => r.RecordedByStaffId)
                     .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.ApprovedBy)
+                    .WithMany()
+                    .HasForeignKey(r => r.ApprovedByStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(r => r.SaleInvoice)
+                    .WithMany()
+                    .HasForeignKey(r => r.SaleInvoiceId)
+                    .OnDelete(DeleteBehavior.Restrict);
                 entity.HasIndex(r => r.ClientGeneratedId).IsUnique()
                     .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
                 entity.HasIndex(r => r.TrekkingTripStopId);
+                entity.HasIndex(r => r.SaleInvoiceId);
+                entity.HasIndex(r => r.ApprovalStatus);
+            });
+
+            modelBuilder.Entity<SaleInvoice>(entity =>
+            {
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.InvoiceNumber).HasMaxLength(30);
+                entity.Property(i => i.TotalAmount).HasPrecision(14, 2).IsRequired();
+                entity.Property(i => i.TotalPaid).HasPrecision(14, 2).IsRequired();
+                entity.Property(i => i.Balance).HasPrecision(14, 2).IsRequired();
+                entity.Property(i => i.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.HasOne(i => i.Stop)
+                    .WithMany()
+                    .HasForeignKey(i => i.TrekkingTripStopId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(i => i.InvoiceNumber).IsUnique()
+                    .HasFilter("\"InvoiceNumber\" IS NOT NULL");
+                entity.HasIndex(i => i.TrekkingTripStopId).IsUnique();
+                entity.HasIndex(i => i.ClientGeneratedId).IsUnique()
+                    .HasFilter("\"ClientGeneratedId\" IS NOT NULL");
+                entity.HasIndex(i => i.TrekkingTripId);
+                entity.HasIndex(i => i.CustomerAccountId);
+                entity.HasIndex(i => i.IssuedAt);
+            });
+
+            modelBuilder.Entity<InvoiceNumberTracker>(entity =>
+            {
+                entity.HasKey(t => new { t.ScopeId, t.ScopeType });
+                entity.Property(t => t.ScopeType).HasMaxLength(20).IsRequired();
+            });
+
+            modelBuilder.Entity<TrekStockLoad>(entity =>
+            {
+                entity.HasKey(l => l.Id);
+                entity.Property(l => l.BasicQuantityLoaded).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.PackagingQuantityLoaded).HasPrecision(10, 3).IsRequired();
+                entity.HasOne(l => l.TrekkingTrip)
+                    .WithMany()
+                    .HasForeignKey(l => l.TrekkingTripId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(l => l.Product)
+                    .WithMany()
+                    .HasForeignKey(l => l.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne(l => l.LoadedBy)
+                    .WithMany()
+                    .HasForeignKey(l => l.LoadedByStaffId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(l => new { l.TrekkingTripId, l.ProductId }).IsUnique();
+                entity.HasIndex(l => l.VehicleId);
             });
 
             // ── Staff ─────────────────────────────────────────────────────────────

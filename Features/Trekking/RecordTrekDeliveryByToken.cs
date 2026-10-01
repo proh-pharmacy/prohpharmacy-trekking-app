@@ -15,6 +15,7 @@ public static class RecordTrekDeliveryByToken
     {
         public Guid Token { get; set; }
         public List<RecordTrekDelivery.ProductRecord> Products { get; set; } = [];
+        public List<RecordTrekDelivery.StopInvoiceSync>? StopInvoices { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db)
@@ -25,6 +26,8 @@ public static class RecordTrekDeliveryByToken
             var trip = await db.TrekkingTrips
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
+                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
             if (trip is null)
@@ -80,6 +83,13 @@ public static class RecordTrekDeliveryByToken
             }
 
             trip.UpdatedAt = DateTime.UtcNow;
+
+            var stopSyncMap = request.StopInvoices?
+                .ToDictionary(s => s.StopId) ?? new Dictionary<Guid, RecordTrekDelivery.StopInvoiceSync>();
+
+            var invoiceResults = await RecordTrekDelivery.BuildInvoicesAsync(
+                db, trip, affectedStops, stopSyncMap, cancellationToken);
+
             await db.SaveChangesAsync(cancellationToken);
 
             return Result.Success(new RecordTrekDelivery.RecordResponse
@@ -87,7 +97,8 @@ public static class RecordTrekDeliveryByToken
                 TrekId = trip.Id,
                 TrekNumber = trip.TrekNumber,
                 Status = trip.Status.ToString(),
-                Recorded = recorded
+                Recorded = recorded,
+                Invoices = invoiceResults
             });
         }
     }
@@ -108,7 +119,7 @@ public class RecordTrekDeliveryByTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Record delivery results via driver token")
-        .WithDescription("Allows a driver to submit delivery quantities, payment, and balance per product using the shared link token. No authentication required. Rejected if trek is Completed.")
+        .WithDescription("Allows a driver to submit delivery quantities, payment, and balance per product using the shared link token. No authentication required. Rejected if trek is Completed. Automatically creates or updates a sale invoice per affected stop.")
         .Produces<RecordTrekDelivery.RecordResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

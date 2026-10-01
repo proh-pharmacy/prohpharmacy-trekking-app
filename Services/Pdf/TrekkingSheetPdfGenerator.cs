@@ -74,6 +74,7 @@ public static class TrekkingSheetPdfGenerator
             public decimal? RefundAmount { get; set; }
             public string? RefundMethod { get; set; }
             public string? Reason { get; set; }
+            public string ApprovalStatus { get; set; } = "Pending";
         }
     }
 
@@ -374,11 +375,12 @@ public static class TrekkingSheetPdfGenerator
                     table.ColumnsDefinition(columns =>
                     {
                         columns.RelativeColumn(0.4f);
-                        columns.RelativeColumn(3.0f);
-                        columns.RelativeColumn(1.5f);
-                        columns.RelativeColumn(1.5f);
-                        columns.RelativeColumn(1.5f);
-                        columns.RelativeColumn(2.5f);
+                        columns.RelativeColumn(2.6f);
+                        columns.RelativeColumn(1.4f);
+                        columns.RelativeColumn(1.4f);
+                        columns.RelativeColumn(1.4f);
+                        columns.RelativeColumn(2.2f);
+                        columns.RelativeColumn(1.1f);
                     });
 
                     table.Header(header =>
@@ -389,12 +391,16 @@ public static class TrekkingSheetPdfGenerator
                         ReturnHeaderCell(header, "Refund Amount", alignCenter: true);
                         ReturnHeaderCell(header, "Refund Method", alignCenter: true);
                         ReturnHeaderCell(header, "Reason", alignCenter: false);
+                        ReturnHeaderCell(header, "Status", alignCenter: true);
                     });
 
                     var returnIndex = 1;
                     foreach (var ret in stop.Returns)
                     {
-                        var background = returnIndex % 2 == 1 ? "#fff7f7" : "#fef2f2";
+                        var isRejected = ret.ApprovalStatus == "Rejected";
+                        var background = isRejected
+                            ? (returnIndex % 2 == 1 ? "#f8fafc" : "#f1f5f9")
+                            : (returnIndex % 2 == 1 ? "#fff7f7" : "#fef2f2");
 
                         var qtyParts = new List<string>();
                         if (ret.BasicQtyReturned > 0)
@@ -402,12 +408,13 @@ public static class TrekkingSheetPdfGenerator
                         if (ret.PackagingQtyReturned.HasValue && ret.PackagingQtyReturned > 0)
                             qtyParts.Add($"{ret.PackagingQtyReturned:0.###}{(string.IsNullOrWhiteSpace(ret.PackagingUnitName) ? string.Empty : $" {ret.PackagingUnitName}")}");
 
-                        ReturnBodyCell(table, returnIndex.ToString(), background, alignCenter: true);
-                        ReturnBodyCell(table, ret.ProductName, background, alignCenter: false);
-                        ReturnBodyCell(table, string.Join("\n", qtyParts), background, alignCenter: true);
-                        ReturnBodyCell(table, ret.RefundAmount.HasValue ? $"GHS {ret.RefundAmount:0.00}" : string.Empty, background, alignCenter: true);
-                        ReturnBodyCell(table, ret.RefundMethod ?? string.Empty, background, alignCenter: true);
-                        ReturnBodyCell(table, ret.Reason ?? string.Empty, background, alignCenter: false);
+                        ReturnBodyCell(table, returnIndex.ToString(), background, alignCenter: true, muted: isRejected);
+                        ReturnBodyCell(table, ret.ProductName, background, alignCenter: false, muted: isRejected);
+                        ReturnBodyCell(table, string.Join("\n", qtyParts), background, alignCenter: true, muted: isRejected);
+                        ReturnBodyCell(table, ret.RefundAmount.HasValue ? $"GHS {ret.RefundAmount:0.00}" : string.Empty, background, alignCenter: true, muted: isRejected);
+                        ReturnBodyCell(table, ret.RefundMethod ?? string.Empty, background, alignCenter: true, muted: isRejected);
+                        ReturnBodyCell(table, ret.Reason ?? string.Empty, background, alignCenter: false, muted: isRejected);
+                        ReturnStatusCell(table, ret.ApprovalStatus, background);
 
                         returnIndex++;
                     }
@@ -446,14 +453,36 @@ public static class TrekkingSheetPdfGenerator
         cell.Text(text).FontSize(7.5f).FontColor("#b91c1c");
     }
 
-    private static void ReturnBodyCell(TableDescriptor table, string text, string background, bool alignCenter = true)
+    private static void ReturnBodyCell(TableDescriptor table, string text, string background, bool alignCenter = true, bool muted = false)
     {
+        var color = muted ? MutedText : TextColor;
         var cell = table.Cell()
             .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle();
 
-        if (alignCenter) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(TextColor); return; }
-        cell.Text(text).FontSize(7.5f).FontColor(TextColor);
+        if (alignCenter)
+        {
+            if (muted) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
+            cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color);
+            return;
+        }
+        if (muted) { cell.Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
+        cell.Text(text).FontSize(7.5f).FontColor(color);
+    }
+
+    private static void ReturnStatusCell(TableDescriptor table, string status, string background)
+    {
+        var (color, label) = status switch
+        {
+            "Approved" => ("#15803d", "Approved"),
+            "Rejected" => (MutedText,  "Rejected"),
+            _          => ("#d97706",  "Pending")
+        };
+
+        table.Cell()
+            .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
+            .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle().AlignCenter()
+            .Text(label).FontSize(7f).SemiBold().FontColor(color);
     }
 
     private static void ComposeFooter(IContainer container)

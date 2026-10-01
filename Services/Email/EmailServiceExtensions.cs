@@ -67,6 +67,19 @@ public class TrekAssignmentEmailModel
     public string Year { get; } = DateTime.UtcNow.Year.ToString();
 }
 
+public class PendingReturnsNotificationEmailModel
+{
+    public string Title { get; set; } = "Pending Returns Require Approval";
+    public string RecipientName { get; set; } = string.Empty;
+    public string TrekNumber { get; set; } = string.Empty;
+    public string CompletedDate { get; set; } = string.Empty;
+    public int PendingReturnCount { get; set; }
+    public string ReviewUrl { get; set; } = string.Empty;
+    public string AppName { get; set; } = string.Empty;
+    public string SupportEmail { get; set; } = string.Empty;
+    public string Year { get; } = DateTime.UtcNow.Year.ToString();
+}
+
 // ── Interface ─────────────────────────────────────────────────────────────────
 
 public interface IEmailService
@@ -75,6 +88,7 @@ public interface IEmailService
     Task SendPasswordResetEmailAsync(string to, PasswordResetEmailModel model);
     Task SendTrekAssignmentEmailAsync(string to, TrekAssignmentEmailModel model, byte[] pdfBytes);
     Task SendSosAlertEmailAsync(string to, SosAlertEmailModel model);
+    Task SendPendingReturnsNotificationAsync(string to, PendingReturnsNotificationEmailModel model);
 }
 
 // ── Registration ──────────────────────────────────────────────────────────────
@@ -200,6 +214,12 @@ public class NullEmailService : IEmailService
     public Task SendSosAlertEmailAsync(string to, SosAlertEmailModel model)
     {
         _logger.LogWarning("[NullEmailService] SOS alert email NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
+        return Task.CompletedTask;
+    }
+
+    public Task SendPendingReturnsNotificationAsync(string to, PendingReturnsNotificationEmailModel model)
+    {
+        _logger.LogWarning("[NullEmailService] Pending returns notification NOT sent to {Email} — configure EmailSettings:ResendApiKey to enable.", to);
         return Task.CompletedTask;
     }
 }

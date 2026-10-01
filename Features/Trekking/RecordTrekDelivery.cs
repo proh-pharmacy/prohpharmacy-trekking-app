@@ -15,6 +15,7 @@ public static class RecordTrekDelivery
     {
         public Guid TrekId { get; set; }
         public List<ProductRecord> Products { get; set; } = [];
+        public List<StopInvoiceSync>? StopInvoices { get; set; }
     }
 
     public class ProductRecord
@@ -28,12 +29,27 @@ public static class RecordTrekDelivery
         public string? Notes { get; set; }
     }
 
+    public class StopInvoiceSync
+    {
+        public Guid StopId { get; set; }
+        public Guid? ClientGeneratedId { get; set; }
+        public DateTime? RecordedAt { get; set; }
+    }
+
     public class RecordResponse
     {
         public Guid TrekId { get; set; }
         public string TrekNumber { get; set; } = string.Empty;
         public string Status { get; set; } = string.Empty;
         public int Recorded { get; set; }
+        public List<StopInvoiceResult> Invoices { get; set; } = [];
+    }
+
+    public class StopInvoiceResult
+    {
+        public Guid StopId { get; set; }
+        public Guid InvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db)
@@ -44,6 +60,8 @@ public static class RecordTrekDelivery
             var trip = await db.TrekkingTrips
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
+                .Include(t => t.Branch)
+                .Include(t => t.Region)
                 .FirstOrDefaultAsync(t => t.Id == request.TrekId, cancellationToken);
 
             if (trip is null)
@@ -93,6 +111,12 @@ public static class RecordTrekDelivery
             }
 
             trip.UpdatedAt = DateTime.UtcNow;
+
+            var stopSyncMap = request.StopInvoices?
+                .ToDictionary(s => s.StopId) ?? new Dictionary<Guid, StopInvoiceSync>();
+
+            var invoiceResults = await BuildInvoicesAsync(db, trip, affectedStops, stopSyncMap, cancellationToken);
+
             await db.SaveChangesAsync(cancellationToken);
 
             return Result.Success(new RecordResponse
@@ -100,9 +124,125 @@ public static class RecordTrekDelivery
                 TrekId = trip.Id,
                 TrekNumber = trip.TrekNumber,
                 Status = trip.Status.ToString(),
-                Recorded = recorded
+                Recorded = recorded,
+                Invoices = invoiceResults
             });
         }
+    }
+
+    internal static async Task<List<StopInvoiceResult>> BuildInvoicesAsync(
+        AppDbContext db,
+        TrekkingTrip trip,
+        IEnumerable<TrekkingTripStop> affectedStops,
+        Dictionary<Guid, StopInvoiceSync> stopSyncMap,
+        CancellationToken ct)
+    {
+        var stopIds = affectedStops.Select(s => s.Id).ToList();
+        if (stopIds.Count == 0) return [];
+
+        var existingByStopId = await db.SaleInvoices
+            .Where(i => stopIds.Contains(i.TrekkingTripStopId))
+            .ToDictionaryAsync(i => i.TrekkingTripStopId, ct);
+
+        var clientIds = stopSyncMap.Values
+            .Where(s => s.ClientGeneratedId.HasValue)
+            .Select(s => s.ClientGeneratedId!.Value)
+            .ToList();
+
+        var existingByClientId = clientIds.Count > 0
+            ? await db.SaleInvoices
+                .Where(i => i.ClientGeneratedId != null && clientIds.Contains(i.ClientGeneratedId!.Value))
+                .ToDictionaryAsync(i => i.ClientGeneratedId!.Value, ct)
+            : new Dictionary<Guid, SaleInvoice>();
+
+        var scopeId = trip.BranchId ?? trip.RegionId;
+        var scopeType = trip.BranchId.HasValue ? "Branch" : "Region";
+        var scopeCode = (trip.BranchId.HasValue ? trip.Branch?.Code : trip.Region?.Code) ?? "GH";
+
+        var results = new List<StopInvoiceResult>();
+
+        foreach (var stop in affectedStops)
+        {
+            var deliveredProducts = stop.Products
+                .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
+                .ToList();
+
+            if (deliveredProducts.Count == 0) continue;
+
+            var totalAmount = deliveredProducts.Sum(p =>
+                (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice +
+                (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0));
+            var totalPaid = deliveredProducts.Sum(p => p.AmtPaid ?? 0);
+            var balance = totalAmount - totalPaid;
+
+            var status = balance <= 0 ? SaleInvoiceStatus.Paid
+                       : totalPaid > 0 ? SaleInvoiceStatus.PartiallyPaid
+                       : SaleInvoiceStatus.Issued;
+
+            stopSyncMap.TryGetValue(stop.Id, out var syncData);
+
+            SaleInvoice? invoice = null;
+
+            if (syncData?.ClientGeneratedId.HasValue == true)
+                existingByClientId.TryGetValue(syncData.ClientGeneratedId!.Value, out invoice);
+
+            invoice ??= existingByStopId.GetValueOrDefault(stop.Id);
+
+            if (invoice is not null)
+            {
+                invoice.TotalAmount = totalAmount;
+                invoice.TotalPaid = totalPaid;
+                invoice.Balance = balance;
+                invoice.Status = status;
+                invoice.UpdatedAt = DateTime.UtcNow;
+
+                results.Add(new StopInvoiceResult
+                {
+                    StopId = stop.Id,
+                    InvoiceId = invoice.Id,
+                    InvoiceNumber = invoice.InvoiceNumber
+                });
+                continue;
+            }
+
+            var seq = await db.Database.SqlQueryRaw<long>(
+                """
+                INSERT INTO "InvoiceNumberTrackers" ("ScopeId", "ScopeType", "LastSequence")
+                VALUES ({0}, {1}, 1)
+                ON CONFLICT ("ScopeId", "ScopeType") DO UPDATE
+                SET "LastSequence" = "InvoiceNumberTrackers"."LastSequence" + 1
+                RETURNING "LastSequence" AS "Value"
+                """, scopeId, scopeType).FirstAsync(ct);
+
+            var invoiceNumber = $"{scopeCode.ToUpper()}-INV-{seq:D5}";
+
+            var newInvoice = new SaleInvoice
+            {
+                InvoiceNumber = invoiceNumber,
+                TrekkingTripStopId = stop.Id,
+                TrekkingTripId = trip.Id,
+                CustomerAccountId = stop.CustomerAccountId,
+                TotalAmount = totalAmount,
+                TotalPaid = totalPaid,
+                Balance = balance,
+                Status = status,
+                ClientGeneratedId = syncData?.ClientGeneratedId,
+                CreatedOffline = syncData?.ClientGeneratedId.HasValue == true,
+                IssuedAt = syncData?.RecordedAt ?? DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            db.SaleInvoices.Add(newInvoice);
+
+            results.Add(new StopInvoiceResult
+            {
+                StopId = stop.Id,
+                InvoiceId = newInvoice.Id,
+                InvoiceNumber = invoiceNumber
+            });
+        }
+
+        return results;
     }
 }
 
@@ -121,7 +261,7 @@ public class RecordTrekDeliveryEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Record delivery results for a trek (admin)")
-        .WithDescription("Allows an admin to enter delivery quantities, payment method, amount paid, and balance for each product in the trek. Rejected if the trek is already Completed.")
+        .WithDescription("Allows an admin to enter delivery quantities, payment method, amount paid, and balance for each product in the trek. Rejected if the trek is already Completed. Automatically creates or updates a sale invoice per affected stop.")
         .Produces<RecordTrekDelivery.RecordResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

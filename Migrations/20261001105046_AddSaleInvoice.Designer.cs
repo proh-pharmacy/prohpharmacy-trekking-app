@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using prohpharmacy_trekking_app.Database;
@@ -12,9 +13,11 @@ using prohpharmacy_trekking_app.Database;
 namespace prohpharmacy_trekking_app.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261001105046_AddSaleInvoice")]
+    partial class AddSaleInvoice
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -477,46 +480,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Vehicles");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleProductStock", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("BasicQuantityOnHand")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<decimal?>("LowStockThreshold")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<decimal>("PackagingQuantityOnHand")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<DateTime?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("VehicleId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("VehicleId", "ProductId")
-                        .IsUnique();
-
-                    b.ToTable("VehicleProductStocks");
-                });
-
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStaffAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -546,67 +509,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.HasIndex("VehicleId", "UnassignedAt");
 
                     b.ToTable("VehicleStaffAssignments");
-                });
-
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStockLedger", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid?>("AuthorStaffId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("BalanceAfter")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<decimal>("BasicQtyChange")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<string>("ChangeType")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<decimal>("PackagingQtyChange")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Reason")
-                        .IsRequired()
-                        .HasMaxLength(300)
-                        .HasColumnType("character varying(300)");
-
-                    b.Property<DateTime>("RecordedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ReferenceId")
-                        .HasColumnType("uuid");
-
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasMaxLength(30)
-                        .HasColumnType("character varying(30)");
-
-                    b.Property<Guid>("VehicleId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("AuthorStaffId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("ReferenceId");
-
-                    b.HasIndex("VehicleId", "ProductId", "RecordedAt");
-
-                    b.ToTable("VehicleStockLedger");
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Identity.Entities.ApplicationUser", b =>
@@ -1354,49 +1256,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("SaleInvoices");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekStockLoad", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("BasicQuantityLoaded")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<DateTime>("LoadedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid>("LoadedByStaffId")
-                        .HasColumnType("uuid");
-
-                    b.Property<decimal>("PackagingQuantityLoaded")
-                        .HasPrecision(10, 3)
-                        .HasColumnType("numeric(10,3)");
-
-                    b.Property<Guid>("ProductId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("TrekkingTripId")
-                        .HasColumnType("uuid");
-
-                    b.Property<Guid>("VehicleId")
-                        .HasColumnType("uuid");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("LoadedByStaffId");
-
-                    b.HasIndex("ProductId");
-
-                    b.HasIndex("VehicleId");
-
-                    b.HasIndex("TrekkingTripId", "ProductId")
-                        .IsUnique();
-
-                    b.ToTable("TrekStockLoads");
-                });
-
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekkingTrip", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1592,17 +1451,6 @@ namespace prohpharmacy_trekking_app.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
-                    b.Property<string>("ApprovalStatus")
-                        .IsRequired()
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)");
-
-                    b.Property<DateTime?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<Guid?>("ApprovedByStaffId")
-                        .HasColumnType("uuid");
-
                     b.Property<decimal>("BasicQtyReturned")
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)");
@@ -1655,21 +1503,10 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasMaxLength(30)
                         .HasColumnType("character varying(30)");
 
-                    b.Property<string>("RejectionReason")
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)");
-
-                    b.Property<Guid>("SaleInvoiceId")
-                        .HasColumnType("uuid");
-
                     b.Property<Guid>("TrekkingTripStopId")
                         .HasColumnType("uuid");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ApprovalStatus");
-
-                    b.HasIndex("ApprovedByStaffId");
 
                     b.HasIndex("ClientGeneratedId")
                         .IsUnique()
@@ -1678,8 +1515,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.HasIndex("ProductId");
 
                     b.HasIndex("RecordedByStaffId");
-
-                    b.HasIndex("SaleInvoiceId");
 
                     b.HasIndex("TrekkingTripStopId");
 
@@ -1850,25 +1685,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("Region");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleProductStock", b =>
-                {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Products.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", "Vehicle")
-                        .WithMany()
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Product");
-
-                    b.Navigation("Vehicle");
-                });
-
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStaffAssignment", b =>
                 {
                     b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "StaffMember")
@@ -1884,32 +1700,6 @@ namespace prohpharmacy_trekking_app.Migrations
                         .IsRequired();
 
                     b.Navigation("StaffMember");
-
-                    b.Navigation("Vehicle");
-                });
-
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStockLedger", b =>
-                {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "Author")
-                        .WithMany()
-                        .HasForeignKey("AuthorStaffId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Products.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Fleet.Entities.Vehicle", "Vehicle")
-                        .WithMany()
-                        .HasForeignKey("VehicleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Author");
-
-                    b.Navigation("Product");
 
                     b.Navigation("Vehicle");
                 });
@@ -2109,33 +1899,6 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.Navigation("Stop");
                 });
 
-            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekStockLoad", b =>
-                {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "LoadedBy")
-                        .WithMany()
-                        .HasForeignKey("LoadedByStaffId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Products.Entities.Product", "Product")
-                        .WithMany()
-                        .HasForeignKey("ProductId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekkingTrip", "TrekkingTrip")
-                        .WithMany()
-                        .HasForeignKey("TrekkingTripId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("LoadedBy");
-
-                    b.Navigation("Product");
-
-                    b.Navigation("TrekkingTrip");
-                });
-
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekkingTrip", b =>
                 {
                     b.HasOne("prohpharmacy_trekking_app.Features.Organisation.Entities.Branch", "Branch")
@@ -2217,11 +1980,6 @@ namespace prohpharmacy_trekking_app.Migrations
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekkingTripStopReturn", b =>
                 {
-                    b.HasOne("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", "ApprovedBy")
-                        .WithMany()
-                        .HasForeignKey("ApprovedByStaffId")
-                        .OnDelete(DeleteBehavior.Restrict);
-
                     b.HasOne("prohpharmacy_trekking_app.Features.Products.Entities.Product", "Product")
                         .WithMany()
                         .HasForeignKey("ProductId")
@@ -2233,25 +1991,15 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasForeignKey("RecordedByStaffId")
                         .OnDelete(DeleteBehavior.Restrict);
 
-                    b.HasOne("prohpharmacy_trekking_app.Features.Trekking.Entities.SaleInvoice", "SaleInvoice")
-                        .WithMany()
-                        .HasForeignKey("SaleInvoiceId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
                     b.HasOne("prohpharmacy_trekking_app.Features.Trekking.Entities.TrekkingTripStop", "TrekkingTripStop")
                         .WithMany("Returns")
                         .HasForeignKey("TrekkingTripStopId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.Navigation("ApprovedBy");
-
                     b.Navigation("Product");
 
                     b.Navigation("RecordedBy");
-
-                    b.Navigation("SaleInvoice");
 
                     b.Navigation("TrekkingTripStop");
                 });

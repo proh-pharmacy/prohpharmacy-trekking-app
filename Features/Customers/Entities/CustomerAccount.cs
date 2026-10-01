@@ -21,6 +21,10 @@ public class CustomerAccount
     public Guid? ClientGeneratedId { get; set; }
     public bool CreatedOffline { get; set; }
     public string? PremisesPhotoUrl { get; set; }
+    public CustomerIdDocumentType? IdDocumentType { get; set; }
+    public string? IdDocumentNumber { get; set; }
+    public string? IdCardFrontUrl { get; set; }
+    public string? IdCardBackUrl { get; set; }
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

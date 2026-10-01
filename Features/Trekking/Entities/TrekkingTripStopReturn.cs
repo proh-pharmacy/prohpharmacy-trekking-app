@@ -21,9 +21,16 @@ public class TrekkingTripStopReturn
     public decimal? Latitude { get; set; }
     public decimal? Longitude { get; set; }
     public decimal? GpsAccuracyMetres { get; set; }
+    public Guid SaleInvoiceId { get; set; }
+    public ReturnApprovalStatus ApprovalStatus { get; set; } = ReturnApprovalStatus.Pending;
+    public Guid? ApprovedByStaffId { get; set; }
+    public DateTime? ApprovedAt { get; set; }
+    public string? RejectionReason { get; set; }
     public DateTime RecordedAt { get; set; } = DateTime.UtcNow;
 
     public TrekkingTripStop TrekkingTripStop { get; set; } = null!;
     public Product Product { get; set; } = null!;
     public StaffMember? RecordedBy { get; set; }
+    public SaleInvoice SaleInvoice { get; set; } = null!;
+    public StaffMember? ApprovedBy { get; set; }
 }

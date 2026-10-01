@@ -109,7 +109,8 @@ public static class ExportTrekkingSheet
                             PackagingQtyReturned = r.PackagingQtyReturned,
                             RefundAmount = r.RefundAmount,
                             RefundMethod = r.RefundMethod?.ToString(),
-                            Reason = r.Reason
+                            Reason = r.Reason,
+                            ApprovalStatus = r.ApprovalStatus.ToString()
                         }).ToList()
                     };
                 }).ToList()
