@@ -1,5 +1,7 @@
 # 11 — Trekking
 
+Phase 1–5 additions: delivery recording now returns invoice mappings and accepts optional `stopInvoices` metadata; see [Sale Invoices](./22-sale-invoices.md). Add trek allocation UI using [Vehicle Warehouse](./24-vehicle-warehouse.md), return review using [Invoice Returns](./23-invoice-returns.md), and a portal [Driver Report](./25-driver-trek-report.md). Completion deducts tracked vehicle stock and notifies the creator about pending returns; repeated staff completion is not idempotent.
+
 ## Endpoints
 
 | Method | Endpoint | Purpose | Auth |
@@ -396,7 +398,10 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
   "trekId": "...",
   "trekNumber": "TRK-00001",
   "status": "InProgress",
-  "recorded": 1
+  "recorded": 1,
+  "invoices": [
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+  ]
 }
 ```
 
@@ -558,7 +563,7 @@ Explicitly starts the trek — transitions status from `Scheduled` to `InProgres
 - **Idempotent:** returns `204 No Content` if the trek is already `InProgress` — safe to call on page load.
 - Returns `422` if the trek is `Completed` or `Cancelled`.
 
-**Auto-start:** the driver does not need to call this endpoint before recording deliveries. Any mutation via a driver token (`record`, `add walk-in stop`, `add unplanned sale`, `sync offline`) will automatically flip a `Scheduled` trek to `InProgress` as a side effect.
+**Auto-start:** delivery recording, adding a walk-in stop, adding an unplanned sale and offline sync automatically flip a `Scheduled` trek to `InProgress`. The new invoice-return POST does not auto-start a trek; use the explicit start endpoint when needed.
 
 ### Response `204 No Content`
 
@@ -583,7 +588,10 @@ Same as `POST /api/v1/treks/{id}/record`
   "trekId": "...",
   "trekNumber": "TRK-00001",
   "status": "InProgress",
-  "recorded": 1
+  "recorded": 1,
+  "invoices": [
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+  ]
 }
 ```
 

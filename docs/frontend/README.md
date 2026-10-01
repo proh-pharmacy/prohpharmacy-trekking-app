@@ -1,6 +1,8 @@
 # Frontend Implementation Plans
 
-Step-by-step guides for implementing each area of the Proh Pharmacy Trekking frontend against the backend API. Work through them in order — each builds on the previous.
+Implementation guides for the Proh Pharmacy Trekking frontend against the backend API. Start with conventions, then follow the relevant feature guides.
+
+The Phase 1–5 changes were reviewed against the code and the 2026-10-01 commits `8b5ca3d` and `aa7f3d8`. These guides describe implemented routes and response DTOs; `docs/todo` contains design notes that sometimes differ from the implementation. Known integration gaps are called out in the affected guides.
 
 ## Guides
 
@@ -20,3 +22,25 @@ Step-by-step guides for implementing each area of the Proh Pharmacy Trekking fro
 | 11 | [Trekking](./11-trekking.md) | Trek scheduling, stops, driver link, delivery recording, PDF sheet |
 | 12 | [Real-Time Tracking](./12-tracking.md) | Live map with Leaflet + SignalR, position history, webhook setup |
 | 13 | [Trek Operations](./13-trek-operations.md) | Day-to-day trek execution — driver portal, delivery recording, ledger sync, PDF sheet |
+| 14 | [Ledger](./14-ledger.md) | Customer balances and payment entries |
+| 15 | [Reports](./15-reports.md) | Staff reporting and exports |
+| 16 | [Dashboard](./16-dashboard.md) | Summary cards and operational statistics |
+| 17 | [Search](./17-search.md) | Global search |
+| 18 | [Driver Control Panel & Offline Sync](./18-offline-sync.md) | Driver session, local data and action synchronization |
+| 19 | [Live Tracking](./19-live-tracking.md) | Live tracking implementation |
+| 20 | [Pricing & Markups](./20-pricing-markups.md) | Customer and region pricing overrides |
+| 21 | [Data Export](./21-data-export.md) | Export endpoints and downloads |
+| 22 | [Sale Invoices](./22-sale-invoices.md) | Invoice issuance, scoped numbering, lookup, delivery sync and printing |
+| 23 | [Invoice Returns & Approval](./23-invoice-returns.md) | Online invoice returns, review decisions and ledger effects |
+| 24 | [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md) | Bulk restocking/removal, stock ledger, allocations and warnings |
+| 25 | [Driver Trek Report](./25-driver-trek-report.md) | Live financial/stock reconciliation and PDF download |
+
+## Phase implementation map
+
+| Phase | Frontend guides |
+|---|---|
+| 1 — Customer documents | [Customers](./09-customers.md) |
+| 2 — Invoices | [Sale invoices](./22-sale-invoices.md), [trek operations](./13-trek-operations.md), [offline sync](./18-offline-sync.md) |
+| 3 — Returns approval | [Invoice returns](./23-invoice-returns.md), [ledger](./14-ledger.md) |
+| 4 — Vehicle warehouse | [Vehicle warehouse](./24-vehicle-warehouse.md), [fleet](./10-fleet.md) |
+| 5 — Driver report | [Driver trek report](./25-driver-trek-report.md), [reports](./15-reports.md) |

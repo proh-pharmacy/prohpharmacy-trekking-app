@@ -17,7 +17,7 @@ namespace prohpharmacy_trekking_app.Migrations
                 type: "character varying(20)",
                 maxLength: 20,
                 nullable: false,
-                defaultValue: "");
+                defaultValue: "Pending");
 
             migrationBuilder.AddColumn<DateTime>(
                 name: "ApprovedAt",
@@ -44,6 +44,18 @@ namespace prohpharmacy_trekking_app.Migrations
                 type: "uuid",
                 nullable: false,
                 defaultValue: new Guid("00000000-0000-0000-0000-000000000000"));
+
+            // Development data predates invoice-backed returns and cannot be linked
+            // reliably to an original sale. Discard only returns without a valid
+            // invoice before enforcing the relationship. Down cannot restore them.
+            migrationBuilder.Sql("""
+                DELETE FROM "TrekkingTripStopReturns" AS r
+                WHERE NOT EXISTS (
+                    SELECT 1
+                    FROM "SaleInvoices" AS i
+                    WHERE i."Id" = r."SaleInvoiceId"
+                );
+                """);
 
             migrationBuilder.CreateIndex(
                 name: "IX_TrekkingTripStopReturns_ApprovalStatus",

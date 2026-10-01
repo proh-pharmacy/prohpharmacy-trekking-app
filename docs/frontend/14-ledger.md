@@ -1,5 +1,7 @@
 # 14 — Customer Ledger
 
+Return approval now creates an auto-generated Credit entry for the invoice customer, linked to the capturing trek/stop. Pending and rejected returns have no ledger impact. Approval does not amend invoice totals. Review returns after completing the trek, then refresh ledger/balance views. See [Invoice Returns & Approval](./23-invoice-returns.md).
+
 ## Overview
 
 Every customer has a ledger — a running record of debits (amounts owed) and credits (payments received). Entries come from two sources:
@@ -308,7 +310,7 @@ When a trek status is changed to `Completed` via `PATCH /api/v1/treks/{id}/statu
 3. Products with `amtPaid > 0` are grouped by `paymentMethod`. One **Credit** entry is written per unique payment method: `"Payment received (Cash) — Trek {trekNumber}"`.
 4. If total `balance > 0` across all products → one **Debit** entry is written: `"Outstanding balance — Trek {trekNumber}"` (no payment method, since the balance hasn't been paid yet).
 
-This means completing a trek is idempotent — you can re-trigger it and the ledger entries will always match the final recorded delivery data.
+Do not re-trigger completion as a reconciliation operation. The staff status handler now also deducts vehicle stock on every completion request. Rebuilding auto-generated entries can remove credits from previously approved returns; the driver completion endpoint rejects repeat completion. Complete once, then review pending returns.
 
 When a trek is `Cancelled`, all auto-generated entries linked to that trek are permanently removed.
 

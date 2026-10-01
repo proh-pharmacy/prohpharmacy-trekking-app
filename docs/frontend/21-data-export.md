@@ -1,5 +1,7 @@
 # 21 — Data Export
 
+New PDF download: `GET /api/v1/treks/driver/{token}/report/pdf` (driver token, no JWT), returning `application/pdf` named `TrekReport-{trekNumber}-{scheduledDate}.pdf`. See [Driver Trek Report](./25-driver-trek-report.md). Trekking-sheet PDFs now show return approval status and mute rejected rows. Invoice PDF rendering remains a frontend responsibility; see [Sale Invoices](./22-sale-invoices.md).
+
 ## Overview
 
 The **Data Export** section provides five download-only endpoints that package operational data as `.xlsx` files. These are distinct from the Reports section — they export raw entity data (customers, products, staff, markup rules) rather than aggregated analytics. All endpoints require authentication and respond with a file attachment.

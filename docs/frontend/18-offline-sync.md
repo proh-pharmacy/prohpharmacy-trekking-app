@@ -4,9 +4,173 @@
 
 The driver token (the UUID sent in trek assignment emails) is the sole credential for a full **field control panel**. No login, no JWT. The driver opens their unique link and gets an operational interface for their assigned trek and all active treks in their region.
 
-Because routes pass through areas with no connectivity, the control panel works **fully offline**. The driver queues actions locally and pushes them in one batch when connectivity returns.
+Because routes pass through areas with no connectivity, supported customer and delivery actions can be queued locally and pushed when connectivity returns. Customer identification details and front/back images can be captured or replaced offline: queue metadata as customer actions and persist image files separately for upload on reconnect. Invoice-based returns and live report downloads require online access.
+
+## Phase 1–5 integration boundaries (2026-10-01)
+
+- **Invoices:** `/record` now issues/updates invoices and accepts `stopInvoices` metadata; the separate `/sync` handler does not. After synchronizing delivery actions, resolve server stop/product IDs and submit the affected rows with their complete recorded values through `/record` before completing the trek. Persist the returned invoice mapping. See [Sale Invoices](./22-sale-invoices.md).
+- **Returns:** the online POST now requires `saleInvoiceId`, calculates the refund and returns `approvalStatus: "Pending"`. The legacy offline `RecordReturn` handler does not populate the required invoice FK and is incompatible with the new schema. Do not enqueue returns or use offline voiding for the new workflow. See [Invoice Returns & Approval](./23-invoice-returns.md).
+- **Access:** invoice lookup and review routes require staff JWT; the driver token cannot yet browse historical invoices. Customer identification now has driver-token routes and `RegisterCustomer` / `UpdateCustomer` sync support. Customer responses and offline seeds include all four document fields; see [identification sync](#customer-identification-offline-capture-and-sync).
+- **Completion:** now deducts tracked vehicle stock and notifies the trek creator of pending returns. Return ledger credits are created on approval, not completion.
+- **Report:** add a report view and PDF download using [Driver Trek Report](./25-driver-trek-report.md). Cached reports must show that they may be stale.
 
 ---
+
+## Customer identification: offline capture and sync
+
+The driver can create or update document type/number and capture or replace either image without connectivity. This backend supplies the metadata-sync and multipart-upload contracts; the frontend must implement the persistent queues below. No staff login is required for this driver workflow.
+
+### 1. Persist metadata and images locally
+
+For a new customer, include identification in `RegisterCustomer`. For an existing customer, use `UpdateCustomer`. When editing a customer that has not synced yet, reference the original registration action's `clientId` as `customerClientId`, and order the update after registration using `occurredAt`.
+
+```json
+{
+  "actions": [
+    {
+      "type": "RegisterCustomer",
+      "clientId": "<local-customer-guid>",
+      "occurredAt": "2026-10-01T10:00:00Z",
+      "payload": {
+        "businessName": "Accra Pharmacy Ltd",
+        "primaryPhoneNumber": "0201234567",
+        "customerType": "RetailPharmacy",
+        "idDocumentType": "PharmacyLicence",
+        "idDocumentNumber": "GH-PHARM-00234",
+        "representative": {
+          "firstName": "Ama",
+          "lastName": "Boateng",
+          "primaryPhoneNumber": "0201234567",
+          "relationshipType": "Owner"
+        }
+      }
+    },
+    {
+      "type": "UpdateCustomer",
+      "clientId": "<update-action-guid>",
+      "occurredAt": "2026-10-01T10:05:00Z",
+      "payload": {
+        "customerClientId": "<local-customer-guid>",
+        "idDocumentType": "PharmacyLicence",
+        "idDocumentNumber": "GH-PHARM-00235"
+      }
+    }
+  ]
+}
+```
+
+POST this to `/api/v1/treks/driver/{token}/sync`. For a known customer, replace `customerClientId` with `customerId`. `UpdateCustomer` resolves client IDs from the same batch or persisted registrations in the trek region; a failed registration leaves its dependent update as `Conflict`.
+
+Document rules for both action types:
+
+- Omit both fields to leave existing identification unchanged. Images are never altered by these metadata actions.
+- To set/change identification, supply both fields as non-null strings. Null, blank numbers, partial pairs and unknown/numeric enum values yield `Conflict`. Clearing identification is not supported.
+- Types: `GhanaCard`, `PharmacyLicence`, `BusinessRegistration`, `DriversLicence`, `Passport`, `Other` (case-insensitive in action sync).
+- Numbers are trimmed, must be nonempty and at most 100 characters, and are globally unique using the database's existing exact/case-sensitive comparison. Duplicate values across different customers, including pending actions within the batch, yield `Conflict`.
+- Registration replays (`AlreadySynced`, including existing-phone matches) do not apply new identification edits. Use an explicit `UpdateCustomer` action if the locally intended document differs from the matched customer's current document.
+- An invalid identification update is rejected before applying that action's other customer changes. A successful update returns `Created`, not `AlreadySynced`.
+
+Persist each image's actual `Blob`/`File` bytes in IndexedDB (or the frontend's existing durable file store), separately from the JSON action queue. A temporary `blob:` preview URL or an in-memory `File` reference alone does not survive a reload. Suggested local record:
+
+```ts
+type PendingIdImage = {
+  uploadId: string;          // local UUID/version, not an API idempotency key
+  token: string;             // retain the originating authorized driver session
+  customerId?: string;       // resolved server ID
+  customerClientId?: string; // original RegisterCustomer.clientId
+  metadataActionId?: string; // wait for this metadata action to succeed, if present
+  side: 'front' | 'back';
+  file: Blob;               // persist bytes, MIME type and filename
+  fileName: string;
+  capturedAt: string;
+  status: 'pending' | 'uploading' | 'failed';
+  attempts: number;
+};
+```
+
+Validate JPEG/PNG/WebP MIME type and `0 < file.size <= 5 * 1024 * 1024` before queuing. Keep one latest pending image per customer/side. Replacing the front must not discard a pending back image. Display a local preview and “Pending sync” until the server acknowledges that side.
+
+### 2. Sync customer metadata and resolve IDs
+
+Process action responses individually. Only `Created` or `AlreadySynced` resolves a registration to `serverId`; store that mapping durably before beginning uploads. For updates with a metadata dependency, require `Created`. A typical response is:
+
+```json
+{
+  "results": [
+    {
+      "clientId": "<local-customer-guid>",
+      "type": "RegisterCustomer",
+      "status": "Created",
+      "serverId": "<customer-guid>",
+      "personId": "<person-guid>",
+      "reason": null
+    },
+    {
+      "clientId": "<update-action-guid>",
+      "type": "UpdateCustomer",
+      "status": "Created",
+      "serverId": "<customer-guid>",
+      "personId": null,
+      "reason": null
+    }
+  ]
+}
+```
+
+Keep conflicted actions and their dependent images locally for correction. Do not upload against a guessed customer ID. If another request claims a document number between validation and saving, the endpoint returns HTTP `422` with body code `409` instead of a results array; that batch's `SaveChanges` rolls back. Keep the whole batch pending, refresh and resolve the duplicate before replaying.
+
+### 3. Upload or replace each queued image
+
+Use these routes after resolving the server customer ID:
+
+| Method | Route | Body |
+|---|---|---|
+| POST | `/api/v1/treks/driver/{token}/customers/{customerId}/id-card/front` | Multipart field `file` |
+| POST | `/api/v1/treks/driver/{token}/customers/{customerId}/id-card/back` | Multipart field `file` |
+
+```js
+async function sendIdImage(pending) {
+  if (!pending.customerId) throw new Error('Customer must sync first');
+  const form = new FormData();
+  form.append('file', pending.file, pending.fileName);
+  const response = await fetch(
+    `/api/v1/treks/driver/${pending.token}/customers/${pending.customerId}/id-card/${pending.side}`,
+    { method: 'POST', body: form }
+  );
+  const body = await response.json();
+  if (!response.ok) throw Object.assign(new Error(body.message ?? 'Upload failed'), {
+    status: response.status, code: body.code
+  });
+  return body;
+}
+```
+
+Do not set multipart `Content-Type` yourself or send a staff Bearer token. Both routes return `200`:
+
+```json
+{
+  "customerId": "<customer-guid>",
+  "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg",
+  "idCardBackUrl": null
+}
+```
+
+Both URLs are included; the non-uploaded side retains its saved value. Uploading again replaces the selected side. Images may be saved independently of document metadata, but when the user captured them as one document edit, wait for that metadata action to succeed first.
+
+The token must resolve to a trek and the customer's **account region** must match that trek. A customer appearing in the region seed only because of an additional location is not editable through these document routes. As with existing driver photo endpoints, uploads do not auto-start a trek and there is no trek-status restriction, allowing queued customer images to finish uploading after completion.
+
+Handler failures use HTTP `422` with `{ code, message }`: body `404` for an invalid token/missing or out-of-region customer; body `400` for a missing/empty file, unsupported MIME type or oversized file. Framework multipart/request-limit errors may use other statuses. Surface the message and retain the local file.
+
+### 4. Acknowledge, retry and refresh
+
+- On success, save the returned URL for the uploaded side and remove its queued file **only if `uploadId` still matches** the acknowledged version. An older upload must not remove a replacement captured while the request was running.
+- Serialize uploads for each customer/side and use a single queue worker (or cross-tab lock). After an older in-flight request completes, send any newer replacement. The server does not compare client capture times or accept an image idempotency key.
+- Persist failures and retry transient network/5xx errors with backoff on reconnect/resume. Treat body `400`/`404`/metadata conflicts as requiring correction or an authorized session, not an endless automatic retry.
+- A timeout may occur after the server saved an image. Re-uploading the same file is safe for the selected customer field, but can create another ImageKit asset; retry is not storage-level deduplication. Do not replay an obsolete queued version after a newer version succeeded.
+- Front/back uploads are independent: if one fails, retain only that pending side. Do not mark the whole document fully synced until its metadata and both requested uploads have succeeded.
+- Refresh `/api/v1/treks/driver/{token}/offline/customers?since={lastSuccessfulSync}`. All four nullable fields—`idDocumentType`, `idDocumentNumber`, `idCardFrontUrl`, `idCardBackUrl`—are now included. Preserve unsynced local edits/previews while merging server data. Persist blobs for pending images; cache remote image bytes separately if saved images must remain viewable offline.
+
+For an immediate online metadata edit, POST `/api/v1/treks/driver/{token}/customers/{customerId}/id-document` with `{ "idDocumentType": "PharmacyLicence", "idDocumentNumber": "GH-PHARM-00235" }`. It returns `200` with `{ "customerId": "<guid>", "idDocumentType": "PharmacyLicence", "idDocumentNumber": "GH-PHARM-00235" }`. It uses the same region restriction, trims the number, and rejects invalid or duplicate metadata. See [customer identification](./09-customers.md) for the staff equivalents.
 
 ## Portal Login
 
@@ -94,14 +258,19 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `PATCH` | `api/v1/customers/{id}` *(online only)* | Update an existing customer (requires auth — use `UpdateCustomer` batch action for offline) |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
-| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Record a product return at a stop |
+| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Online invoice return, initially Pending |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
-| `POST` | `api/v1/treks/driver/{token}/complete` | Mark the trek as completed (triggers ledger sync) |
+| `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |
+| `GET` | `api/v1/treks/driver/{token}/report` | Live financial and stock summary |
+| `GET` | `api/v1/treks/driver/{token}/report/pdf` | Download financial report PDF |
 | `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
 | `GET` | `api/v1/treks/driver/{token}/device` | Last known device position, battery, speed, motion |
 | `POST` | `api/v1/treks/driver/{token}/location` | Report current GPS location to Traccar |
 | `POST` | `api/v1/treks/driver/{token}/sos` | Send SOS alert via Traccar |
 | `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/premises-photo` | Upload premises photo for a customer |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/id-document` | Set/update identification type and number |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/id-card/front` | Upload/replace a queued front image |
+| `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/id-card/back` | Upload/replace a queued back image |
 | `POST` | `api/v1/treks/driver/{token}/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
 
 ---
@@ -438,63 +607,31 @@ Add a product sale at a stop that was not in the original plan. The product is r
 
 ### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns
 
-Record a product return at a stop. The returned product does not have to be from the current trek — a customer may return something from a previous delivery. Unit prices are snapshotted from the product catalogue at the time of recording.
-
-**Request body**
+Online-only invoice-based return. See [guide 23](./23-invoice-returns.md) for the complete request, response, validation and access limitations.
 
 ```json
 {
-  "productId": "...",
+  "saleInvoiceId": "<invoice-guid>",
+  "productId": "<product-guid>",
   "basicQtyReturned": 2,
   "packagingQtyReturned": null,
-  "refundAmount": 50.00,
   "refundMethod": "Cash",
   "reason": "Damaged packaging",
-  "clientGeneratedId": "<device-uuid>",
-  "gps": {
-    "latitude": 6.0835,
-    "longitude": -0.2170,
-    "accuracyMetres": 18.0
-  }
+  "gps": { "latitude": 6.0835, "longitude": -0.217, "accuracyMetres": 18 }
 }
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `productId` | Yes | |
-| `basicQtyReturned` | Yes | > 0 |
-| `packagingQtyReturned` | No | Only if product has a packaging unit |
-| `refundAmount` | No | Actual amount refunded — ≥ 0 |
-| `refundMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
-| `reason` | No | Max 500 chars |
-| `clientGeneratedId` | No | Deduplication key — idempotent |
-| `gps` | No | Optional GPS at time of return |
+Returns `201` with `returnId`, `invoiceNumber`, product ID/name, returned quantities, invoice line prices, calculated `refundAmount`, refund method, reason, `approvalStatus: "Pending"` and `recordedAt`. No unit-name fields are included in this new creation response.
 
-**Response `201 Created`**
+Do not send `refundAmount`, prices or `clientGeneratedId`; these are not part of the new command. A driver token can submit a known invoice ID in the trek region but cannot use the JWT-protected invoice lookup endpoints. Do not present invoice search as available until a driver lookup route exists.
 
-```json
-{
-  "returnId": "...",
-  "productId": "...",
-  "productName": "Paracetamol 500mg",
-  "basicUnitName": "Strips",
-  "packagingUnitName": null,
-  "basicQtyReturned": 2,
-  "packagingQtyReturned": null,
-  "basicUnitPrice": 25.00,
-  "packagingUnitPrice": null,
-  "refundAmount": 50.00,
-  "refundMethod": "Cash",
-  "reason": "Damaged packaging",
-  "recordedAt": "2026-09-17T10:45:00Z"
-}
-```
-
-**Ledger impact:** When the trek is marked `Completed`, each return with a `refundAmount > 0` generates a **Debit** entry on the customer's ledger (mirrors how deliveries generate Credit entries for payments received).
+**Ledger impact:** only approval creates a Credit for the invoice customer. Pending/rejected returns do not change the ledger.
 
 ---
 
 ### DELETE /api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}
+
+Only expose legacy voiding for pending returns on an open trek. The handler does not reverse approved ledger/stock effects. Approval/rejection is the review workflow.
 
 Void a return. Not allowed on Completed or Cancelled treks.
 
@@ -509,7 +646,8 @@ Void a return. Not allowed on Completed or Cancelled treks.
 Marks the trek as `Completed` and runs the full ledger sync in a single transaction:
 - **Credit** entries for each payment group across all stops (`amtPaid > 0`)
 - **Debit** entries for outstanding balances (`balance > 0`)
-- **Debit** entries for product return refunds (`refundAmount > 0`)
+- Returns remain pending until reviewed; completion creates no return-refund entries.
+- Tracked vehicle stock is deducted for delivered products, and the trek creator is notified of pending returns.
 
 No request body. The response is the full `TrekResponse`.
 
@@ -732,7 +870,7 @@ function getGps() {
 }
 ```
 
-**GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddCustomerLocation` (stored on new location), `UpdateCustomerLocation` (updates existing location's coordinates), `AddWalkInStop` (stored on stop), `RecordReturn` (stored on return record).
+**GPS is captured on:** `RegisterCustomer` (stored as customer location), `AddCustomerLocation` (stored on new location), `UpdateCustomerLocation` (updates existing location's coordinates), `AddWalkInStop` (stored on stop), online invoice return POST (stored on return record).
 **GPS is NOT captured on:** `UpdateCustomer`, `RecordDelivery`, or `RecordUnplannedSale` — the stop/location already has coordinates.
 **Never block an action on GPS failure.** Pass `gps: null` and the action goes through without coordinates.
 
@@ -742,7 +880,7 @@ function getGps() {
 
 ### POST /api/v1/treks/driver/{token}/sync
 
-When connectivity returns, push all queued actions in one request. Actions are processed in `occurredAt` order. Re-submitting the same batch is safe — every `clientId` is stored and duplicates return `AlreadySynced`.
+When connectivity returns, push supported queued actions in one request. Actions are processed in `occurredAt` order. Retry behavior is action-specific: some creation actions return `AlreadySynced`, while update actions reapply values. Exclude `RecordReturn` and `VoidReturn` from the new workflow. Invoice issuance requires a separate `/record` submission after sync.
 
 ### Request
 
@@ -829,28 +967,6 @@ When connectivity returns, push all queued actions in one request. Actions are p
         "amtPaid": 250.00,
         "balance": 0.00
       }
-    },
-    {
-      "type": "RecordReturn",
-      "clientId": "<device-uuid-7>",
-      "occurredAt": "2026-09-17T10:45:00Z",
-      "payload": {
-        "stopId": "<existing-server-stop-guid>",
-        "productId": "<product-guid>",
-        "basicQtyReturned": 2,
-        "refundAmount": 50.00,
-        "refundMethod": "Cash",
-        "reason": "Damaged packaging",
-        "gps": { "latitude": 6.0835, "longitude": -0.2170, "accuracyMetres": 18.0 }
-      }
-    },
-    {
-      "type": "VoidReturn",
-      "clientId": "<device-uuid-8>",
-      "occurredAt": "2026-09-17T10:46:00Z",
-      "payload": {
-        "returnClientId": "<device-uuid-7>"
-      }
     }
   ]
 }
@@ -859,6 +975,8 @@ When connectivity returns, push all queued actions in one request. Actions are p
 ### Action types and payload fields
 
 **`RegisterCustomer`**
+
+Optional identification: send `idDocumentType` and `idDocumentNumber` together, or omit both. See [identification sync](#customer-identification-offline-capture-and-sync) for validation and image queuing. A registration replay returns `AlreadySynced` without overwriting newer document values; use `UpdateCustomer` for edits.
 
 | Field | Required | Notes |
 |---|---|---|
@@ -884,7 +1002,10 @@ Updates an existing customer's account fields, primary representative, and/or GP
 
 | Field | Required | Notes |
 |---|---|---|
-| `customerId` | Yes | Server ID of the customer to update |
+| `customerId` | Either/or | Server ID of the customer to update; takes precedence when both IDs are supplied |
+| `customerClientId` | Either/or | Original `RegisterCustomer.clientId`, from the same or an earlier batch; resolved within the trek region |
+| `idDocumentType` | No | Send together with number; valid enum string from guide 09 |
+| `idDocumentNumber` | No | Send together with type; trimmed, nonempty, ≤100 characters, globally unique |
 | `businessName` | No | New business name |
 | `tradingName` | No | Send `null` to clear |
 | `primaryPhoneNumber` | No | Returns `Conflict` if the number is already used by another customer |
@@ -986,32 +1107,9 @@ The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, t
 
 **Idempotency:** the action's `clientId` is stored as `ClientGeneratedId` on the stop product. Re-submitting the same batch returns `AlreadySynced` with the existing `serverId` — no duplicate sale record is created.
 
-**`RecordReturn`**
+**Legacy `RecordReturn` / `VoidReturn` actions — do not enqueue**
 
-| Field | Required | Notes |
-|---|---|---|
-| `stopId` | Either/or | Server stop ID |
-| `stopClientId` | Either/or | Offline stop — resolved from this batch |
-| `productId` | Yes | |
-| `basicUnitPrice` | No | Resolved price shown to the driver — same lookup as `RecordUnplannedSale` |
-| `packagingUnitPrice` | No | Resolved packaging price — omit if product has no packaging unit |
-| `basicQtyReturned` | Yes | |
-| `packagingQtyReturned` | No | |
-| `refundAmount` | No | Calculated from resolved unit prices × returned quantities |
-| `refundMethod` | No | |
-| `reason` | No | Max 500 chars |
-| `gps` | No | Optional |
-
-**Pricing:** same resolution as `RecordUnplannedSale` — use `stopPriceOverrides` to find the customer-specific price, include it in the payload, and the backend stores the server-resolved price regardless.
-
-**`VoidReturn`**
-
-Cancels a return that was recorded online or offline. If `returnClientId` matches a `RecordReturn` in the **same batch**, the return is cancelled before it reaches the database — both actions cancel each other out cleanly.
-
-| Field | Required | Notes |
-|---|---|---|
-| `returnClientId` | Either/or | The `clientId` from the original `RecordReturn` action (offline or previous batch) |
-| `returnId` | Either/or | Server return ID — use when the return was recorded online |
+The server still dispatches these action names, but its return creation branch predates invoice linkage and does not assign `saleInvoiceId`. With the new required FK, it is not a usable invoice-return synchronization path. The old void branch also lacks approval reversal semantics. Use the online flow in [guide 23](./23-invoice-returns.md) and retain legacy queued returns for explicit reconciliation rather than automatically replaying them.
 
 ### Response `200 OK`
 
@@ -1023,9 +1121,7 @@ Cancels a return that was recorded online or offline. If `returnClientId` matche
     { "clientId": "...", "type": "UpdateCustomerLocation","status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "AddWalkInStop",         "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
     { "clientId": "...", "type": "RecordDelivery",        "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
-    { "clientId": "...", "type": "RecordUnplannedSale",   "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
-    { "clientId": "...", "type": "RecordReturn",          "status": "Created",      "serverId": "...", "personId": null,  "reason": null },
-    { "clientId": "...", "type": "VoidReturn",            "status": "Created",      "serverId": null,  "personId": null,  "reason": null }
+    { "clientId": "...", "type": "RecordUnplannedSale",   "status": "Created",      "serverId": "...", "personId": null,  "reason": null }
   ]
 }
 ```
@@ -1048,12 +1144,9 @@ The server processes all actions in `occurredAt` order and builds in-memory maps
 |---|---|---|
 | `customerClientMap` | `RegisterCustomer` | `AddCustomerLocation`, `AddWalkInStop` via `customerClientId` |
 | `locationClientMap` | `AddCustomerLocation` | `UpdateCustomerLocation` via `locationClientId` (same batch only) |
-| `stopClientMap` | `AddWalkInStop` | `RecordUnplannedSale` and `RecordReturn` via `stopClientId` |
-| `returnClientMap` | `RecordReturn` | `VoidReturn` via `returnClientId` |
+| `stopClientMap` | `AddWalkInStop` | `RecordUnplannedSale` via `stopClientId` |
 
-`customerClientMap`, `stopClientMap`, and `returnClientMap` also fall back to a DB lookup — so references to records created in **previous batches** resolve correctly. `locationClientMap` does **not** have a DB fallback (locations have no `clientGeneratedId` column) — use the server `locationId` from a previous batch's response when referencing locations across batches.
-
-**Same-batch `VoidReturn`:** if `returnClientId` in a `VoidReturn` payload matches a `RecordReturn` in the **same** batch, the return entity is removed from the EF change tracker before `SaveChangesAsync` runs — it is never persisted. Both actions return `Created`.
+`customerClientMap` and `stopClientMap` also fall back to a DB lookup — so references to records created in **previous batches** resolve correctly. `locationClientMap` does **not** have a DB fallback (locations have no `clientGeneratedId` column) — use the server `locationId` from a previous batch's response when referencing locations across batches.
 
 ### Offline work on other regional treks
 
@@ -1117,19 +1210,7 @@ await queueAction('RecordDelivery', {
   balance: 0.00
 });
 
-// Example — record an unplanned sale at that offline stop:
-const returnClientId = await queueAction('RecordReturn', {
-  stopId: existingStopId,
-  productId: returnedProductId,
-  basicQtyReturned: 2,
-  refundAmount: 50.00,
-  refundMethod: 'Cash',
-  reason: 'Damaged packaging',
-  gps: await getGps()
-});
-
-// Example — driver realises the return was a mistake, void it immediately:
-await queueAction('VoidReturn', { returnClientId });
+// Invoice-based returns are online-only; never add them to this queue.
 
 // Example — record an unplanned sale at the offline walk-in stop:
 // Resolve the customer-specific price first using the stopPriceOverrides seed

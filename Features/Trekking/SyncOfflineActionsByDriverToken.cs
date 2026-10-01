@@ -1,8 +1,10 @@
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Customers;
 using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Features.Customers.Enums;
 using prohpharmacy_trekking_app.Features.Trekking.Entities;
@@ -80,7 +82,7 @@ public static class SyncOfflineActionsByDriverToken
                 var result = action.Type switch
                 {
                     "RegisterCustomer"        => await ProcessRegisterCustomerAsync(action, trip, attributedStaffId, owningBranchId, customerClientMap, regionCustomerOffset, cancellationToken),
-                    "UpdateCustomer"          => await ProcessUpdateCustomerAsync(action, trip, attributedStaffId, cancellationToken),
+                    "UpdateCustomer"          => await ProcessUpdateCustomerAsync(action, trip, attributedStaffId, customerClientMap, cancellationToken),
                     "AddCustomerLocation"     => await ProcessAddCustomerLocationAsync(action, trip, attributedStaffId, customerClientMap, locationClientMap, cancellationToken),
                     "UpdateCustomerLocation"  => await ProcessUpdateCustomerLocationAsync(action, trip, locationClientMap, cancellationToken),
                     "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
@@ -93,7 +95,17 @@ public static class SyncOfflineActionsByDriverToken
                 results.Add(result);
             }
 
-            await db.SaveChangesAsync(cancellationToken);
+            try
+            {
+                await db.SaveChangesAsync(cancellationToken);
+            }
+            catch (DbUpdateException ex) when (ex.InnerException is PostgresException
+                { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_CustomerAccounts_IdDocumentNumber" })
+            {
+                // A concurrent request may claim a number after prevalidation.
+                // The batch SaveChanges transaction has rolled back; acknowledge none.
+                return Result.Failure<SyncResponse>(Error.Conflict("A document number was registered by another request. Refresh customer data and retry the batch after resolving the duplicate."));
+            }
 
             var conflicts = results.Where(r => r.Status == "Conflict").ToList();
             logger.LogInformation(
@@ -119,11 +131,14 @@ public static class SyncOfflineActionsByDriverToken
             Dictionary<Guid, int> regionCustomerOffset,
             CancellationToken ct)
         {
-            var existing = await db.CustomerAccounts
+            var existing = db.CustomerAccounts.Local.FirstOrDefault(c => c.ClientGeneratedId == action.ClientId)
+                ?? await db.CustomerAccounts
                 .Include(c => c.People.Where(p => p.IsPrimaryContact))
                 .FirstOrDefaultAsync(c => c.ClientGeneratedId == action.ClientId, ct);
             if (existing is not null)
             {
+                if (existing.RegionId != trip.RegionId)
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Customer not found in this region." };
                 customerClientMap[action.ClientId] = existing.Id;
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id, PersonId = existing.People.FirstOrDefault()?.Id };
             }
@@ -136,14 +151,23 @@ public static class SyncOfflineActionsByDriverToken
             if (string.IsNullOrWhiteSpace(businessName) || string.IsNullOrWhiteSpace(phone))
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "businessName and primaryPhoneNumber are required." };
 
-            var phoneMatch = await db.CustomerAccounts
+            var phoneMatch = db.CustomerAccounts.Local.FirstOrDefault(c => c.PrimaryPhoneNumber == phone.Trim())
+                ?? await db.CustomerAccounts
                 .Include(c => c.People.Where(p => p.IsPrimaryContact))
                 .FirstOrDefaultAsync(c => c.PrimaryPhoneNumber == phone.Trim(), ct);
             if (phoneMatch is not null)
             {
+                if (phoneMatch.RegionId != trip.RegionId)
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Phone number already registered to another customer." };
                 customerClientMap[action.ClientId] = phoneMatch.Id;
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = phoneMatch.Id, PersonId = phoneMatch.People.FirstOrDefault()?.Id };
             }
+
+            var documentError = CustomerIdDocumentInput.Read(payload, out _, out var documentType, out var documentNumber);
+            if (documentError is not null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = documentError };
+            if (documentNumber is not null && await CustomerIdDocumentInput.IsDuplicateAsync(db, Guid.Empty, documentNumber, ct))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "A customer with this document number already exists." };
 
             if (!Enum.TryParse<CustomerType>(customerTypeStr, ignoreCase: true, out var customerType))
                 customerType = CustomerType.RetailPharmacy;
@@ -171,6 +195,8 @@ public static class SyncOfflineActionsByDriverToken
                 RegisteredDuringTrekId = trip.Id,
                 ClientGeneratedId = action.ClientId,
                 CreatedOffline = true,
+                IdDocumentType = documentType,
+                IdDocumentNumber = documentNumber,
                 RecordedAt = action.OccurredAt,
                 CreatedAt = DateTime.UtcNow
             };
@@ -252,20 +278,46 @@ public static class SyncOfflineActionsByDriverToken
             OfflineAction action,
             Entities.TrekkingTrip trip,
             Guid attributedStaffId,
+            Dictionary<Guid, Guid> customerClientMap,
             CancellationToken ct)
         {
             var payload = action.Payload;
 
-            if (!payload.TryGetProperty("customerId", out var cidEl) || !Guid.TryParse(cidEl.GetString(), out var customerId))
-                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerId is required." };
+            Guid customerId;
+            if (payload.TryGetProperty("customerId", out var cidEl) && cidEl.ValueKind == System.Text.Json.JsonValueKind.String
+                && Guid.TryParse(cidEl.GetString(), out var directId))
+                customerId = directId;
+            else if (payload.TryGetProperty("customerClientId", out var clientEl)
+                && clientEl.ValueKind == System.Text.Json.JsonValueKind.String
+                && Guid.TryParse(clientEl.GetString(), out var clientId))
+            {
+                if (!customerClientMap.TryGetValue(clientId, out customerId))
+                {
+                    var resolved = await db.CustomerAccounts.AsNoTracking()
+                        .FirstOrDefaultAsync(c => c.ClientGeneratedId == clientId && c.RegionId == trip.RegionId, ct);
+                    if (resolved is null)
+                        return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerClientId could not be resolved to a customer in this region." };
+                    customerId = resolved.Id;
+                }
+            }
+            else
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "customerId or customerClientId is required." };
 
-            var account = await db.CustomerAccounts
+            var account = db.CustomerAccounts.Local.FirstOrDefault(c => c.Id == customerId && c.RegionId == trip.RegionId
+                    && db.Entry(c).State == EntityState.Added)
+                ?? await db.CustomerAccounts
                 .Include(c => c.People.Where(p => p.IsPrimaryContact && p.IsActive))
                 .Include(c => c.Locations.Where(l => l.IsPrimary))
                 .FirstOrDefaultAsync(c => c.Id == customerId && c.RegionId == trip.RegionId, ct);
 
             if (account is null)
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Customer not found in this region." };
+
+            var documentError = CustomerIdDocumentInput.Read(payload, out var documentSupplied, out var documentType, out var documentNumber);
+            if (documentError is not null)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = documentError };
+            if (documentSupplied && await CustomerIdDocumentInput.IsDuplicateAsync(db, account.Id, documentNumber!, ct))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "A customer with this document number already exists." };
 
             if (payload.TryGetProperty("businessName", out var bn) && !string.IsNullOrWhiteSpace(bn.GetString()))
                 account.BusinessName = bn.GetString()!.Trim();
@@ -288,6 +340,11 @@ public static class SyncOfflineActionsByDriverToken
                 account.PrimaryPhoneNumber = newPhone;
             }
 
+            if (documentSupplied)
+            {
+                account.IdDocumentType = documentType;
+                account.IdDocumentNumber = documentNumber;
+            }
             account.UpdatedAt = DateTime.UtcNow;
 
             if (payload.TryGetProperty("representative", out var rep) && rep.ValueKind == System.Text.Json.JsonValueKind.Object)

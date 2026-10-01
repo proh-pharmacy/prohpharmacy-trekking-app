@@ -1,5 +1,7 @@
 # 13 — Trek Operations
 
+Related feature guides: [Sale Invoices](./22-sale-invoices.md), [Invoice Returns & Approval](./23-invoice-returns.md), [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md), and [Driver Trek Report](./25-driver-trek-report.md). Completion now deducts tracked warehouse stock and notifies the creator about pending returns. Prevent repeat staff completion; it can deduct stock again.
+
 ## Overview
 
 Trek operations covers the day-to-day execution of a trekking route — from planning and dispatch through to delivery recording and ledger updates. This is separate from fleet setup (guide 10) and trek configuration (guide 11).
@@ -504,7 +506,7 @@ Starts the trek — transitions status from `Scheduled` to `InProgress`. Call th
 - **Idempotent:** returns `204 No Content` if the trek is already `InProgress` — safe to call on app launch.
 - Returns `422` if the trek is `Completed` or `Cancelled`.
 
-**Auto-start:** the driver does not need to call this explicitly. Any mutation via a driver token (record delivery, add walk-in stop, add unplanned sale, sync offline actions) will automatically start the trek as a side effect. Call this endpoint when you want an explicit "start" button that commits the driver to the route before any deliveries are recorded.
+**Auto-start:** delivery recording, adding a walk-in stop, adding an unplanned sale and offline sync start a scheduled trek as a side effect. The new invoice-return POST does not. Call this endpoint for an explicit "start" button before deliveries or returns are recorded.
 
 ### Response `204 No Content`
 
@@ -578,11 +580,14 @@ Driver submits delivery results for one or more products. Can be called multiple
   "trekId": "...",
   "trekNumber": "TRK-00001",
   "status": "InProgress",
-  "recorded": 1
+  "recorded": 1,
+  "invoices": [
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+  ]
 }
 ```
 
-> The record response is intentionally slim. After a successful submission, re-fetch the trek (`GET /api/v1/treks/driver/{token}` or `GET /api/v1/treks/{id}`) to get the updated product values and repopulate your form.
+> Persist the returned `invoices` mapping, then re-fetch the trek (`GET /api/v1/treks/driver/{token}` or `GET /api/v1/treks/{id}`) to refresh product values. Both record endpoints also accept optional `stopInvoices: [{ stopId, clientGeneratedId, recordedAt }]` for offline-origin invoice reconciliation; see [sale invoices](./22-sale-invoices.md).
 
 ### Errors
 - `404` — invalid token
@@ -618,7 +623,7 @@ Same shape and behaviour as the driver endpoint but requires authentication. Use
 
 ## How the Ledger Auto-Updates
 
-The ledger is **only updated when the trek is marked `Completed`** — not during delivery recording. This means the driver and admin can record, correct, and re-submit figures freely without affecting any customer balances until the trek is finalised.
+Delivery-related ledger entries are written when the trek is marked `Completed`, not during delivery recording. Recording now creates/updates [sale invoices](./22-sale-invoices.md) immediately. [Return approval](./23-invoice-returns.md) independently creates ledger credits; pending returns do not affect balances.
 
 When status changes to `Completed`, the backend atomically:
 
@@ -808,71 +813,51 @@ Only products with at least one difference are included — products that are up
 
 ## Recording Product Returns
 
-A return is recorded when a customer sends back stock at a stop — expired goods, damaged items, or a previous over-delivery. Returns are independent of delivery recording and can be submitted at any time while the trek is not `Completed` or `Cancelled`.
+Returns now require an invoice and are created as `Pending`. Use the [Invoice Returns & Approval guide](./23-invoice-returns.md) for the full request/response contract, list filters and review actions.
 
-### POST /api/v1/treks/{trekId}/stops/{stopId}/returns (admin)
+### POST /api/v1/treks/{trekId}/stops/{stopId}/returns (staff JWT)
 
-### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns (driver)
+### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns (driver token)
 
-### Request body
+Request (the optional `gps` object is driver-only):
 
 ```json
 {
-  "productId": "<guid>",
+  "saleInvoiceId": "<invoice-guid>",
+  "productId": "<product-guid>",
   "basicQtyReturned": 4,
   "packagingQtyReturned": 1,
-  "refundAmount": 48.00,
   "refundMethod": "Cash",
-  "reason": "Expired stock — batch EXP-2026-01",
-  "clientGeneratedId": "<guid>",
-  "gps": {
-    "latitude": 5.6037,
-    "longitude": -0.1870,
-    "accuracyMetres": 12.5
-  }
+  "reason": "Expired stock",
+  "gps": { "latitude": 5.6037, "longitude": -0.187, "accuracyMetres": 12.5 }
 }
 ```
 
-| Field | Required | Notes |
-|---|---|---|
-| `productId` | Yes | The product being returned |
-| `basicQtyReturned` | Yes | Must be > 0 |
-| `packagingQtyReturned` | No | Only meaningful when the product has a packaging unit |
-| `refundAmount` | No | Amount refunded to the customer. If omitted, the backend auto-calculates: `basicQtyReturned × basicUnitPrice + packagingQtyReturned × packagingUnitPrice`. Send an explicit value only for partial or non-standard refunds |
-| `refundMethod` | No | `Cash` `MobileMoney` `Credit` `Cheque` `BankTransfer` |
-| `reason` | No | Max 500 chars |
-| `clientGeneratedId` | No | Client-generated UUID for offline idempotency — submitting the same `clientGeneratedId` twice returns the first result instead of creating a duplicate |
-| `gps` | No | Driver endpoint only. Optional GPS coordinates at the time of recording |
+The server calculates the refund from the invoice line's basic and packaging prices. Do not send an editable refund amount, prices or `clientGeneratedId`. Basic quantity must be > 0; packaging quantity must be > 0 if supplied; reason is optional, maximum 500 characters. This flow is online-only and does not support idempotent retries.
 
-### How refund amount works
-
-Leave `refundAmount` empty in the normal case — the backend calculates it from the returned quantities and the product's snapshotted prices. Only send an explicit `refundAmount` when the customer is receiving a partial or negotiated refund.
-
-### Response `201 Created`
+Response `201 Created`:
 
 ```json
 {
-  "returnId": "...",
-  "productId": "...",
+  "returnId": "<return-guid>",
+  "invoiceNumber": "GAR-INV-00001",
+  "productId": "<product-guid>",
   "productName": "Paracetamol 500mg",
-  "basicUnitName": "Tab",
-  "packagingUnitName": "Box",
   "basicQtyReturned": 4,
   "packagingQtyReturned": 1,
-  "basicUnitPrice": 2.50,
-  "packagingUnitPrice": 60.00,
-  "refundAmount": 70.00,
+  "basicUnitPrice": 2.5,
+  "packagingUnitPrice": 60,
+  "refundAmount": 70,
   "refundMethod": "Cash",
-  "reason": "Expired stock — batch EXP-2026-01",
-  "recordedAt": "2026-09-19T10:30:00Z"
+  "reason": "Expired stock",
+  "approvalStatus": "Pending",
+  "recordedAt": "2026-10-01T10:30:00Z"
 }
 ```
 
-> `returnId` is the ID to use when voiding a return.
+Handler failures use HTTP `422`, including missing invoices/stops and closed treks. Driver recording additionally checks the invoice customer belongs to the trek region. The token-only portal cannot yet look up invoice details: existing invoice GET routes require staff JWT. Recording a return does not auto-start the trek.
 
-### Errors
-- `404` — trek, stop, or product not found
-- `422` — trek is `Completed` or `Cancelled`, validation error, or duplicate `clientGeneratedId`
+Completion notifies the trek creator of pending returns. Only approval creates a customer ledger credit and restores tracked vehicle stock; rejection has no financial or stock effect.
 
 ---
 
@@ -880,7 +865,7 @@ Leave `refundAmount` empty in the normal case — the backend calculates it from
 
 ### DELETE /api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId} (driver)
 
-Voids (permanently deletes) a return record. Blocked on `Completed` and `Cancelled` treks.
+Voids (permanently deletes) a return record. Blocked on `Completed` and `Cancelled` treks. Only offer this for pending returns: the legacy DELETE handlers do not check approval status or reverse ledger/stock effects. Use approval/rejection for review decisions.
 
 ### Response `204 No Content`
 
@@ -892,7 +877,7 @@ Voids (permanently deletes) a return record. Blocked on `Completed` and `Cancell
 
 ### Returns on the trek response
 
-Returns appear inside each stop under the `returns` array when fetching `GET /api/v1/treks/{id}` or `GET /api/v1/treks/driver/{token}`:
+Returns appear inside each stop under the `returns` array when fetching `GET /api/v1/treks/{id}` or `GET /api/v1/treks/driver/{token}`. These embedded DTOs retain the older shape below and do not include invoice or approval fields. Use the dedicated staff return lists in [guide 23](./23-invoice-returns.md) for review state:
 
 ```json
 {
@@ -919,4 +904,4 @@ Returns appear inside each stop under the `returns` array when fetching `GET /ap
 }
 ```
 
-Returns also appear on the PDF delivery sheet — each stop with returns shows a separate red-header returns table below its products table, with columns for product, unit price, qty returned, refund amount, refund method, and reason.
+Returns also appear on the PDF delivery sheet with product, quantity returned, refund amount, refund method, reason and approval status. Rejected rows are muted. The separate [driver financial report](./25-driver-trek-report.md) includes approved refunds in its totals.

@@ -1,5 +1,7 @@
 # 10 — Fleet
 
+Vehicle warehouse stocking, manual removal, stock history and per-trek allocations are covered in [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md). These are separate from vehicle/driver/device assignment.
+
 ## Endpoints
 
 | Method | Endpoint | Purpose |

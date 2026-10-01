@@ -8,7 +8,7 @@ Reference for error response shapes, status codes, and how to handle them consis
 
 ## Error Response Structure
 
-All error responses return the same two-field shape:
+Feature-handler errors generally return this two-field shape (framework binding/authentication failures may use a different or empty body):
 
 ```json
 {
@@ -19,12 +19,14 @@ All error responses return the same two-field shape:
 
 | Field | Type | Description |
 |---|---|---|
-| `code` | `string` | Mirrors the HTTP status code as a string |
+| `code` | `string` | Application error code; often a status-code string, but not necessarily the actual HTTP status |
 | `message` | `string` | Human-readable description of what went wrong |
 
 ---
 
 ## Error Types & Status Codes
+
+Check each endpoint's implementation guide for the actual HTTP status. Many mutations return `Results.UnprocessableEntity(result.Error)` for every handler failure: an HTTP `422` response can contain body `code: "404"`, `"409"`, or `"400"`. This applies to customer document mutations, warehouse mutations, trek load mutations and return mutations. Swagger `.Produces` declarations do not always match the returned result. Use HTTP status for transport/auth handling and body `message` / `code` for business feedback.
 
 | HTTP Status | `code` value | When it happens |
 |---|---|---|
@@ -165,14 +167,16 @@ if (err?.code === '404') {
 
 ## Pagination Query Params
 
-All list endpoints accept:
+Query parameters vary by endpoint; the following names are common, not universal:
 
 | Param | Type | Default | Description |
 |---|---|---|---|
 | `pageNumber` | `int` | `1` | Page to fetch |
-| `pageSize` | `int` | `20` | Items per page (max 100) |
+| `pageSize` | `int` | Endpoint-specific | Items per page; do not assume a global default or maximum |
 | `search` | `string` | — | Full-text search across key fields |
 | `sort` | `string` | — | Format: `fieldName_asc` or `fieldName_desc` |
+
+For the invoice list and vehicle stock ledger, `QueryBuilder.Paginate` only enables pagination when `pageSize` is supplied; otherwise the response is a plain array. Send explicit positive `pageNumber` and `pageSize` to obtain the envelope above. These queries do not impose a default of 20 or a maximum of 100. Vehicle stock, trek stock loads and return lists are unpaginated arrays and do not accept the generic list controls.
 
 ---
 
