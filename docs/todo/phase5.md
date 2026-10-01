@@ -66,8 +66,10 @@ This is a read-only query endpoint — no new entities needed.
 
 ---
 
-## Open questions
+## Resolved design decisions
 
-- [ ] Should this report be accessible to the driver via the driver token (unauthenticated by staff JWT), or does it require staff login?
-- [ ] Should the report be available while the trek is still `InProgress`, or only after `Completed`?
-- [ ] Does the driver need a printable/downloadable version, or is on-screen sufficient?
+| Question | Decision |
+|---|---|
+| Access | Driver token only — no staff JWT required |
+| Availability | Any trek status — live dashboard during InProgress |
+| Format | JSON endpoint for the portal dashboard + PDF endpoint for download |
