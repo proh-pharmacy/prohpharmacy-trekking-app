@@ -29,7 +29,9 @@ Verified against the implementation on 2026-10-01. A return is captured at a sto
 }
 ```
 
-`saleInvoiceId` is the invoice's `id`, not its printable number. `basicQtyReturned` must be > 0; optional `packagingQtyReturned` must be > 0 when supplied (omit or use null for no packages). `reason` is optional, maximum 500 characters. `refundMethod` is optional: `Cash`, `MobileMoney`, `Credit`, `Cheque`, `BankTransfer`. `gps` is driver-only and optional, with latitude −90…90 and longitude −180…180.
+`saleInvoiceId` is the invoice's `id`, not its printable number. On the **driver-token** route it is now **optional** — when omitted the server resolves the invoice from `stopId` (one invoice per stop). The staff route still requires it. If a stop has no invoice yet (delivery not recorded), the driver route returns `404 "No invoice exists for this stop yet. Record a delivery first."`. If `saleInvoiceId` is supplied but belongs to a different stop, the driver route returns `422 "Invoice does not belong to this stop."`. `basicQtyReturned` must be > 0; optional `packagingQtyReturned` must be > 0 when supplied (omit or use null for no packages). `reason` is optional, maximum 500 characters. `refundMethod` is optional: `Cash`, `MobileMoney`, `Credit`, `Cheque`, `BankTransfer`. `gps` is driver-only and optional, with latitude −90…90 and longitude −180…180.
+
+The driver trek detail (`GET /treks/driver/{token}`) and driver report (`GET /treks/driver/{token}/report`) now expose `invoiceId` and `invoiceNumber` on each stop row; use `invoiceId` when the frontend needs to pass `saleInvoiceId` explicitly.
 
 Do not send `refundAmount`, unit prices, or `clientGeneratedId`. The new online endpoints do not provide return idempotency; prevent double submission and reconcile an uncertain result before retrying. Refund is `basicQtyReturned × basicUnitPrice + (packagingQtyReturned ?? 0) × (packagingUnitPrice ?? 0)`.
 
@@ -119,7 +121,7 @@ After a decision, refresh return lists, customer ledger/balance, vehicle stock/l
 
 ## Integration boundaries
 
-- Invoice lookup/detail/list routes require staff JWT. The token-only driver portal cannot yet search invoices using its token. Do not send the trek token as a Bearer JWT; a driver invoice lookup route is still needed.
+- Invoice lookup/detail/list routes require staff JWT. The driver portal gets `invoiceId`/`invoiceNumber` on each stop row via `GET /treks/driver/{token}` and `.../report`, which is sufficient for recording returns against the stop's own invoice. Full driver-token invoice search/history is still not exposed.
 - Return capture is online-only for the new workflow. The old offline `RecordReturn` branch still exists but does not set the required `saleInvoiceId`; it is incompatible with the new schema. Do not queue it.
 - Neither recording handler checks that the invoice customer equals the current stop customer or caps cumulative returns at delivered quantities. Select invoices for the current customer and review quantities explicitly; backend validation is still needed for those guarantees.
 - Existing DELETE return routes remain available (see [operations](./13-trek-operations.md)), but do not reverse approval credits/stock or check approval status. Restrict void UI to pending returns on open treks; use rejection for review decisions.

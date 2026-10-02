@@ -16,7 +16,7 @@ public static class RecordStopReturnByDriverToken
     {
         public Guid Token { get; set; }
         public Guid StopId { get; set; }
-        public Guid SaleInvoiceId { get; set; }
+        public Guid? SaleInvoiceId { get; set; }
         public Guid ProductId { get; set; }
         public decimal BasicQtyReturned { get; set; }
         public decimal? PackagingQtyReturned { get; set; }
@@ -36,7 +36,6 @@ public static class RecordStopReturnByDriverToken
     {
         public Validator()
         {
-            RuleFor(x => x.SaleInvoiceId).NotEmpty();
             RuleFor(x => x.ProductId).NotEmpty();
             RuleFor(x => x.BasicQtyReturned).GreaterThan(0);
             RuleFor(x => x.PackagingQtyReturned).GreaterThan(0).When(x => x.PackagingQtyReturned.HasValue);
@@ -69,16 +68,26 @@ public static class RecordStopReturnByDriverToken
             if (stop is null)
                 return Result.Failure<RecordStopReturn.ReturnResponse>(Error.CreateNotFoundError("Stop not found on this trek."));
 
-            var invoice = await db.SaleInvoices
+            var invoiceQuery = db.SaleInvoices
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.CustomerAccount)
-                .FirstOrDefaultAsync(i => i.Id == request.SaleInvoiceId, cancellationToken);
+                .AsQueryable();
+
+            var invoice = request.SaleInvoiceId.HasValue
+                ? await invoiceQuery.FirstOrDefaultAsync(i => i.Id == request.SaleInvoiceId.Value, cancellationToken)
+                : await invoiceQuery.FirstOrDefaultAsync(i => i.TrekkingTripStopId == request.StopId, cancellationToken);
 
             if (invoice is null)
-                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.CreateNotFoundError("Invoice not found."));
+                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.CreateNotFoundError(
+                    request.SaleInvoiceId.HasValue
+                        ? "Invoice not found."
+                        : "No invoice exists for this stop yet. Record a delivery first."));
+
+            if (invoice.TrekkingTripStopId != request.StopId)
+                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.BadRequest("Invoice does not belong to this stop."));
 
             // Invoice customer must belong to the driver's trek region
             var customerInRegion = await db.CustomerAccounts
@@ -101,7 +110,7 @@ public static class RecordStopReturnByDriverToken
             var ret = new TrekkingTripStopReturn
             {
                 TrekkingTripStopId = request.StopId,
-                SaleInvoiceId = request.SaleInvoiceId,
+                SaleInvoiceId = invoice.Id,
                 ProductId = request.ProductId,
                 BasicQtyReturned = request.BasicQtyReturned,
                 PackagingQtyReturned = request.PackagingQtyReturned,
@@ -143,7 +152,7 @@ public class RecordStopReturnByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Record a product return at a stop (driver portal)")
-        .WithDescription("Online only. Creates a return against a specific invoice line item bounded to the driver's trek region. Prices sourced from the original invoice. Return is Pending until admin approves.")
+        .WithDescription("Online only. Creates a return against the invoice for this stop (one invoice per stop). `saleInvoiceId` is optional — when omitted, the invoice is resolved from `stopId`. Prices sourced from the original invoice. Return is Pending until admin approves.")
         .Produces<RecordStopReturn.ReturnResponse>(201)
         .Produces<Error>(404)
         .Produces<Error>(422)

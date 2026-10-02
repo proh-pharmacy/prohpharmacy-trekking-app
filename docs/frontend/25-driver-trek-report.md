@@ -37,6 +37,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
     {
       "sequence": 1,
       "customerName": "Accra Pharmacy Ltd",
+      "invoiceId": "<invoice-guid>",
       "invoiceNumber": "INV-GAR00001",
       "amountDue": 100,
       "amtPaid": 60,
@@ -66,7 +67,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 }
 ```
 
-`salesStaffName`, stop `invoiceNumber`, and return `refundAmount` / `refundMethod` are nullable. `paymentMethods` is always an array (empty when no payment has been received on the stop yet). Arrays may be empty. This endpoint has no pagination or filters.
+`salesStaffName`, stop `invoiceId`, stop `invoiceNumber`, and return `refundAmount` / `refundMethod` are nullable (invoice fields are null until a delivery has been recorded on the stop). `invoiceId` is the stop's invoice GUID — use it as `saleInvoiceId` when recording returns on the driver route. `paymentMethods` is always an array (empty when no payment has been received on the stop yet). Arrays may be empty. This endpoint has no pagination or filters.
 
 ## Meaning of the figures
 

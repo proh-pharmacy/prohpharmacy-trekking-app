@@ -55,6 +55,7 @@ public static class GetDriverTrekReport
     {
         public int Sequence { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public Guid? InvoiceId { get; set; }
         public string? InvoiceNumber { get; set; }
         public decimal AmountDue { get; set; }
         public decimal AmtPaid { get; set; }
@@ -172,6 +173,7 @@ public static class GetDriverTrekReport
                 {
                     Sequence     = s.Sequence,
                     CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
+                    InvoiceId    = invoice?.Id,
                     InvoiceNumber= invoice?.InvoiceNumber,
                     AmountDue    = s.Products
                                     .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
