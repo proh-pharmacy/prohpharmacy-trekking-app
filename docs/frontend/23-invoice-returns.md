@@ -8,6 +8,7 @@ Verified against the implementation on 2026-10-01. A return is captured at a sto
 |---|---|---|---|
 | POST | `/api/v1/treks/{trekId}/stops/{stopId}/returns` | Staff JWT | `201`, return response |
 | POST | `/api/v1/treks/driver/{token}/stops/{stopId}/returns` | Driver token | `201`, return response |
+| GET | `/api/v1/treks/driver/{token}/stops/{stopId}/returnable-invoices` | Driver token | `200`, invoice-list array |
 | GET | `/api/v1/treks/{trekId}/returns?approvalStatus=Pending` | Staff JWT | `200`, return-list array |
 | GET | `/api/v1/invoices/{invoiceNumber}/returns` | Staff JWT | `200`, same array |
 | POST | `/api/v1/returns/{returnId}/approve` | Staff JWT | `200`, approval response; no request body |
@@ -29,9 +30,35 @@ Verified against the implementation on 2026-10-01. A return is captured at a sto
 }
 ```
 
-`saleInvoiceId` is the invoice's `id`, not its printable number. On the **driver-token** route it is now **optional** — when omitted the server resolves the invoice from `stopId` (one invoice per stop). The staff route still requires it. If a stop has no invoice yet (delivery not recorded), the driver route returns `404 "No invoice exists for this stop yet. Record a delivery first."`. If `saleInvoiceId` is supplied but belongs to a different stop, the driver route returns `422 "Invoice does not belong to this stop."`. `basicQtyReturned` must be > 0; optional `packagingQtyReturned` must be > 0 when supplied (omit or use null for no packages). `reason` is optional, maximum 500 characters. `refundMethod` is optional: `Cash`, `MobileMoney`, `Credit`, `Cheque`, `BankTransfer`. `gps` is driver-only and optional, with latitude −90…90 and longitude −180…180.
+`saleInvoiceId` is the invoice's `id`, not its printable number. The return attaches to the current stop but may reference **any** invoice whose customer matches the stop's customer — including invoices from earlier treks. On the **driver-token** route `saleInvoiceId` is **optional** — when omitted the server uses the stop's own invoice (requires a delivery to have been recorded; otherwise `404 "No invoice exists for this stop yet. Record a delivery first."`). The staff route still requires it. If the invoice's customer does not match the stop's customer, the driver route returns `422 "Invoice does not belong to this stop's customer."`. `basicQtyReturned` must be > 0; optional `packagingQtyReturned` must be > 0 when supplied (omit or use null for no packages). `reason` is optional, maximum 500 characters. `refundMethod` is optional: `Cash`, `MobileMoney`, `Credit`, `Cheque`, `BankTransfer`. `gps` is driver-only and optional, with latitude −90…90 and longitude −180…180.
 
-The driver trek detail (`GET /treks/driver/{token}`), offline trek payload (`GET /treks/driver/{token}/offline/trek`), and driver report (`GET /treks/driver/{token}/report`) now expose `invoiceId` and `invoiceNumber` on each stop row; use `invoiceId` when the frontend needs to pass `saleInvoiceId` explicitly. The staff trek detail (`GET /treks/{trekId}`) also carries these fields.
+To let drivers pick a historical invoice, call `GET /api/v1/treks/driver/{token}/stops/{stopId}/returnable-invoices`. It returns the stop customer's invoice history (newest first) with delivered line items — use it to populate the invoice picker and then the product picker inside the selected invoice:
+
+```json
+[
+  {
+    "id": "<invoice-guid>",
+    "invoiceNumber": "INV-GAR00001",
+    "issuedAt": "2026-08-15T10:00:00Z",
+    "trekkingTripId": "<trek-guid>",
+    "trekkingTripStopId": "<original-stop-guid>",
+    "lineItems": [
+      {
+        "productId": "<product-guid>",
+        "productName": "Paracetamol 500mg",
+        "basicUnitName": "Tablet",
+        "packagingUnitName": "Box",
+        "basicQtyDelivered": 20,
+        "packagingQtyDelivered": 2,
+        "basicUnitPrice": 2.5,
+        "packagingUnitPrice": 50
+      }
+    ]
+  }
+]
+```
+
+The driver trek detail (`GET /treks/driver/{token}`), offline trek payload (`GET /treks/driver/{token}/offline/trek`), and driver report (`GET /treks/driver/{token}/report`) each expose `invoiceId` and `invoiceNumber` on the stop row — treat that as the default invoice (same-trek current stop) and let the invoice picker widen the selection to historical invoices. The staff trek detail (`GET /treks/{trekId}`) also carries these fields.
 
 Do not send `refundAmount`, unit prices, or `clientGeneratedId`. The new online endpoints do not provide return idempotency; prevent double submission and reconcile an uncertain result before retrying. Refund is `basicQtyReturned × basicUnitPrice + (packagingQtyReturned ?? 0) × (packagingUnitPrice ?? 0)`.
 
@@ -121,10 +148,10 @@ After a decision, refresh return lists, customer ledger/balance, vehicle stock/l
 
 ## Integration boundaries
 
-- Invoice lookup/detail/list routes require staff JWT. The driver portal gets `invoiceId`/`invoiceNumber` on each stop row via `GET /treks/driver/{token}` and `.../report`, which is sufficient for recording returns against the stop's own invoice. Full driver-token invoice search/history is still not exposed.
+- Invoice lookup/detail/list routes still require staff JWT. The driver portal gets `invoiceId`/`invoiceNumber` on each stop row via `GET /treks/driver/{token}`, `.../offline/trek`, and `.../report`, and the stop customer's full invoice history via `GET /treks/driver/{token}/stops/{stopId}/returnable-invoices`. That is sufficient for the return workflow; general driver-token invoice browsing (across customers) is still not exposed.
 - Return capture is online-only for the new workflow. The old offline `RecordReturn` branch still exists but does not set the required `saleInvoiceId`; it is incompatible with the new schema. Do not queue it.
-- Neither recording handler checks that the invoice customer equals the current stop customer or caps cumulative returns at delivered quantities. Select invoices for the current customer and review quantities explicitly; backend validation is still needed for those guarantees.
+- The driver-token recording handler now checks that the invoice customer equals the current stop's customer. The staff handler does not yet enforce this. Neither handler caps cumulative returns at delivered quantities — review quantities explicitly in the UI.
 - Existing DELETE return routes remain available (see [operations](./13-trek-operations.md)), but do not reverse approval credits/stock or check approval status. Restrict void UI to pending returns on open treks; use rejection for review decisions.
 - Review after completion. Completion rebuilds auto-generated stop ledger entries, which can erase a return credit approved early. Repeating staff completion also deducts warehouse stock again; it is not a safe reconciliation action.
 
-Sources: `Features/Trekking/RecordStopReturn.cs`, `RecordStopReturnByDriverToken.cs`, `ApproveReturn.cs`, `RejectReturn.cs`, `GetTrekReturns.cs`, `GetInvoiceReturns.cs`, `SyncOfflineActionsByDriverToken.cs`, `ChangeTrekStatus.cs`, `CompleteTrekByDriverToken.cs`.
+Sources: `Features/Trekking/RecordStopReturn.cs`, `RecordStopReturnByDriverToken.cs`, `GetReturnableInvoicesByDriverToken.cs`, `ApproveReturn.cs`, `RejectReturn.cs`, `GetTrekReturns.cs`, `GetInvoiceReturns.cs`, `SyncOfflineActionsByDriverToken.cs`, `ChangeTrekStatus.cs`, `CompleteTrekByDriverToken.cs`.

@@ -86,15 +86,8 @@ public static class RecordStopReturnByDriverToken
                         ? "Invoice not found."
                         : "No invoice exists for this stop yet. Record a delivery first."));
 
-            if (invoice.TrekkingTripStopId != request.StopId)
-                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.BadRequest("Invoice does not belong to this stop."));
-
-            // Invoice customer must belong to the driver's trek region
-            var customerInRegion = await db.CustomerAccounts
-                .AnyAsync(c => c.Id == invoice.CustomerAccountId && c.RegionId == trip.RegionId, cancellationToken);
-
-            if (!customerInRegion)
-                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.BadRequest("This invoice belongs to a customer outside your trek region."));
+            if (invoice.CustomerAccountId != stop.CustomerAccountId)
+                return Result.Failure<RecordStopReturn.ReturnResponse>(Error.BadRequest("Invoice does not belong to this stop's customer."));
 
             var lineItem = invoice.Stop.Products
                 .FirstOrDefault(p => p.ProductId == request.ProductId);
@@ -152,7 +145,7 @@ public class RecordStopReturnByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Record a product return at a stop (driver portal)")
-        .WithDescription("Online only. Creates a return against the invoice for this stop (one invoice per stop). `saleInvoiceId` is optional — when omitted, the invoice is resolved from `stopId`. Prices sourced from the original invoice. Return is Pending until admin approves.")
+        .WithDescription("Online only. The return attaches to the current stop but may reference any invoice (including historical ones) whose customer matches the stop's customer. `saleInvoiceId` is optional — when omitted, the stop's own invoice is used (requires that a delivery has been recorded). Use `GET /treks/driver/{token}/stops/{stopId}/returnable-invoices` to list eligible invoices. Prices sourced from the referenced invoice. Return is Pending until admin approves.")
         .Produces<RecordStopReturn.ReturnResponse>(201)
         .Produces<Error>(404)
         .Produces<Error>(422)
