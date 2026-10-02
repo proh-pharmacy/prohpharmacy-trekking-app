@@ -58,9 +58,14 @@ public static class GetOfflineTrekByDriverToken
             if (trip is null)
                 return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
+            var invoices = await db.SaleInvoices
+                .Where(i => i.TrekkingTripId == trip.Id)
+                .AsNoTracking()
+                .ToDictionaryAsync(i => i.TrekkingTripStopId, cancellationToken);
+
             var stops = trip.Stops
                 .OrderBy(s => s.Sequence)
-                .Select(s => GetTrek.Handler.MapStop(s))
+                .Select(s => GetTrek.Handler.MapStop(s, invoices.TryGetValue(s.Id, out var inv) ? inv : null))
                 .ToList();
 
             return Result.Success(CreateTrek.Handler.ToResponse(

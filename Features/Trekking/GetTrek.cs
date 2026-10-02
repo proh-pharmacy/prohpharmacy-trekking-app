@@ -62,9 +62,14 @@ public static class GetTrek
             if (trip is null)
                 return Result.Failure<TrekResponse>(Error.CreateNotFoundError("Trekking trip not found."));
 
+            var invoices = await _db.SaleInvoices
+                .Where(i => i.TrekkingTripId == trip.Id)
+                .AsNoTracking()
+                .ToDictionaryAsync(i => i.TrekkingTripStopId, cancellationToken);
+
             var stops = trip.Stops
                 .OrderBy(s => s.Sequence)
-                .Select(s => MapStop(s))
+                .Select(s => MapStop(s, invoices.TryGetValue(s.Id, out var inv) ? inv : null))
                 .ToList();
 
             bool syncRequired;
@@ -168,13 +173,15 @@ public static class GetTrek
             return basePrice;
         }
 
-        internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop)
+        internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop, Entities.SaleInvoice? invoice = null)
         {
             var primaryLocation = stop.CustomerAccount?.Locations.FirstOrDefault();
             var primaryContact = stop.CustomerAccount?.People.FirstOrDefault();
             return new TrekStopResponse
             {
                 StopId = stop.Id,
+                InvoiceId = invoice?.Id,
+                InvoiceNumber = invoice?.InvoiceNumber,
                 Sequence = stop.Sequence,
                 IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,
