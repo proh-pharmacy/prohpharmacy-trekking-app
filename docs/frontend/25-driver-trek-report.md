@@ -41,7 +41,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
       "amountDue": 100,
       "amtPaid": 60,
       "balance": 40,
-      "paymentMethod": "Cash",
+      "paymentMethods": ["Cash", "MobileMoney"],
       "returns": [
         {
           "productName": "Paracetamol 500mg",
@@ -66,7 +66,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 }
 ```
 
-`salesStaffName`, stop `invoiceNumber` / `paymentMethod`, and return `refundAmount` / `refundMethod` are nullable. Arrays may be empty. This endpoint has no pagination or filters.
+`salesStaffName`, stop `invoiceNumber`, and return `refundAmount` / `refundMethod` are nullable. `paymentMethods` is always an array (empty when no payment has been received on the stop yet). Arrays may be empty. This endpoint has no pagination or filters.
 
 ## Meaning of the figures
 
@@ -82,7 +82,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 
 Label net cash clearly: it includes MobileMoney and does not subtract MobileMoney refunds. It is not a physical-cash-only balance. Collections come from product records, so independent customer ledger payments are not included.
 
-`collectionsByMethod` contains only methods with positive paid entries, sorted by amount descending; do not expect zero-valued rows for every method. Stops are ordered by sequence; their `paymentMethod` is the first non-null product method and cannot describe a mixed-payment stop fully. Return lists show all approval states, but totals and stock reconciliation use approved returns only.
+`collectionsByMethod` contains only methods with positive paid entries, sorted by amount descending; do not expect zero-valued rows for every method. Stops are ordered by sequence. Each stop's `paymentMethods` is a de-duplicated, alphabetically-sorted list of methods actually used to pay on that stop (products with `amtPaid > 0`); render it as a chip row (e.g. `Cash · MobileMoney`) so mixed-payment stops read correctly. Return lists show all approval states, but totals and stock reconciliation use approved returns only.
 
 Each stop's `amountDue`, like the trek-level `totalSalesValue`, only counts products that have been delivered — a stop with planned-but-undelivered products shows `amountDue = 0` until the first delivery is recorded, and `amountDue − amtPaid === balance` always holds.
 

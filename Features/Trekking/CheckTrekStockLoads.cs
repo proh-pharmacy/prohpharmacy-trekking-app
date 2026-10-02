@@ -36,6 +36,7 @@ public static class CheckTrekStockLoads
         public decimal RequestedPackagingQty { get; set; }
         public decimal AvailablePackagingQty { get; set; }
         public decimal PackagingShortfall { get; set; }
+        public bool NotInVehicleCatalogue { get; set; }
     }
 
     public class CheckResult
@@ -75,12 +76,46 @@ public static class CheckTrekStockLoads
             .AsNoTracking()
             .ToListAsync(cancellationToken);
 
+        var missingProductIds = productIds
+            .Where(id => vehicleStock.All(s => s.ProductId != id))
+            .ToList();
+
+        var missingProducts = missingProductIds.Count > 0
+            ? await db.Products
+                .Include(p => p.BasicUnit)
+                .Include(p => p.PackagingUnit)
+                .Where(p => missingProductIds.Contains(p.Id))
+                .AsNoTracking()
+                .ToDictionaryAsync(p => p.Id, cancellationToken)
+            : [];
+
         var warnings = new List<StockWarning>();
 
         foreach (var item in items)
         {
             var stock = vehicleStock.FirstOrDefault(s => s.ProductId == item.ProductId);
-            if (stock is null) continue;
+            if (stock is null)
+            {
+                if (!missingProducts.TryGetValue(item.ProductId, out var product)) continue;
+
+                warnings.Add(new StockWarning
+                {
+                    ProductId = item.ProductId,
+                    ProductName = product.Name,
+                    BasicUnitId = product.BasicUnitId,
+                    BasicUnitName = product.BasicUnit?.Name ?? string.Empty,
+                    PackagingUnitId = product.PackagingUnitId,
+                    PackagingUnitName = product.PackagingUnit?.Name,
+                    RequestedBasicQty = item.BasicQty,
+                    AvailableBasicQty = 0,
+                    BasicShortfall = item.BasicQty,
+                    RequestedPackagingQty = item.PackagingQty,
+                    AvailablePackagingQty = 0,
+                    PackagingShortfall = item.PackagingQty,
+                    NotInVehicleCatalogue = true
+                });
+                continue;
+            }
 
             var basicShortfall = Math.Max(0, item.BasicQty - stock.BasicQuantityOnHand);
             var packagingShortfall = Math.Max(0, item.PackagingQty - stock.PackagingQuantityOnHand);

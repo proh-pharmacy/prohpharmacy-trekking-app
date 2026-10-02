@@ -315,7 +315,8 @@ Response:
       "basicShortfall": 25,
       "requestedPackagingQty": 6,
       "availablePackagingQty": 4,
-      "packagingShortfall": 2
+      "packagingShortfall": 2,
+      "notInVehicleCatalogue": false
     }
   ]
 }
@@ -323,13 +324,11 @@ Response:
 
 No warnings yields `{ "hasWarnings": false, "warnings": [] }`. The handler compares basic and packaging quantities independently against the matching vehicle balances and returns their unit IDs/names. A warning is returned when either unit is short; a unit with sufficient stock has a shortfall of zero. Warnings never block saving.
 
-#### Important: products outside the vehicle catalogue
+#### Products outside the vehicle catalogue
 
-The current check only evaluates products that already have a `VehicleProductStock` record for the trek's vehicle. If a submitted product is not tracked by that vehicle, the handler silently skips it and does **not** add a warning. Consequently, `hasWarnings: false` means only that no tracked product exceeded its balance; it does not prove that every submitted product belongs to the vehicle catalogue.
+If a submitted product does **not** have a `VehicleProductStock` row for the trek's vehicle, it is still returned as a warning — with `notInVehicleCatalogue: true`, `availableBasicQty: 0`, `availablePackagingQty: 0`, and shortfalls equal to the full requested quantities. Product name and unit info come from the global products catalogue. If the product ID doesn't exist in the global catalogue at all, it is silently skipped.
 
-Until the backend returns an explicit `NotTracked` warning, the frontend must compare every submitted product ID with the selected vehicle's catalogue. Use `GET /api/v1/products?vehicleId={vehicleId}` or the trek stock-load response's nullable `vehicleBasicOnHand` / `vehiclePackagingOnHand` values. Present missing products separately as **Not in vehicle catalogue** and require the user to add them to the vehicle before confirming the trek load.
-
-The intended future warning should distinguish the cases with a `warningType` such as `NotTracked` or `InsufficientStock`; this is not part of the current response contract.
+Render these warnings with a distinct label (e.g. "Not in vehicle catalogue") and require the user to add them to the vehicle before confirming the load. Warnings with `notInVehicleCatalogue: false` are regular shortfall warnings against a product the vehicle already stocks.
 
 Browser Fetch cannot send a GET body. Staff frontends should use the authenticated POST route at the same path:
 

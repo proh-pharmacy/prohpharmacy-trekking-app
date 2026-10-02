@@ -59,7 +59,7 @@ public static class GetDriverTrekReport
         public decimal AmountDue { get; set; }
         public decimal AmtPaid { get; set; }
         public decimal Balance { get; set; }
-        public string? PaymentMethod { get; set; }
+        public List<string> PaymentMethods { get; set; } = [];
         public List<ReturnReport> Returns { get; set; } = [];
     }
 
@@ -133,7 +133,9 @@ public static class GetDriverTrekReport
             var allReturns  = trip.Stops.SelectMany(s => s.Returns).ToList();
             var approvedReturns = allReturns.Where(r => r.ApprovalStatus == ReturnApprovalStatus.Approved).ToList();
 
-            var totalSales      = deliveredProducts.Sum(p => p.AmountDue ?? 0);
+            var totalSales      = deliveredProducts.Sum(p =>
+                (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
+              + (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0));
             var totalCollected  = allProducts.Sum(p => p.AmtPaid ?? 0);
             var totalOutstanding= allProducts.Sum(p => p.Balance ?? 0);
             var totalRefunds    = approvedReturns.Sum(r => r.RefundAmount ?? 0);
@@ -171,10 +173,18 @@ public static class GetDriverTrekReport
                     Sequence     = s.Sequence,
                     CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                     InvoiceNumber= invoice?.InvoiceNumber,
-                    AmountDue    = s.Products.Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue).Sum(p => p.AmountDue ?? 0),
+                    AmountDue    = s.Products
+                                    .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
+                                    .Sum(p => (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
+                                            + (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0)),
                     AmtPaid      = s.Products.Sum(p => p.AmtPaid ?? 0),
                     Balance      = s.Products.Sum(p => p.Balance ?? 0),
-                    PaymentMethod= s.Products.FirstOrDefault(p => p.PaymentMethod.HasValue)?.PaymentMethod?.ToString(),
+                    PaymentMethods = s.Products
+                                        .Where(p => p.PaymentMethod.HasValue && (p.AmtPaid ?? 0) > 0)
+                                        .Select(p => p.PaymentMethod!.Value.ToString())
+                                        .Distinct()
+                                        .OrderBy(m => m)
+                                        .ToList(),
                     Returns      = s.Returns.Select(r => new ReturnReport
                     {
                         ProductName     = r.Product?.Name ?? string.Empty,

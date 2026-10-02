@@ -218,7 +218,7 @@ public static class DriverReportPdfGenerator
                     BodyCell(table, $"GHS {stop.AmountDue:0.00}", bg, alignCenter: true);
                     BodyCell(table, $"GHS {stop.AmtPaid:0.00}", bg, alignCenter: true);
                     BodyCell(table, stop.Balance > 0 ? $"GHS {stop.Balance:0.00}" : "—", bg, alignCenter: true, color: stop.Balance > 0 ? "#b45309" : null);
-                    BodyCell(table, stop.PaymentMethod ?? "—", bg, alignCenter: true);
+                    BodyCell(table, stop.PaymentMethods.Count > 0 ? string.Join(" · ", stop.PaymentMethods) : "—", bg, alignCenter: true);
                 }
             });
         });
