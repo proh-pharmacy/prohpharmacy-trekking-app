@@ -3,6 +3,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Trekking;
@@ -28,9 +29,13 @@ public static class GetInvoiceReturns
             var returns = await db.TrekkingTripStopReturns
                 .Include(r => r.TrekkingTripStop)
                     .ThenInclude(s => s.CustomerAccount)
+                .Include(r => r.TrekkingTripStop)
+                    .ThenInclude(s => s.TrekkingTrip)
                 .Include(r => r.SaleInvoice)
                 .Include(r => r.Product)
                 .Where(r => r.SaleInvoiceId == invoice.Id)
+                .Where(r => r.ApprovalStatus != ReturnApprovalStatus.Pending
+                         || r.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Completed)
                 .AsNoTracking()
                 .OrderBy(r => r.RecordedAt)
                 .ToListAsync(cancellationToken);

@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Trekking;
@@ -42,9 +43,13 @@ public static class GetTrekReturns
             var query = db.TrekkingTripStopReturns
                 .Include(r => r.TrekkingTripStop)
                     .ThenInclude(s => s.CustomerAccount)
+                .Include(r => r.TrekkingTripStop)
+                    .ThenInclude(s => s.TrekkingTrip)
                 .Include(r => r.SaleInvoice)
                 .Include(r => r.Product)
                 .Where(r => r.TrekkingTripStop.TrekkingTripId == request.TrekId)
+                .Where(r => r.ApprovalStatus != ReturnApprovalStatus.Pending
+                         || r.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Completed)
                 .AsNoTracking();
 
             if (!string.IsNullOrWhiteSpace(request.ApprovalStatus))

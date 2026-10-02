@@ -49,6 +49,8 @@ public static class RejectReturn
             var ret = await db.TrekkingTripStopReturns
                 .Include(r => r.SaleInvoice)
                 .Include(r => r.Product)
+                .Include(r => r.TrekkingTripStop)
+                    .ThenInclude(s => s.TrekkingTrip)
                 .FirstOrDefaultAsync(r => r.Id == request.ReturnId, cancellationToken);
 
             if (ret is null)
@@ -56,6 +58,9 @@ public static class RejectReturn
 
             if (ret.ApprovalStatus != ReturnApprovalStatus.Pending)
                 return Result.Failure<RejectionResponse>(Error.BadRequest($"Return is already {ret.ApprovalStatus}."));
+
+            if (ret.TrekkingTripStop.TrekkingTrip.Status != TrekStatus.Completed)
+                return Result.Failure<RejectionResponse>(Error.BadRequest("Return can only be rejected after the recording trek has been completed."));
 
             if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
                 return Result.Failure<RejectionResponse>(

@@ -48,6 +48,9 @@ public static class ApproveReturn
             if (ret.ApprovalStatus != ReturnApprovalStatus.Pending)
                 return Result.Failure<ApprovalResponse>(Error.BadRequest($"Return is already {ret.ApprovalStatus}."));
 
+            if (ret.TrekkingTripStop.TrekkingTrip.Status != TrekStatus.Completed)
+                return Result.Failure<ApprovalResponse>(Error.BadRequest("Return can only be approved after the recording trek has been completed."));
+
             if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
                 return Result.Failure<ApprovalResponse>(
                     Error.BadRequest("Authenticated staff identity is missing or invalid."));

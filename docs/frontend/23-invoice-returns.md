@@ -159,6 +159,8 @@ Both staff GET routes return this shape:
 
 `customerName` describes the capturing stop (which equals the invoice customer, since the batch endpoint enforces the match). `approvedAt` is populated for both approval and rejection. The embedded `stops[].returns` DTOs in trek/driver detail do not include invoice or approval fields; use these dedicated staff lists for the review screen.
 
+**Pending visibility is gated by trek completion.** Both staff list routes hide `Pending` returns whose recording trek is still `Scheduled` or `InProgress`, because the driver can delete pending returns from the driver portal while the trek is active. Approved/rejected returns are always visible regardless of trek status. Expect counts/list to grow once the trek moves to `Completed`.
+
 ## Approve or reject
 
 Approval takes no body and returns:
@@ -189,7 +191,9 @@ Rejection requires `{ "reason": "Goods do not match the invoice" }` (nonempty, m
 
 Only `Pending` returns can be decided; repeated decisions return HTTP `422`. Approval creates an auto-generated customer ledger credit and adds returned quantities to the capturing trek vehicle's existing stock record. If no stock record exists, approval skips stock creation and its stock-ledger entry. Rejection has no ledger or stock effect. Neither decision updates invoice totals/status.
 
-Completion through either staff status change or the driver completion endpoint notifies the trek creator of pending returns and sends an email when the creator can be resolved. Build the review workflow after completion; the approval/rejection handlers themselves do not enforce completed status.
+**Both approve and reject require the recording trek to be `Completed`.** Attempting a decision on a return whose trek is still `Scheduled` or `InProgress` returns HTTP `422` with the message `"Return can only be approved/rejected after the recording trek has been completed."` This is the same reason the staff list routes hide pending returns before completion — drivers can still delete them during the active trek.
+
+Completion through either staff status change or the driver completion endpoint notifies the trek creator of pending returns and sends an email when the creator can be resolved. Build the review workflow after completion; the approval/rejection handlers now enforce this guard themselves.
 
 After a decision, refresh return lists, customer ledger/balance, vehicle stock/ledger and the driver report. The trek PDF displays approval status and mutes rejected rows.
 
