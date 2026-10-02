@@ -1,5 +1,6 @@
 using Carter;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
@@ -7,12 +8,15 @@ using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Trekking;
 
-public static class GetReturnableInvoicesByDriverToken
+public static class GetCustomerInvoicesByDriverToken
 {
     public class Query : IRequest<Result<List<InvoiceResponse>>>
     {
         public Guid Token { get; set; }
-        public Guid StopId { get; set; }
+        public Guid CustomerId { get; set; }
+        public DateOnly? From { get; set; }
+        public DateOnly? To { get; set; }
+        public string? InvoiceNumber { get; set; }
     }
 
     public class InvoiceResponse
@@ -22,6 +26,9 @@ public static class GetReturnableInvoicesByDriverToken
         public DateTime IssuedAt { get; set; }
         public Guid TrekkingTripId { get; set; }
         public Guid TrekkingTripStopId { get; set; }
+        public decimal TotalAmount { get; set; }
+        public decimal TotalPaid { get; set; }
+        public decimal Balance { get; set; }
         public List<LineItemResponse> LineItems { get; set; } = [];
     }
 
@@ -42,20 +49,32 @@ public static class GetReturnableInvoicesByDriverToken
     {
         public async Task<Result<List<InvoiceResponse>>> Handle(Query request, CancellationToken cancellationToken)
         {
-            var trip = await db.TrekkingTrips.AsNoTracking()
-                .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
-
-            if (trip is null)
+            var tripExists = await db.TrekkingTrips.AnyAsync(t => t.DriverToken == request.Token, cancellationToken);
+            if (!tripExists)
                 return Result.Failure<List<InvoiceResponse>>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
-            var stop = await db.TrekkingTripStops.AsNoTracking()
-                .FirstOrDefaultAsync(s => s.Id == request.StopId && s.TrekkingTripId == trip.Id, cancellationToken);
+            var query = db.SaleInvoices
+                .Where(i => i.CustomerAccountId == request.CustomerId);
 
-            if (stop is null)
-                return Result.Failure<List<InvoiceResponse>>(Error.CreateNotFoundError("Stop not found on this trek."));
+            if (request.From.HasValue)
+            {
+                var fromUtc = request.From.Value.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
+                query = query.Where(i => i.IssuedAt >= fromUtc);
+            }
 
-            var invoices = await db.SaleInvoices
-                .Where(i => i.CustomerAccountId == stop.CustomerAccountId)
+            if (request.To.HasValue)
+            {
+                var toUtc = request.To.Value.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+                query = query.Where(i => i.IssuedAt <= toUtc);
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.InvoiceNumber))
+            {
+                var term = request.InvoiceNumber.Trim();
+                query = query.Where(i => i.InvoiceNumber != null && EF.Functions.ILike(i.InvoiceNumber, $"%{term}%"));
+            }
+
+            var invoices = await query
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product)
@@ -75,6 +94,9 @@ public static class GetReturnableInvoicesByDriverToken
                 IssuedAt           = i.IssuedAt,
                 TrekkingTripId     = i.TrekkingTripId,
                 TrekkingTripStopId = i.TrekkingTripStopId,
+                TotalAmount        = i.TotalAmount,
+                TotalPaid          = i.TotalPaid,
+                Balance            = i.Balance,
                 LineItems = i.Stop.Products
                     .Where(p => p.BasicQtyDelivered.HasValue || p.PackagingQtyDelivered.HasValue)
                     .Select(p => new LineItemResponse
@@ -95,25 +117,31 @@ public static class GetReturnableInvoicesByDriverToken
     }
 }
 
-public class GetReturnableInvoicesByDriverTokenEndpoint : ICarterModule
+public class GetCustomerInvoicesByDriverTokenEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("api/v1/treks/driver/{token:guid}/stops/{stopId:guid}/returnable-invoices",
-            async (Guid token, Guid stopId, ISender sender) =>
+        app.MapGet("api/v1/treks/driver/{token:guid}/customers/{customerId:guid}/invoices",
+            async (Guid token, Guid customerId, ISender sender,
+                [FromQuery] DateOnly? from,
+                [FromQuery] DateOnly? to,
+                [FromQuery] string? invoiceNumber) =>
             {
-                var result = await sender.Send(new GetReturnableInvoicesByDriverToken.Query
+                var result = await sender.Send(new GetCustomerInvoicesByDriverToken.Query
                 {
                     Token = token,
-                    StopId = stopId
+                    CustomerId = customerId,
+                    From = from,
+                    To = to,
+                    InvoiceNumber = invoiceNumber
                 });
                 return result.IsFailure ? Results.NotFound(result.Error) : Results.Ok(result.Value);
             })
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
-        .WithSummary("List returnable invoices for the stop's customer (driver portal)")
-        .WithDescription("Returns the stop customer's invoice history across all treks, ordered newest first, with delivered line items. Use these invoices when recording a return on the current stop.")
-        .Produces<List<GetReturnableInvoicesByDriverToken.InvoiceResponse>>(200)
+        .WithSummary("List a customer's invoices for returns (driver portal)")
+        .WithDescription("Returns the customer's invoice history, newest first, with delivered line items for the invoice picker. Supports `from` / `to` date filters and case-insensitive `invoiceNumber` substring search.")
+        .Produces<List<GetCustomerInvoicesByDriverToken.InvoiceResponse>>(200)
         .Produces<Error>(404)
         .AllowAnonymous();
     }

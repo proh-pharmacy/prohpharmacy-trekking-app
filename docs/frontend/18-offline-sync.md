@@ -9,7 +9,7 @@ Because routes pass through areas with no connectivity, supported customer and d
 ## Phase 1–5 integration boundaries (2026-10-01)
 
 - **Invoices:** `/record` now issues/updates invoices and accepts `stopInvoices` metadata; the separate `/sync` handler does not. After synchronizing delivery actions, resolve server stop/product IDs and submit the affected rows with their complete recorded values through `/record` before completing the trek. Persist the returned invoice mapping. See [Sale Invoices](./22-sale-invoices.md).
-- **Returns:** the online POST calculates the refund and returns `approvalStatus: "Pending"`. Returns attach to the current stop but may reference any invoice whose customer matches the stop's customer (including historical invoices from earlier treks). On the driver-token route `saleInvoiceId` is optional — omit it and the server uses the stop's own invoice. The offline trek payload carries `invoiceId` / `invoiceNumber` on each stop as the default, and `GET /treks/driver/{token}/stops/{stopId}/returnable-invoices` exposes the customer's full invoice history for the invoice picker. The legacy offline `RecordReturn` handler is still incompatible with the new schema — do not enqueue returns or use offline voiding. See [Invoice Returns & Approval](./23-invoice-returns.md).
+- **Returns:** the driver portal uses a customer-first batch endpoint `POST /treks/driver/{token}/returns` — pick a customer, pick an invoice (`GET /treks/driver/{token}/customers/{customerId}/invoices`), submit one or more products with quantities. The batch auto-adds a walk-in stop when the customer is not on the current trek and returns are Pending until admin approves. The old stop-scoped driver return routes have been removed. Return capture remains online-only; the legacy offline `RecordReturn` handler is incompatible with the new schema — do not enqueue returns or use offline voiding. See [Invoice Returns & Approval](./23-invoice-returns.md).
 - **Access:** invoice lookup and review routes require staff JWT; the driver token cannot yet browse historical invoices. Customer identification now has driver-token routes and `RegisterCustomer` / `UpdateCustomer` sync support. Customer responses and offline seeds include all four document fields; see [identification sync](#customer-identification-offline-capture-and-sync).
 - **Completion:** now deducts tracked vehicle stock and notifies the trek creator of pending returns. Return ledger credits are created on approval, not completion.
 - **Report:** add a report view and PDF download using [Driver Trek Report](./25-driver-trek-report.md). Cached reports must show that they may be stale.
@@ -258,7 +258,8 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `PATCH` | `api/v1/customers/{id}` *(online only)* | Update an existing customer (requires auth — use `UpdateCustomer` batch action for offline) |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
-| `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | Online invoice return, initially Pending |
+| `GET` | `api/v1/treks/driver/{token}/customers/{customerId}/invoices` | List a customer's invoices for the return picker (optional `from`, `to`, `invoiceNumber`) |
+| `POST` | `api/v1/treks/driver/{token}/returns` | Customer-focused batch return, initially Pending; auto-adds a walk-in stop if needed |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
 | `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |
 | `GET` | `api/v1/treks/driver/{token}/report` | Live financial and stock summary |
@@ -606,25 +607,22 @@ Add a product sale at a stop that was not in the original plan. The product is r
 
 ---
 
-### POST /api/v1/treks/driver/{token}/stops/{stopId}/returns
+### POST /api/v1/treks/driver/{token}/returns
 
-Online-only invoice-based return. See [guide 23](./23-invoice-returns.md) for the complete request, response, validation and access limitations.
+Online-only customer-focused batch return. See [guide 23](./23-invoice-returns.md) for the complete request, response, invoice-listing endpoint, validation and access limitations.
 
 ```json
 {
+  "customerAccountId": "<customer-guid>",
   "saleInvoiceId": "<invoice-guid>",
-  "productId": "<product-guid>",
-  "basicQtyReturned": 2,
-  "packagingQtyReturned": null,
-  "refundMethod": "Cash",
-  "reason": "Damaged packaging",
+  "items": [
+    { "productId": "<product-guid>", "basicQtyReturned": 2, "refundMethod": "Cash", "reason": "Damaged packaging" }
+  ],
   "gps": { "latitude": 6.0835, "longitude": -0.217, "accuracyMetres": 18 }
 }
 ```
 
-Returns `201` with `returnId`, `invoiceNumber`, product ID/name, returned quantities, invoice line prices, calculated `refundAmount`, refund method, reason, `approvalStatus: "Pending"` and `recordedAt`. No unit-name fields are included in this new creation response.
-
-Do not send `refundAmount`, prices or `clientGeneratedId`; these are not part of the new command. A driver token can submit a known invoice ID in the trek region but cannot use the JWT-protected invoice lookup endpoints. Do not present invoice search as available until a driver lookup route exists.
+Returns `201` with `stopId`, `stopWasAutoAdded`, and a `returns[]` array (one entry per item). The server auto-adds a walk-in stop when the customer is not already on the current trek. Do not send `refundAmount`, unit prices, or `clientGeneratedId`.
 
 **Ledger impact:** only approval creates a Credit for the invoice customer. Pending/rejected returns do not change the ledger.
 
