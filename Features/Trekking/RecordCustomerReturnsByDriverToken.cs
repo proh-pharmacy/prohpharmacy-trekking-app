@@ -94,6 +94,14 @@ public static class RecordCustomerReturnsByDriverToken
             if (invoice.CustomerAccountId != request.CustomerAccountId)
                 return Result.Failure<BatchReturnResponse>(Error.BadRequest("Invoice does not belong to the selected customer."));
 
+            var invoiceTripStatus = await db.TrekkingTrips
+                .Where(t => t.Id == invoice.TrekkingTripId)
+                .Select(t => (TrekStatus?)t.Status)
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (invoiceTripStatus != TrekStatus.Completed)
+                return Result.Failure<BatchReturnResponse>(Error.BadRequest("Returns can only be recorded against invoices from completed treks."));
+
             var stop = trip.Stops.FirstOrDefault(s => s.CustomerAccountId == request.CustomerAccountId);
             var stopWasAutoAdded = false;
 

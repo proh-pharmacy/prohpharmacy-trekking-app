@@ -1,6 +1,8 @@
 # 23 — Invoice Returns and Approval
 
-Verified against the implementation on 2026-10-02. Returns are **customer-first**: the driver picks any customer in their region, picks one of that customer's invoices (any trek), picks one or more products with quantities, and submits a batch. All returns in a batch attach to the customer's stop on the current trek — the stop is auto-added as a walk-in if the customer is not already on the trek. New returns are `Pending`. Prices and refund amounts come from the invoice's stop-product prices.
+Verified against the implementation on 2026-10-02. Returns are **customer-first**: the driver picks any customer in their region, picks one of that customer's invoices from a **completed** trek, picks one or more products with quantities, and submits a batch. All returns in a batch attach to the customer's stop on the current trek — the stop is auto-added as a walk-in if the customer is not already on the trek. New returns are `Pending`. Prices and refund amounts come from the invoice's stop-product prices.
+
+Only invoices whose originating trek has status `Completed` are returnable. Invoices from active (`Scheduled`, `InProgress`) or `Cancelled` treks are filtered out of the invoice list and rejected if submitted directly.
 
 ## Routes and access
 
@@ -124,7 +126,7 @@ Response `201`:
 | HTTP | Body code | When |
 |---|---|---|
 | `404` | `404` | token invalid, invoice not found |
-| `422` | `400` | trek is `Completed`/`Cancelled`, invoice customer ≠ `customerAccountId`, a product in `items` is not on the invoice |
+| `422` | `400` | current trek is `Completed`/`Cancelled`, invoice customer ≠ `customerAccountId`, invoice is not from a completed trek, a product in `items` is not on the invoice |
 | `422` | `422` | validation (empty items, non-positive quantities, oversized `reason`) |
 
 The batch is atomic — if any item fails, nothing is saved.

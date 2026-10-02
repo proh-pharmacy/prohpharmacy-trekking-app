@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Trekking;
@@ -53,8 +54,13 @@ public static class GetCustomerInvoicesByDriverToken
             if (!tripExists)
                 return Result.Failure<List<InvoiceResponse>>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
+            var completedTripIds = db.TrekkingTrips
+                .Where(t => t.Status == TrekStatus.Completed)
+                .Select(t => t.Id);
+
             var query = db.SaleInvoices
-                .Where(i => i.CustomerAccountId == request.CustomerId);
+                .Where(i => i.CustomerAccountId == request.CustomerId
+                         && completedTripIds.Contains(i.TrekkingTripId));
 
             if (request.From.HasValue)
             {
