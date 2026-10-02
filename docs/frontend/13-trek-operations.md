@@ -51,7 +51,6 @@ Draft and Scheduled treks can be deleted at any time. Once a trek is InProgress 
 | `GET` | `api/v1/treks/driver/{token}/sheet/pdf` | None | Driver downloads delivery sheet PDF |
 | `POST` | `api/v1/treks/driver/{token}/record` | None | Driver records deliveries |
 | `POST` | `api/v1/treks/{trekId}/stops/{stopId}/returns` | Required | Admin records a product return at a stop |
-| `DELETE` | `api/v1/treks/{trekId}/stops/{stopId}/returns/{returnId}` | Required | Admin voids a return |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/returns` | None | Driver records a product return |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | None | Driver voids a return |
 
@@ -861,11 +860,9 @@ Completion notifies the trek creator of pending returns. Only approval creates a
 
 ---
 
-### DELETE /api/v1/treks/{trekId}/stops/{stopId}/returns/{returnId} (admin)
-
 ### DELETE /api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId} (driver)
 
-Voids (permanently deletes) a return record. Blocked on `Completed` and `Cancelled` treks. Only offer this for pending returns: the legacy DELETE handlers do not check approval status or reverse ledger/stock effects. Use approval/rejection for review decisions.
+Voids (permanently deletes) a return record from the driver portal. Blocked on `Completed` and `Cancelled` treks. There is no admin equivalent: admin review happens after the recording trek is `Completed`, and the review workflow uses `/approve` or `/reject` — not deletion. The handler does not check approval status or reverse ledger/stock effects, so drivers should only use this on their own pending captures before the trek is closed.
 
 ### Response `204 No Content`
 

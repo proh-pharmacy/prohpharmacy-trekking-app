@@ -203,7 +203,7 @@ After a decision, refresh return lists, customer ledger/balance, vehicle stock/l
 - Return capture is online-only. The legacy offline `RecordReturn` handler is incompatible with the new schema — do not queue it.
 - Walk-in stops auto-added by the batch endpoint have no products, zero deliveries, and only returns. They appear in the trek detail with `isWalkIn: true` and empty `products: []`.
 - Neither recording handler caps cumulative returns at delivered quantities — review quantities explicitly in the UI.
-- Existing DELETE return routes remain available (see [operations](./13-trek-operations.md)), but do not reverse approval credits/stock or check approval status. Restrict void UI to pending returns on open treks; use rejection for review decisions.
+- The driver portal still has a DELETE route for voiding its own pending captures on open treks (see [operations](./13-trek-operations.md)); the admin equivalent has been removed. Admin review uses `/approve` or `/reject` — not deletion.
 - Review after completion. Completion rebuilds auto-generated stop ledger entries, which can erase a return credit approved early. Repeating staff completion also deducts warehouse stock again; it is not a safe reconciliation action.
 - The staff route `POST /api/v1/treks/{trekId}/stops/{stopId}/returns` still records a single return against a specific stop + invoice. The driver portal no longer uses the stop-scoped flow — the batch customer-focused route is the only driver return endpoint.
 
