@@ -19,7 +19,10 @@ using prohpharmacy_trekking_app.Services.Traccar;
 using prohpharmacy_trekking_app.Middlewares;
 using prohpharmacy_trekking_app.Providers;
 using prohpharmacy_trekking_app.Utilities;
+using QuestPDF.Infrastructure;
 using Scalar.AspNetCore;
+
+QuestPDF.Settings.License = LicenseType.Community;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Host.UseSerilog((ctx, lc) => lc

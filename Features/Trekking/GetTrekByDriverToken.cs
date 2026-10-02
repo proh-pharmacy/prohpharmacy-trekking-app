@@ -32,6 +32,8 @@ public static class GetTrekByDriverToken
     public class DriverStopResponse
     {
         public Guid StopId { get; set; }
+        public Guid? InvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
         public int Sequence { get; set; }
         public bool IsWalkIn { get; set; }
         public string CustomerName { get; set; } = string.Empty;
@@ -132,6 +134,11 @@ public static class GetTrekByDriverToken
             if (trip is null)
                 return Result.Failure<DriverTrekResponse>(Error.CreateNotFoundError("Trek not found. The link may be invalid."));
 
+            var invoices = await db.SaleInvoices
+                .Where(i => i.TrekkingTripId == trip.Id)
+                .AsNoTracking()
+                .ToDictionaryAsync(i => i.TrekkingTripStopId, cancellationToken);
+
             return Result.Success(new DriverTrekResponse
             {
                 TrekId = trip.Id,
@@ -148,9 +155,12 @@ public static class GetTrekByDriverToken
                 {
                     var loc = s.CustomerAccount?.Locations.FirstOrDefault();
                     var contact = s.CustomerAccount?.People.FirstOrDefault();
+                    invoices.TryGetValue(s.Id, out var invoice);
                     return new DriverStopResponse
                     {
                         StopId = s.Id,
+                        InvoiceId = invoice?.Id,
+                        InvoiceNumber = invoice?.InvoiceNumber,
                         Sequence = s.Sequence,
                         IsWalkIn = s.IsWalkIn,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,

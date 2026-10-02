@@ -88,6 +88,28 @@ public class EmailService : IEmailService
         }
     }
 
+    public async Task SendPendingReturnsNotificationAsync(string to, PendingReturnsNotificationEmailModel model)
+    {
+        try
+        {
+            var templatePath = Path.Combine(Directory.GetCurrentDirectory(), "Templates", "PendingReturnsEmail.cshtml");
+
+            var response = await _factory.Create()
+                .To(to)
+                .Subject($"Action Required — {model.PendingReturnCount} Pending Return(s) on Trek {model.TrekNumber}")
+                .UsingTemplateFromFile(templatePath, model)
+                .SendAsync(CancellationToken.None);
+
+            if (!response.Successful)
+                _logger.LogWarning("Failed to send pending returns notification to {Email}: {Errors}",
+                    to, string.Join(", ", response.ErrorMessages));
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error sending pending returns notification to {Email}", to);
+        }
+    }
+
     public async Task SendStaffWelcomeEmailAsync(string to, StaffWelcomeEmailModel model)
     {
         try

@@ -96,6 +96,23 @@ public static class AddUnplannedStopProductByDriverToken
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Product not found."));
 
             var hasPackaging = product.PackagingUnitId.HasValue;
+            var pkgDelivered = hasPackaging ? request.PackagingQtyDelivered : null;
+            var pkgPrice = hasPackaging ? product.PackagingUnitPrice : null;
+            var amountDue = request.BasicQtyDelivered * product.BasicUnitPrice
+                + (pkgDelivered ?? 0) * (pkgPrice ?? 0);
+
+            decimal? amtPaid;
+            decimal? balance;
+            if (request.AmtPaid is null && (request.BasicQtyDelivered > 0 || (pkgDelivered ?? 0) > 0))
+            {
+                amtPaid = amountDue;
+                balance = 0;
+            }
+            else
+            {
+                amtPaid = request.AmtPaid;
+                balance = request.Balance;
+            }
 
             var stopProduct = new TrekkingTripStopProduct
             {
@@ -104,12 +121,13 @@ public static class AddUnplannedStopProductByDriverToken
                 PlannedBasicQuantity = 0,
                 PlannedPackagingQuantity = null,
                 BasicUnitPrice = product.BasicUnitPrice,
-                PackagingUnitPrice = hasPackaging ? product.PackagingUnitPrice : null,
+                PackagingUnitPrice = pkgPrice,
                 BasicQtyDelivered = request.BasicQtyDelivered,
-                PackagingQtyDelivered = hasPackaging ? request.PackagingQtyDelivered : null,
+                PackagingQtyDelivered = pkgDelivered,
+                AmountDue = amountDue,
                 PaymentMethod = request.PaymentMethod,
-                AmtPaid = request.AmtPaid,
-                Balance = request.Balance,
+                AmtPaid = amtPaid,
+                Balance = balance,
                 IsUnplanned = true,
                 Notes = request.Notes?.Trim(),
                 DeliveredAt = DateTime.UtcNow

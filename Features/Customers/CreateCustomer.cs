@@ -72,6 +72,10 @@ public static class CreateCustomer
         public Guid? ClientGeneratedId { get; set; }
         public bool CreatedOffline { get; set; }
         public string? PremisesPhotoUrl { get; set; }
+        public string? IdDocumentType { get; set; }
+        public string? IdDocumentNumber { get; set; }
+        public string? IdCardFrontUrl { get; set; }
+        public string? IdCardBackUrl { get; set; }
         public DateTime RecordedAt { get; set; }
         public DateTime CreatedAt { get; set; }
         public DateTime? UpdatedAt { get; set; }
@@ -287,6 +291,10 @@ public static class CreateCustomer
             ClientGeneratedId = account.ClientGeneratedId,
             CreatedOffline = account.CreatedOffline,
             PremisesPhotoUrl = account.PremisesPhotoUrl,
+            IdDocumentType = account.IdDocumentType?.ToString(),
+            IdDocumentNumber = account.IdDocumentNumber,
+            IdCardFrontUrl = account.IdCardFrontUrl,
+            IdCardBackUrl = account.IdCardBackUrl,
             RecordedAt = account.RecordedAt,
             CreatedAt = account.CreatedAt,
             UpdatedAt = account.UpdatedAt,

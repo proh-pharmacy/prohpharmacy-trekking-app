@@ -52,8 +52,10 @@ public static class OverrideStopProductPrice
 
             product.BasicUnitPrice = request.BasicUnitPrice;
             product.PackagingUnitPrice = request.PackagingUnitPrice;
-            product.AmountDue = product.PlannedBasicQuantity * request.BasicUnitPrice
-                              + (product.PlannedPackagingQuantity ?? 0) * (request.PackagingUnitPrice ?? 0);
+            var basicQty = product.BasicQtyDelivered ?? product.PlannedBasicQuantity;
+            var pkgQty = product.PackagingQtyDelivered ?? product.PlannedPackagingQuantity ?? 0;
+            product.AmountDue = basicQty * request.BasicUnitPrice
+                              + pkgQty * (request.PackagingUnitPrice ?? 0);
 
             trip.UpdatedAt = DateTime.UtcNow;
             await db.SaveChangesAsync(cancellationToken);

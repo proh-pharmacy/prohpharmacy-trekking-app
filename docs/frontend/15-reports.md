@@ -1,5 +1,7 @@
 # 15 — Reports
 
+The token-based per-trek JSON/PDF financial report is documented separately in [Driver Trek Report](./25-driver-trek-report.md). It works at any trek status and includes collections, approved refunds and basic-unit stock reconciliation. Its sales figure uses planned `amountDue`; it is not an invoice-total report.
+
 ## Overview
 
 Three report modules, each with a raw JSON endpoint (for building tables/charts) and an Excel export endpoint (for download). All endpoints require authentication.

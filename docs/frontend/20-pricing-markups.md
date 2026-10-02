@@ -31,7 +31,7 @@ The following endpoints already return markup-adjusted prices — no frontend ch
 | `POST api/v1/treks/{id}/stops` | Stop product prices are snapshotted with markup applied |
 | `POST api/v1/treks/{id}/sync-prices` | Resyncs to current catalog with markup applied |
 | `GET api/v1/treks/{id}/price-diff` | `catalogBasicUnitPrice` reflects the adjusted price |
-| `GET api/v1/treks/driver/{token}/offline/products` | Product prices include region markup for the trek's region |
+| `GET api/v1/treks/driver/{token}/offline/products` | Vehicle-scoped catalogue; product prices include region markup for the trek's region |
 
 > Customer markup is applied at trek stop creation time (when the customer is known). The offline product catalog uses region markup only, since no customer is selected yet.
 

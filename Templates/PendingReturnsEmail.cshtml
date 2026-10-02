@@ -1,0 +1,78 @@
+@model prohpharmacy_trekking_app.Services.Email.PendingReturnsNotificationEmailModel
+@{ Layout = "_Layout.cshtml"; }
+
+<p style="margin:0 0 26px;font-size:14.5px;color:#64748b;line-height:1.65;font-weight:400;">
+  Trek <strong style="color:#64748b;font-weight:600;">@Model.TrekNumber</strong> has been completed with <strong style="color:#64748b;font-weight:600;">@Model.PendingReturnCount pending return(s)</strong> awaiting your approval.
+</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="border:1.5px solid #00bf6f;border-radius:4px;background-color:#f2faf5;margin-bottom:28px;">
+  <tr>
+    <td class="card-cell" style="padding:24px 24px 18px;">
+
+      <p style="margin:0 0 16px;font-size:16px;font-weight:600;color:#64748b;">
+        Trek Details
+      </p>
+
+      <table width="100%" cellpadding="0" cellspacing="0" border="0" style="width:100%;border-collapse:collapse;margin-bottom:20px;">
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;width:36%;">
+            Trek Number
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:600;">
+            @Model.TrekNumber
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">
+            Completed Date
+          </td>
+          <td style="padding:10px 8px;border-bottom:1px solid #e2f0e8;font-size:13.5px;color:#64748b;font-weight:500;">
+            @Model.CompletedDate
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:10px 8px;font-size:13.5px;color:#64748b;font-weight:500;">
+            Pending Returns
+          </td>
+          <td style="padding:10px 8px;font-size:13.5px;color:#1e293b;font-weight:600;">
+            @Model.PendingReturnCount
+          </td>
+        </tr>
+      </table>
+
+      <div style="border-top:1px solid #d6ece0;margin:4px 0 18px;"></div>
+
+      <table width="100%" cellpadding="0" cellspacing="0" border="0">
+        <tr>
+          <td class="btn-label" valign="middle" style="font-size:13px;color:#64748b;">
+            Review and approve or reject each return.
+          </td>
+          <td class="btn-action" align="right" valign="middle">
+            <a href="@Model.ReviewUrl"
+               style="display:inline-block;padding:9px 22px;background-color:#00bf6f;color:#ffffff;text-decoration:none;font-size:13.5px;font-weight:500;border-radius:3px;">
+              Review Returns
+            </a>
+          </td>
+        </tr>
+      </table>
+
+    </td>
+  </tr>
+</table>
+
+<p style="margin:0 0 20px;font-size:13px;color:#64748b;line-height:1.6;">
+  If the button above does not work, copy and paste this link into your browser:<br/>
+  <a href="@Model.ReviewUrl" style="color:#00bf6f;text-decoration:none;word-break:break-all;">@Model.ReviewUrl</a>
+</p>
+
+<table width="100%" cellpadding="0" cellspacing="0" border="0"
+       style="background-color:#fff8f8;border-radius:4px;margin-bottom:8px;">
+  <tr>
+    <td style="padding:11px 14px;">
+      <p style="margin:0;font-size:13px;color:#b91c1c;line-height:1.5;font-weight:400;">
+        <span style="font-weight:500;">Note:</span> Returns remain pending until you explicitly approve or reject them. No refunds or ledger credits are applied until approval.
+      </p>
+    </td>
+  </tr>
+</table>

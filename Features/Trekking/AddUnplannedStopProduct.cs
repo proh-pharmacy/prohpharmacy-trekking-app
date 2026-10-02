@@ -73,6 +73,8 @@ public static class AddUnplannedStopProduct
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Product not found."));
 
             var hasPackaging = product.PackagingUnitId.HasValue;
+            var pkgDelivered = hasPackaging ? request.PackagingQtyDelivered : null;
+            var pkgPrice = hasPackaging ? product.PackagingUnitPrice : null;
 
             var stopProduct = new TrekkingTripStopProduct
             {
@@ -81,9 +83,10 @@ public static class AddUnplannedStopProduct
                 PlannedBasicQuantity = 0,
                 PlannedPackagingQuantity = null,
                 BasicUnitPrice = product.BasicUnitPrice,
-                PackagingUnitPrice = hasPackaging ? product.PackagingUnitPrice : null,
+                PackagingUnitPrice = pkgPrice,
                 BasicQtyDelivered = request.BasicQtyDelivered,
-                PackagingQtyDelivered = hasPackaging ? request.PackagingQtyDelivered : null,
+                PackagingQtyDelivered = pkgDelivered,
+                AmountDue = request.BasicQtyDelivered * product.BasicUnitPrice + (pkgDelivered ?? 0) * (pkgPrice ?? 0),
                 PaymentMethod = request.PaymentMethod,
                 AmtPaid = request.AmtPaid,
                 Balance = request.Balance,

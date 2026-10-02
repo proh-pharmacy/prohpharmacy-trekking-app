@@ -28,6 +28,8 @@ public static class SyncCustomerBatch
         public string? TradingName { get; set; }
         public string? WhatsAppNumber { get; set; }
         public Guid? RegisteredDuringTrekId { get; set; }
+        public CustomerIdDocumentType? IdDocumentType { get; set; }
+        public string? IdDocumentNumber { get; set; }
         public RepresentativeDto Representative { get; set; } = new();
         public LocationDto Location { get; set; } = new();
 
@@ -176,7 +178,9 @@ public static class SyncCustomerBatch
                 ClientGeneratedId = item.ClientGeneratedId,
                 CreatedOffline = true,
                 RecordedAt = item.RecordedAt,
-                CreatedAt = DateTime.UtcNow
+                CreatedAt = DateTime.UtcNow,
+                IdDocumentType = item.IdDocumentType,
+                IdDocumentNumber = item.IdDocumentNumber?.Trim()
             };
 
             var person = new CustomerPerson

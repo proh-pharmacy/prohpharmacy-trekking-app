@@ -4,6 +4,7 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Customers;
 using prohpharmacy_trekking_app.Features.Customers.Entities;
 using prohpharmacy_trekking_app.Features.Customers.Enums;
 using prohpharmacy_trekking_app.Shared;
@@ -21,6 +22,8 @@ public static class CreateCustomerByDriverToken
         public string PrimaryPhoneNumber { get; set; } = string.Empty;
         public string? TradingName { get; set; }
         public string? WhatsAppNumber { get; set; }
+        public CustomerIdDocumentType? IdDocumentType { get; set; }
+        public string? IdDocumentNumber { get; set; }
         public Guid? ClientGeneratedId { get; set; }
         public Guid? DistrictId { get; set; }
         public string? StreetAddress { get; set; }
@@ -85,19 +88,6 @@ public static class CreateCustomerByDriverToken
             if (!validation.IsValid)
                 return Result.Failure<CustomerResponse>(Error.ValidationError(validation));
 
-            if (request.ClientGeneratedId.HasValue)
-            {
-                var duplicate = await _db.CustomerAccounts
-                    .FirstOrDefaultAsync(c => c.ClientGeneratedId == request.ClientGeneratedId, cancellationToken);
-                if (duplicate is not null)
-                    return Result.Success(BuildResponse(duplicate));
-            }
-
-            var phoneExists = await _db.CustomerAccounts
-                .AnyAsync(c => c.PrimaryPhoneNumber == request.PrimaryPhoneNumber.Trim(), cancellationToken);
-            if (phoneExists)
-                return Result.Failure<CustomerResponse>(Error.Conflict("A customer with this phone number already exists."));
-
             var trip = await _db.TrekkingTrips
                 .Include(t => t.Driver)
                 .Include(t => t.SalesStaff)
@@ -105,6 +95,32 @@ public static class CreateCustomerByDriverToken
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
             if (trip is null)
                 return Result.Failure<CustomerResponse>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
+
+            if (request.ClientGeneratedId.HasValue)
+            {
+                var duplicate = await _db.CustomerAccounts
+                    .FirstOrDefaultAsync(c => c.ClientGeneratedId == request.ClientGeneratedId, cancellationToken);
+                if (duplicate is not null)
+                {
+                    if (duplicate.RegionId != trip.RegionId)
+                        return Result.Failure<CustomerResponse>(Error.CreateNotFoundError("Customer not found in this trek's region."));
+                    return Result.Success(BuildResponse(duplicate));
+                }
+            }
+
+            var phoneExists = await _db.CustomerAccounts
+                .AnyAsync(c => c.PrimaryPhoneNumber == request.PrimaryPhoneNumber.Trim(), cancellationToken);
+            if (phoneExists)
+                return Result.Failure<CustomerResponse>(Error.Conflict("A customer with this phone number already exists."));
+
+            if (request.IdDocumentType.HasValue || request.IdDocumentNumber is not null)
+            {
+                var error = CustomerIdDocumentInput.Validate(request.IdDocumentType, request.IdDocumentNumber);
+                if (error is not null)
+                    return Result.Failure<CustomerResponse>(new Error("422", error));
+                if (await CustomerIdDocumentInput.IsDuplicateAsync(_db, Guid.Empty, request.IdDocumentNumber!.Trim(), cancellationToken))
+                    return Result.Failure<CustomerResponse>(Error.Conflict("A customer with this document number already exists."));
+            }
 
             var attributedStaffId = trip.SalesStaffId ?? trip.DriverStaffId;
             var attributedStaff = trip.SalesStaff ?? trip.Driver;
@@ -124,6 +140,8 @@ public static class CreateCustomerByDriverToken
                 RegionId = region.Id,
                 PrimaryPhoneNumber = request.PrimaryPhoneNumber.Trim(),
                 WhatsAppNumber = request.WhatsAppNumber?.Trim(),
+                IdDocumentType = request.IdDocumentType,
+                IdDocumentNumber = request.IdDocumentNumber?.Trim(),
                 OwningBranchId = owningBranchId,
                 RegistrationStatus = RegistrationStatus.Active,
                 RegisteredByStaffId = attributedStaffId,
@@ -197,6 +215,10 @@ public static class CreateCustomerByDriverToken
                 RegisteredDuringTrekId = account.RegisteredDuringTrekId,
                 ClientGeneratedId = account.ClientGeneratedId,
                 CreatedOffline = account.CreatedOffline,
+                IdDocumentType = account.IdDocumentType?.ToString(),
+                IdDocumentNumber = account.IdDocumentNumber,
+                IdCardFrontUrl = account.IdCardFrontUrl,
+                IdCardBackUrl = account.IdCardBackUrl,
                 RecordedAt = account.RecordedAt,
                 CreatedAt = account.CreatedAt,
                 PrimaryPerson = new CustomerPersonResponse
@@ -236,6 +258,10 @@ public static class CreateCustomerByDriverToken
             RegionId = account.RegionId,
             ClientGeneratedId = account.ClientGeneratedId,
             CreatedOffline = account.CreatedOffline,
+            IdDocumentType = account.IdDocumentType?.ToString(),
+            IdDocumentNumber = account.IdDocumentNumber,
+            IdCardFrontUrl = account.IdCardFrontUrl,
+            IdCardBackUrl = account.IdCardBackUrl,
             RecordedAt = account.RecordedAt,
             CreatedAt = account.CreatedAt
         };

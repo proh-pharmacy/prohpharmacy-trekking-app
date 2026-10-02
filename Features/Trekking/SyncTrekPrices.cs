@@ -142,8 +142,10 @@ public static class SyncTrekPrices
 
                     if (changed)
                     {
-                        sp.AmountDue = (sp.PlannedBasicQuantity * sp.BasicUnitPrice)
-                                     + ((sp.PlannedPackagingQuantity ?? 0) * (sp.PackagingUnitPrice ?? 0));
+                        var basicQty = sp.BasicQtyDelivered ?? sp.PlannedBasicQuantity;
+                        var pkgQty = sp.PackagingQtyDelivered ?? sp.PlannedPackagingQuantity ?? 0;
+                        sp.AmountDue = (basicQty * sp.BasicUnitPrice)
+                                     + (pkgQty * (sp.PackagingUnitPrice ?? 0));
                         response.ProductsUpdated++;
                         anyChanged = true;
                     }

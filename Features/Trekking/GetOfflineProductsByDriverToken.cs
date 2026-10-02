@@ -13,6 +13,7 @@ public static class GetOfflineProductsByDriverToken
     {
         public Guid Token { get; set; }
         public DateTime? Since { get; set; }
+        public bool All { get; set; }
     }
 
     public class OfflineProductsBundle
@@ -34,6 +35,7 @@ public static class GetOfflineProductsByDriverToken
         public string? PackagingUnitName { get; set; }
         public Guid? PackagingUnitId { get; set; }
         public bool IsActive { get; set; }
+        public bool InVehicleCatalogue { get; set; }
     }
 
     public class OfflineStopProductPrice
@@ -52,10 +54,19 @@ public static class GetOfflineProductsByDriverToken
             if (trip is null)
                 return Result.Failure<OfflineProductsBundle>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
+            var catalogueProductIds = await db.VehicleProductStocks
+                .Where(s => s.VehicleId == trip.VehicleId)
+                .Select(s => s.ProductId)
+                .ToListAsync(cancellationToken);
+            var catalogueSet = new HashSet<Guid>(catalogueProductIds);
+
             var query = db.Products
                 .Include(p => p.BasicUnit)
                 .Include(p => p.PackagingUnit)
                 .AsNoTracking();
+
+            if (!request.All)
+                query = query.Where(p => catalogueSet.Contains(p.Id));
 
             if (request.Since.HasValue)
                 query = query.Where(p => p.CreatedAt >= request.Since.Value || (p.UpdatedAt.HasValue && p.UpdatedAt >= request.Since.Value));
@@ -87,7 +98,8 @@ public static class GetOfflineProductsByDriverToken
                 BasicUnitId = p.BasicUnitId,
                 PackagingUnitName = p.PackagingUnit?.Name,
                 PackagingUnitId = p.PackagingUnitId,
-                IsActive = p.IsActive
+                IsActive = p.IsActive,
+                InVehicleCatalogue = catalogueSet.Contains(p.Id)
             }).ToList();
 
             // Build per-stop price overrides for stops whose customer has markup rules
@@ -172,9 +184,9 @@ public class GetOfflineProductsByDriverTokenEndpoint : ICarterModule
     public void AddRoutes(IEndpointRouteBuilder app)
     {
         app.MapGet("api/v1/treks/driver/{token:guid}/offline/products",
-            async (Guid token, DateTime? since, ISender sender) =>
+            async (Guid token, DateTime? since, bool? all, ISender sender) =>
             {
-                var result = await sender.Send(new GetOfflineProductsByDriverToken.Query { Token = token, Since = since });
+                var result = await sender.Send(new GetOfflineProductsByDriverToken.Query { Token = token, Since = since, All = all ?? false });
                 return result.IsFailure
                     ? Results.NotFound(result.Error)
                     : Results.Ok(result.Value);
@@ -182,7 +194,7 @@ public class GetOfflineProductsByDriverTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Get product catalogue for offline use (driver portal)")
-        .WithDescription("Returns full product catalogue. Pass ?since=ISO8601 to get only records modified after that timestamp.")
+        .WithDescription("Returns products scoped to the trek vehicle's warehouse catalogue by default (products with a VehicleProductStock record on the trek's vehicle, regardless of current quantity). Pass ?all=true to return the full catalogue. Every product carries an `inVehicleCatalogue` flag so the UI can mark non-vehicle items. Pass ?since=ISO8601 to get only records modified after that timestamp.")
         .Produces<GetOfflineProductsByDriverToken.OfflineProductsBundle>(200)
         .Produces<Error>(404)
         .AllowAnonymous();

@@ -15,6 +15,9 @@
 | `DELETE` | `api/v1/customers/{customerId}/locations/{locationId}` | Delete a location |
 | `POST` | `api/v1/customers/{customerId}/people/{personId}/portrait` | Upload representative portrait |
 | `POST` | `api/v1/customers/{customerId}/premises-photo` | Upload business premises photo |
+| `POST` | `api/v1/customers/{customerId}/id-document` | Set institution document type and number |
+| `POST` | `api/v1/customers/{customerId}/id-card/front` | Upload document front image |
+| `POST` | `api/v1/customers/{customerId}/id-card/back` | Upload document back image |
 | `POST` | `api/v1/customers/sync` | Batch sync offline-created customers |
 | `GET` | `api/v1/customers/markups` | Get all customer markup rules (across all customers) |
 | `GET` | `api/v1/customers/{customerId}/markups` | Get markup rules for a specific customer |
@@ -24,6 +27,95 @@
 ---
 
 ## Enum Reference
+
+### `idDocumentType`
+`GhanaCard` `PharmacyLicence` `BusinessRegistration` `DriversLicence` `Passport` `Other`
+
+## Institution ID documents (Phase 1, verified 2026-10-01)
+
+These fields describe the institution/customer account's document, independently of the representative's `ghanaCardNumber`. The three staff endpoints below require a Bearer JWT and use the account's server ID. Staff online create/update requests have not gained document fields; save the customer first, then use these dedicated endpoints. Driver-token equivalents and offline sync are documented under “Read-back and driver offline sync” below.
+
+### POST /api/v1/customers/{customerId}/id-document
+
+Request:
+
+```json
+{
+  "idDocumentType": "PharmacyLicence",
+  "idDocumentNumber": "GH-PHARM-00234"
+}
+```
+
+Response `200 OK`:
+
+```json
+{
+  "customerId": "<customer-guid>",
+  "idDocumentType": "PharmacyLicence",
+  "idDocumentNumber": "GH-PHARM-00234"
+}
+```
+
+Require a known enum and a nonempty document number of at most 100 characters in the form. Numbers are unique across customer accounts. The handler checks for an exact duplicate; it does not trim the online number. A validator declaring the length/nonempty rules exists, but this handler does not invoke it and there is no global validation pipeline enforcing it. Do not describe those rules as guaranteed server validation.
+
+Handler failures return HTTP `422`, including missing customers (`code: "404"`) and duplicate numbers (`code: "409"`, message `A customer with this document number already exists.`).
+
+### POST /api/v1/customers/{customerId}/id-card/front or /id-card/back
+
+Use multipart form data with field name `file`. Accepted MIME types are `image/jpeg`, `image/png`, `image/webp`; maximum size is 5 × 1024 × 1024 bytes. The two images are independently optional and replace the stored URL on subsequent uploads.
+
+```js
+const form = new FormData();
+form.append('file', selectedFile);
+const response = await fetch(`/api/v1/customers/${customerId}/id-card/front`, {
+  method: 'POST',
+  headers: { Authorization: `Bearer ${accessToken}` },
+  body: form,
+});
+// Let the browser set the multipart Content-Type and boundary.
+```
+
+Front response `200 OK`:
+
+```json
+{
+  "customerId": "<customer-guid>",
+  "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg"
+}
+```
+
+Back response `200 OK`:
+
+```json
+{
+  "customerId": "<customer-guid>",
+  "idCardBackUrl": "https://ik.imagekit.io/example/customers/id-cards/back.jpg"
+}
+```
+
+Handler failures use HTTP `422`: missing customer has body code `404`; invalid type/size has body code `400`. No document/image deletion endpoint is implemented.
+
+### Read-back and driver offline sync
+
+Customer GET/list, driver registration responses and the driver offline customer seed now expose nullable `idDocumentType`, `idDocumentNumber`, `idCardFrontUrl`, and `idCardBackUrl`. Document/image changes update `updatedAt`, so the next `offline/customers?since=...` delta includes the customer. Use these fields to prefill the edit form and show existing front/back images. Unset values are null.
+
+The staff `POST /api/v1/customers/sync` item DTO accepts optional `idDocumentType` and `idDocumentNumber` (the number is trimmed). The driver `/sync` now also accepts those fields in `RegisterCustomer` and `UpdateCustomer` actions, and online driver registration accepts the pair. In driver actions, omit both to leave them unchanged; when setting/replacing identification, send both non-null fields. The driver flow validates enum names, a trimmed nonempty number up to 100 characters, and uniqueness including pending writes in the same batch. Validation failures return an action-level `Conflict` with `reason`.
+
+Drivers capture images offline into a persistent local Blob/File queue, then send them after customer metadata sync succeeds and resolves the server ID. Do not put image bytes or image URLs in the JSON action payload. The following driver-token routes require no staff JWT and restrict changes to customers whose account region matches the trek:
+
+| Method | Driver route | Purpose |
+|---|---|---|
+| POST | `/api/v1/treks/driver/{token}/customers/{customerId}/id-document` | Set/update type and number, same response shape as the staff endpoint |
+| POST | `/api/v1/treks/driver/{token}/customers/{customerId}/id-card/front` | Upload/replace front image, multipart `file` |
+| POST | `/api/v1/treks/driver/{token}/customers/{customerId}/id-card/back` | Upload/replace back image, multipart `file` |
+
+Both driver image endpoints return `200` with `{ "customerId": "<guid>", "idCardFrontUrl": "<url-or-null>", "idCardBackUrl": "<url-or-null>" }`. Only the selected side changes; the other URL is preserved. The same size/MIME limits as the staff endpoints apply, and empty files are rejected. Handler failures return HTTP `422` with body code `404` for an invalid token/out-of-region customer or `400` for invalid images. Driver metadata validation uses body `422`, duplicate numbers use body `409`. See [Driver identification offline workflow](./18-offline-sync.md#customer-identification-offline-capture-and-sync) for queue dependencies, retries, replacement rules and full examples.
+
+The phase notes propose document requirements when leaving Draft for certain customer types. That transition validation is not implemented; current customer creation still defaults to `Active`. Present document capture without claiming registration is blocked by those proposed rules.
+
+Sources: `Features/Customers/SetCustomerIdDocument.cs`, `UploadCustomerIdCardFront.cs`, `UploadCustomerIdCardBack.cs`, `SyncCustomerBatch.cs`, `CreateCustomer.cs`.
+
+## Other customer enums
 
 ### `customerType`
 `RetailPharmacy` `WholesalePharmacy` `OTCMedicineSeller` `Clinic` `Hospital` `ChemicalShop` `LicensedHealthFacility` `Other`
@@ -165,6 +257,36 @@ function getCustomerIcon(customerType) {
 
 ### Response `200 OK` — `PaginatedData<CustomerResponse>`
 
+Each item in `data` uses the same complete shape as `GET /api/v1/customers/{id}`, including the nullable identification fields:
+
+```json
+{
+  "totalCount": 1,
+  "totalPages": 1,
+  "currentPage": 1,
+  "pageSize": 20,
+  "nextPageUrl": null,
+  "previousPageUrl": null,
+  "path": "https://api.example.com/api/v1/customers?pageNumber=1&pageSize=20",
+  "links": [
+    "https://api.example.com/api/v1/customers?pageNumber=1&pageSize=20"
+  ],
+  "data": [
+    {
+      "id": "<customer-guid>",
+      "customerCode": "GAR-00001",
+      "businessName": "Accra Pharmacy Ltd",
+      "idDocumentType": "PharmacyLicence",
+      "idDocumentNumber": "GH-PHARM-00234",
+      "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg",
+      "idCardBackUrl": "https://ik.imagekit.io/example/customers/id-cards/back.jpg"
+    }
+  ]
+}
+```
+
+The item above is abbreviated to highlight the new fields; all existing `CustomerResponse` properties are still returned. Any identification field that has not been captured is `null`. As with other `QueryBuilder` lists, send `pageSize` to receive the pagination envelope; without it the endpoint returns a plain array of the same customer objects.
+
 ---
 
 ## GET /api/v1/customers/{id}
@@ -190,6 +312,10 @@ function getCustomerIcon(customerType) {
   "registeredDuringTrekId": null,
   "createdOffline": false,
   "premisesPhotoUrl": "https://ik.imagekit.io/prohpharmacy/customers/premises/abc.jpg",
+  "idDocumentType": "PharmacyLicence",
+  "idDocumentNumber": "GH-PHARM-00234",
+  "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg",
+  "idCardBackUrl": "https://ik.imagekit.io/example/customers/id-cards/back.jpg",
   "recordedAt": "2026-09-09T10:00:00Z",
   "createdAt": "2026-09-09T10:00:00Z",
   "updatedAt": null,

@@ -53,6 +53,14 @@ public static class ExportCustomerLedger
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
 
+            var stopIds = entries.Where(e => e.TrekkingTripStopId.HasValue)
+                                 .Select(e => e.TrekkingTripStopId!.Value)
+                                 .Distinct()
+                                 .ToList();
+            var invoiceNumbersByStop = await db.SaleInvoices
+                .Where(i => stopIds.Contains(i.TrekkingTripStopId) && i.InvoiceNumber != null)
+                .ToDictionaryAsync(i => i.TrekkingTripStopId, i => i.InvoiceNumber!, cancellationToken);
+
             var totalDebits = entries.Where(e => e.EntryType == LedgerEntryType.Debit).Sum(e => e.Amount);
             var totalCredits = entries.Where(e => e.EntryType == LedgerEntryType.Credit).Sum(e => e.Amount);
             var balance = totalDebits - totalCredits;
@@ -66,10 +74,10 @@ public static class ExportCustomerLedger
 
             using var package = new ExcelPackage();
             var ws = package.Workbook.Worksheets.Add("Ledger Statement");
-            ws.Cells["A:H"].Style.Font.Name = "Calibri";
+            ws.Cells["A:I"].Style.Font.Name = "Calibri";
 
             // ── Customer info block ──────────────────────────────────────────
-            ws.Cells["A1:H1"].Merge = true;
+            ws.Cells["A1:I1"].Merge = true;
             ws.Cells["A1"].Value = "Proh Pharmacy — Customer Ledger Statement";
             ws.Cells["A1"].Style.Font.Bold = true;
             ws.Cells["A1"].Style.Font.Size = 14;
@@ -102,7 +110,7 @@ public static class ExportCustomerLedger
 
             // ── Column headers ───────────────────────────────────────────────
             int headerRow = 9;
-            var headers = new[] { "DATE", "TYPE", "PAYMENT METHOD", "DESCRIPTION", "TREK NO.", "DEBIT (GHS)", "CREDIT (GHS)", "RECORDED BY" };
+            var headers = new[] { "DATE", "TYPE", "PAYMENT METHOD", "DESCRIPTION", "TREK NO.", "INVOICE NO.", "DEBIT (GHS)", "CREDIT (GHS)", "RECORDED BY" };
 
             for (int c = 0; c < headers.Length; c++)
             {
@@ -142,29 +150,33 @@ public static class ExportCustomerLedger
                 Cell(3, entry.PaymentMethod ?? "—");
                 Cell(4, entry.Description);
                 Cell(5, entry.TrekkingTrip?.TrekNumber ?? "—");
+                Cell(6, entry.TrekkingTripStopId.HasValue
+                        && invoiceNumbersByStop.TryGetValue(entry.TrekkingTripStopId.Value, out var inv)
+                            ? inv
+                            : "—");
 
                 if (entry.EntryType == LedgerEntryType.Debit)
                 {
-                    ws.Cells[r, 6].Value = entry.Amount;
-                    ws.Cells[r, 6].Style.Numberformat.Format = "#,##0.00";
-                    ws.Cells[r, 6].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-                    ws.Cells[r, 6].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
-                    if (isAlt) { ws.Cells[r, 6].Style.Fill.PatternType = ExcelFillStyle.Solid; ws.Cells[r, 6].Style.Fill.BackgroundColor.SetColor(lightGray); }
-                    ws.Cells[r, 6].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
-                    Cell(7, null);
-                }
-                else
-                {
-                    Cell(6, null);
                     ws.Cells[r, 7].Value = entry.Amount;
                     ws.Cells[r, 7].Style.Numberformat.Format = "#,##0.00";
                     ws.Cells[r, 7].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
-                    ws.Cells[r, 7].Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                    ws.Cells[r, 7].Style.Font.Color.SetColor(Color.FromArgb(185, 28, 28));
                     if (isAlt) { ws.Cells[r, 7].Style.Fill.PatternType = ExcelFillStyle.Solid; ws.Cells[r, 7].Style.Fill.BackgroundColor.SetColor(lightGray); }
                     ws.Cells[r, 7].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
+                    Cell(8, null);
+                }
+                else
+                {
+                    Cell(7, null);
+                    ws.Cells[r, 8].Value = entry.Amount;
+                    ws.Cells[r, 8].Style.Numberformat.Format = "#,##0.00";
+                    ws.Cells[r, 8].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
+                    ws.Cells[r, 8].Style.Font.Color.SetColor(Color.FromArgb(21, 128, 61));
+                    if (isAlt) { ws.Cells[r, 8].Style.Fill.PatternType = ExcelFillStyle.Solid; ws.Cells[r, 8].Style.Fill.BackgroundColor.SetColor(lightGray); }
+                    ws.Cells[r, 8].Style.Border.BorderAround(ExcelBorderStyle.Thin, borderColor);
                 }
 
-                Cell(8, entry.CreatedBy?.FullName ?? "—");
+                Cell(9, entry.CreatedBy?.FullName ?? "—");
             }
 
             // ── Summary block ────────────────────────────────────────────────
@@ -172,13 +184,13 @@ public static class ExportCustomerLedger
 
             void SummaryRow(int row, string label, decimal value, bool highlight = false)
             {
-                ws.Cells[row, 1, row, 5].Merge = true;
+                ws.Cells[row, 1, row, 6].Merge = true;
                 ws.Cells[row, 1].Value = label;
                 ws.Cells[row, 1].Style.Font.Bold = true;
                 ws.Cells[row, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
                 ws.Cells[row, 1].Style.Font.Color.SetColor(slateText);
 
-                var cell = ws.Cells[row, highlight ? 6 : 7];
+                var cell = ws.Cells[row, highlight ? 7 : 8];
                 cell.Value = value;
                 cell.Style.Font.Bold = true;
                 cell.Style.Numberformat.Format = "#,##0.00";
@@ -192,12 +204,12 @@ public static class ExportCustomerLedger
             SummaryRow(summaryRow, "Total Debits:", totalDebits, highlight: true);
             SummaryRow(summaryRow + 1, "Total Credits:", totalCredits);
 
-            ws.Cells[summaryRow + 2, 1, summaryRow + 2, 5].Merge = true;
+            ws.Cells[summaryRow + 2, 1, summaryRow + 2, 6].Merge = true;
             ws.Cells[summaryRow + 2, 1].Value = "Outstanding Balance:";
             ws.Cells[summaryRow + 2, 1].Style.Font.Bold = true;
             ws.Cells[summaryRow + 2, 1].Style.HorizontalAlignment = ExcelHorizontalAlignment.Right;
             ws.Cells[summaryRow + 2, 1].Style.Font.Color.SetColor(darkSlate);
-            var balCell = ws.Cells[summaryRow + 2, 6, summaryRow + 2, 7];
+            var balCell = ws.Cells[summaryRow + 2, 7, summaryRow + 2, 8];
             balCell.Merge = true;
             balCell.Value = balance;
             balCell.Style.Font.Bold = true;

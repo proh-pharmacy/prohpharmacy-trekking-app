@@ -21,7 +21,7 @@ Every product has a **basic unit** (required) and an optional **packaging unit**
 
 | Method | Endpoint | Purpose |
 |---|---|---|
-| `GET` | `api/v1/products` | List all products (paginated, searchable) |
+| `GET` | `api/v1/products` | List products; optionally include, require, or exclude a vehicle's stock catalogue |
 | `POST` | `api/v1/products` | Create a product |
 | `POST` | `api/v1/products/import` | Bulk import products from Excel |
 | `PUT` | `api/v1/products/{id}` | Update a product |
@@ -136,8 +136,89 @@ No request body. Toggles `isActive` between `true` and `false`.
 | `pageNumber` | `int` | Omit for all results |
 | `pageSize` | `int` | Omit for all results |
 | `isActive` | `bool` | `true` = active only, `false` = inactive only |
+| `vehicleId` | `guid` | Return only products with a stock record for this vehicle |
+| `inStockOnly` | `bool` | Requires `vehicleId`. When `true`, require positive basic or packaging stock; default `false` |
+| `excludeVehicleStock` | `bool` | Requires `vehicleId`. When `true`, return catalogue products with no stock record for that vehicle; default `false` |
 
-### Response `200 OK` — `PaginatedData<ProductResponse>`
+### Vehicle filter behaviour
+
+| Request | Products returned | `vehicleStock` |
+|---|---|---|
+| No `vehicleId` | All matching catalogue products | `null` |
+| `vehicleId={id}` | Products already tracked by the vehicle, including zero-balance rows | Current stock summary |
+| `vehicleId={id}&inStockOnly=true` | Tracked products where either basic or packaging quantity is greater than zero | Current stock summary |
+| `vehicleId={id}&excludeVehicleStock=true` | Products not yet tracked by the vehicle | `null` |
+
+Use `excludeVehicleStock=true` for the **Add product to vehicle** picker. Use `inStockOnly=true` where the user must select something currently available on the vehicle. Use `vehicleId` alone for catalogue management because it keeps zero-balance products visible.
+
+### Response `200 OK` — `PaginatedData<ProductListResponse>` when paginated
+
+Send both `pageNumber` and `pageSize` for the pagination envelope shown below. If pagination is omitted, the query builder returns the matching product array directly.
+
+Without `vehicleId`, the endpoint behaves as before and `vehicleStock` is `null`. With `vehicleId`, every returned item has its stock summary. A product with a vehicle stock record and zero balances is still returned unless `inStockOnly=true`.
+
+```http
+GET /api/v1/products?vehicleId=<vehicle-guid>&inStockOnly=true&isActive=true&pageNumber=1&pageSize=20
+```
+
+```json
+{
+  "totalCount": 1,
+  "totalPages": 1,
+  "currentPage": 1,
+  "pageSize": 20,
+  "nextPageUrl": null,
+  "previousPageUrl": null,
+  "path": "https://api.example.com/api/v1/products?vehicleId=<vehicle-guid>&inStockOnly=true&pageNumber=1&pageSize=20",
+  "links": [
+    "https://api.example.com/api/v1/products?vehicleId=<vehicle-guid>&inStockOnly=true&pageNumber=1&pageSize=20"
+  ],
+  "data": [
+    {
+      "id": "<product-guid>",
+      "name": "Paracetamol 500mg",
+      "description": "Pain relief tablets",
+      "basicUnitId": "<unit-guid>",
+      "basicUnitName": "Tablet",
+      "basicUnitPrice": 2.5,
+      "packagingUnitId": "<unit-guid>",
+      "packagingUnitName": "Box",
+      "packagingUnitPrice": 60,
+      "isActive": true,
+      "createdAt": "2026-10-01T10:00:00Z",
+      "updatedAt": null,
+      "vehicleStock": {
+        "stockId": "<stock-guid>",
+        "basicQuantityOnHand": 100,
+        "packagingQuantityOnHand": 4,
+        "lowStockThreshold": 20,
+        "isLowStock": false,
+        "updatedAt": "2026-10-01T12:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+`inStockOnly=true` considers the product available when either quantity is greater than zero. It does not use trek stock-load allocations. Existing filters (`search`, `isActive`, sorting and pagination) combine with the vehicle filters.
+
+To populate an “add a new product to this vehicle” picker without losing server-side pagination, request:
+
+```http
+GET /api/v1/products?vehicleId=<vehicle-guid>&excludeVehicleStock=true&isActive=true&pageNumber=1&pageSize=20
+```
+
+This returns only catalogue products that have no `VehicleProductStock` record for the selected vehicle. Their `vehicleStock` value is `null`. A zero-balance product is still considered part of the vehicle catalogue and is therefore excluded. Search, active-status, sorting and pagination are applied after the exclusion filter.
+
+After a successful stock load creates the vehicle stock record, remove the product from the picker locally or refetch this query. It will no longer be returned by the exclusion filter.
+
+`excludeVehicleStock=true` and `inStockOnly=true` are mutually exclusive: one requests untracked products, while the other requests tracked products with a positive balance.
+
+Errors:
+
+- `400` — `inStockOnly=true` was supplied without `vehicleId`.
+- `400` — `excludeVehicleStock=true` was supplied without `vehicleId`, or both stock flags were true.
+- `404` — the vehicle does not exist.
 
 ---
 

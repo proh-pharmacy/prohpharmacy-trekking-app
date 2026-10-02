@@ -12,6 +12,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Tests/**/*.cs" />
+    <Content Remove="Tests/**" />
+    <None Remove="Tests/**" />
+    <InternalsVisibleTo Include="CustomerIdentification.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Content Update="Data\GhanaRegions.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

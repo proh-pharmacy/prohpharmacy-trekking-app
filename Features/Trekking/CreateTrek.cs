@@ -49,6 +49,8 @@ public static class CreateTrek
     public class TrekStopResponse
     {
         public Guid StopId { get; set; }
+        public Guid? InvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
         public int Sequence { get; set; }
         public bool IsWalkIn { get; set; }
         public Guid CustomerAccountId { get; set; }
