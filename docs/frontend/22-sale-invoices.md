@@ -49,8 +49,17 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
   "trekkingTripId": "<trek-guid>",
   "trekNumber": "TRK-00001",
   "trekDate": "2026-10-01",
+  "driverName": "Kwame Asante",
+  "salesStaffName": null,
+  "vehicleDisplayName": "Delivery Van 1",
+  "regionName": "Greater Accra Region",
   "customerAccountId": "<customer-guid>",
   "customerName": "Accra Pharmacy Ltd",
+  "customerCode": "GAR00001",
+  "customerTradingName": null,
+  "customerPhone": "+233 24 000 0000",
+  "customerWhatsAppNumber": null,
+  "customerRegionName": "Greater Accra Region",
   "totalAmount": 100,
   "totalPaid": 60,
   "balance": 40,
@@ -58,6 +67,8 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
     {
       "productId": "<product-guid>",
       "productName": "Paracetamol 500mg",
+      "basicUnitName": "Tablet",
+      "packagingUnitName": "Box",
       "basicQtyDelivered": 40,
       "packagingQtyDelivered": null,
       "basicUnitPrice": 2.5,
@@ -66,13 +77,14 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
       "amtPaid": 60,
       "balance": 40,
       "paymentMethod": "Cash",
-      "isUnplanned": false
+      "isUnplanned": false,
+      "deliveredAt": "2026-10-01T10:30:00Z"
     }
   ]
 }
 ```
 
-`invoiceNumber` is nullable in the DTO. Both delivered quantities, `packagingUnitPrice`, `amtPaid`, `balance` and `paymentMethod` on lines are nullable. Invoice totals use actual delivered quantities × stop prices; invoice balance is total amount minus total paid. Status is `Paid` when balance ≤ 0, `PartiallyPaid` when paid > 0 and balance > 0, otherwise `Issued`. These may differ from stored per-product balances and planned `amountDue` shown elsewhere.
+`invoiceNumber` is nullable in the DTO. Both delivered quantities, `packagingUnitPrice`, `amtPaid`, `balance`, `paymentMethod` and `deliveredAt` on lines are nullable. `basicUnitName` is always present; `packagingUnitName` is `null` for products with no packaging unit. The trek block (`driverName`, `salesStaffName`, `vehicleDisplayName`, `regionName`) and customer block (`customerCode`, `customerTradingName`, `customerPhone`, `customerWhatsAppNumber`, `customerRegionName`) are populated for both detail endpoints — enough to render a full invoice preview without extra lookups. Invoice totals use actual delivered quantities × stop prices; invoice balance is total amount minus total paid. Status is `Paid` when balance ≤ 0, `PartiallyPaid` when paid > 0 and balance > 0, otherwise `Issued`. These may differ from stored per-product balances and planned `amountDue` shown elsewhere.
 
 Current limitation: `GetInvoiceList` uses this DTO but does not eagerly load `Stop.Products` / `Product`, unlike the two detail queries. Do not rely on list `lineItems` for printing or return selection; fetch the detail endpoint.
 

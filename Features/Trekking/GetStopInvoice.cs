@@ -22,11 +22,20 @@ public static class GetStopInvoice
             var invoice = await db.SaleInvoices
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.Products)
-                        .ThenInclude(p => p.Product)
+                        .ThenInclude(p => p.Product).ThenInclude(p => p.BasicUnit)
                 .Include(i => i.Stop)
-                    .ThenInclude(s => s.CustomerAccount)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product).ThenInclude(p => p.PackagingUnit)
                 .Include(i => i.Stop)
-                    .ThenInclude(s => s.TrekkingTrip)
+                    .ThenInclude(s => s.CustomerAccount).ThenInclude(c => c.Region)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Driver)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.SalesStaff)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Vehicle)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Region)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(i =>
                     i.TrekkingTripId == request.TrekId &&

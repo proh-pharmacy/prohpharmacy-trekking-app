@@ -627,9 +627,10 @@ Delivery-related ledger entries are written when the trek is marked `Completed`,
 When status changes to `Completed`, the backend atomically:
 
 1. **Deletes** all existing auto-generated ledger entries for the trek's stops
-2. **Re-creates** them from the final recorded totals:
-   - Products with `amtPaid > 0` are grouped by `paymentMethod` — one **Credit** entry per unique method: `"Payment received (Cash) — Trek TRK-00001"`
-   - Total `balance > 0` → one **Debit** entry per stop: `"Outstanding balance — Trek TRK-00001"` (no payment method)
+2. **Re-creates** them from the final recorded totals, prefixed with the stop's invoice number:
+   - Products with `amtPaid > 0` are grouped by `paymentMethod` — one **Credit** entry per unique method: `"Invoice INV-GAR00001 — Payment received: Cash (Trek TRK-00001)"`
+   - The stop's sold total is one **Debit** entry: `"Invoice INV-GAR00001 — Goods delivered (Trek TRK-00001)"`
+   - Entries also carry `invoiceId` + `invoiceNumber` on the ledger response (resolved via join on the stop; see [ledger](./14-ledger.md))
 
 When status changes to `Cancelled`, all auto-generated entries for the trek are permanently removed.
 

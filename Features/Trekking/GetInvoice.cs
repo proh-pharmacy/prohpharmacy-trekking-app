@@ -24,8 +24,17 @@ public static class GetInvoice
         public Guid TrekkingTripId { get; set; }
         public string TrekNumber { get; set; } = string.Empty;
         public DateOnly TrekDate { get; set; }
+        public string? DriverName { get; set; }
+        public string? SalesStaffName { get; set; }
+        public string? VehicleDisplayName { get; set; }
+        public string? RegionName { get; set; }
         public Guid CustomerAccountId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
+        public string? CustomerCode { get; set; }
+        public string? CustomerTradingName { get; set; }
+        public string? CustomerPhone { get; set; }
+        public string? CustomerWhatsAppNumber { get; set; }
+        public string? CustomerRegionName { get; set; }
         public decimal TotalAmount { get; set; }
         public decimal TotalPaid { get; set; }
         public decimal Balance { get; set; }
@@ -36,6 +45,8 @@ public static class GetInvoice
     {
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
+        public string BasicUnitName { get; set; } = string.Empty;
+        public string? PackagingUnitName { get; set; }
         public decimal? BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
         public decimal BasicUnitPrice { get; set; }
@@ -45,6 +56,7 @@ public static class GetInvoice
         public decimal? Balance { get; set; }
         public string? PaymentMethod { get; set; }
         public bool IsUnplanned { get; set; }
+        public DateTime? DeliveredAt { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<InvoiceResponse>>
@@ -54,11 +66,20 @@ public static class GetInvoice
             var invoice = await db.SaleInvoices
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.Products)
-                        .ThenInclude(p => p.Product)
+                        .ThenInclude(p => p.Product).ThenInclude(p => p.BasicUnit)
                 .Include(i => i.Stop)
-                    .ThenInclude(s => s.CustomerAccount)
+                    .ThenInclude(s => s.Products)
+                        .ThenInclude(p => p.Product).ThenInclude(p => p.PackagingUnit)
                 .Include(i => i.Stop)
-                    .ThenInclude(s => s.TrekkingTrip)
+                    .ThenInclude(s => s.CustomerAccount).ThenInclude(c => c.Region)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Driver)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.SalesStaff)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Vehicle)
+                .Include(i => i.Stop)
+                    .ThenInclude(s => s.TrekkingTrip).ThenInclude(t => t.Region)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(i => i.InvoiceNumber == request.InvoiceNumber, cancellationToken);
 
@@ -72,6 +93,7 @@ public static class GetInvoice
         {
             var stop = invoice.Stop;
             var trip = stop.TrekkingTrip;
+            var customer = stop.CustomerAccount;
 
             return new InvoiceResponse
             {
@@ -83,8 +105,17 @@ public static class GetInvoice
                 TrekkingTripId = invoice.TrekkingTripId,
                 TrekNumber = trip.TrekNumber,
                 TrekDate = trip.ScheduledDate,
+                DriverName = trip.Driver?.FullName,
+                SalesStaffName = trip.SalesStaff?.FullName,
+                VehicleDisplayName = trip.Vehicle?.DisplayName,
+                RegionName = trip.Region?.Name,
                 CustomerAccountId = invoice.CustomerAccountId,
-                CustomerName = stop.CustomerAccount.BusinessName,
+                CustomerName = customer.BusinessName,
+                CustomerCode = customer.CustomerCode,
+                CustomerTradingName = customer.TradingName,
+                CustomerPhone = customer.PrimaryPhoneNumber,
+                CustomerWhatsAppNumber = customer.WhatsAppNumber,
+                CustomerRegionName = customer.Region?.Name,
                 TotalAmount = invoice.TotalAmount,
                 TotalPaid = invoice.TotalPaid,
                 Balance = invoice.Balance,
@@ -94,6 +125,8 @@ public static class GetInvoice
                     {
                         ProductId = p.ProductId,
                         ProductName = p.Product.Name,
+                        BasicUnitName = p.Product.BasicUnit?.Name ?? string.Empty,
+                        PackagingUnitName = p.Product.PackagingUnit?.Name,
                         BasicQtyDelivered = p.BasicQtyDelivered,
                         PackagingQtyDelivered = p.PackagingQtyDelivered,
                         BasicUnitPrice = p.BasicUnitPrice,
@@ -103,7 +136,8 @@ public static class GetInvoice
                         AmtPaid = p.AmtPaid,
                         Balance = p.Balance,
                         PaymentMethod = p.PaymentMethod?.ToString(),
-                        IsUnplanned = p.IsUnplanned
+                        IsUnplanned = p.IsUnplanned,
+                        DeliveredAt = p.DeliveredAt
                     }).ToList()
             };
         }
