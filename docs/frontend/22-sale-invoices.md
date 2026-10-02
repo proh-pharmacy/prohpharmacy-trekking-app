@@ -6,7 +6,7 @@ Verified against the implementation on 2026-10-01 (`8b5ca3d`, `aa7f3d8`). The co
 
 The admin and driver delivery-recording endpoints create or update one invoice per affected stop. Later submissions amend that invoice's totals; they do not issue a second invoice. Invoice lines are read from the stop products, not an immutable invoice-line snapshot. Only products with `deliveredAt` or `basicQtyDelivered` set are included.
 
-Numbers are allocated by the server: `{SCOPE_CODE}-INV-{sequence:D5}`, for example `GAR-INV-00001`. The sequence belongs to the trek's branch when present, otherwise its region; the fallback code is `GH`. Never generate an official number locally.
+Numbers are allocated by the server: `INV-{SCOPE_CODE}{sequence:D5}`, for example `INV-GAR00001`. The sequence belongs to the trek's branch when present, otherwise its region; the fallback code is `GH`. Never generate an official number locally.
 
 Use an invoice list with customer, trek, status and date filters, an invoice detail/print view, and an invoice link on each recorded stop. The frontend renders invoice PDFs; there is no invoice PDF endpoint. Status values are `Issued`, `PartiallyPaid`, `Paid`, `Voided`; no void-invoice mutation currently exists.
 
@@ -42,7 +42,7 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
 ```json
 {
   "id": "<invoice-guid>",
-  "invoiceNumber": "GAR-INV-00001",
+  "invoiceNumber": "INV-GAR00001",
   "status": "PartiallyPaid",
   "issuedAt": "2026-10-01T10:30:00Z",
   "createdOffline": false,
@@ -113,7 +113,7 @@ Both record endpoints accept the existing `products` plus optional `stopInvoices
     {
       "stopId": "<stop-guid>",
       "invoiceId": "<invoice-guid>",
-      "invoiceNumber": "GAR-INV-00001"
+      "invoiceNumber": "INV-GAR00001"
     }
   ]
 }

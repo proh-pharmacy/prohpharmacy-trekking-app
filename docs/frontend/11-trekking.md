@@ -113,7 +113,7 @@ Used by create, get single, get list, and status change.
 
 `basicUnitPrice` and `packagingUnitPrice` are snapshotted at the time the stop is added — they will not change if the product price is later updated in the system.
 
-`amountDue` is the planned total for the line item: `plannedBasicQuantity × basicUnitPrice + plannedPackagingQuantity × packagingUnitPrice`. It is recalculated if an admin uses the price override or sync-prices endpoint.
+`amountDue` is the billable total for the line item. Before delivery it is `plannedBasicQuantity × basicUnitPrice + plannedPackagingQuantity × packagingUnitPrice`. Once delivery is recorded (admin, driver online, or offline sync) it is recalculated to `basicQtyDelivered × basicUnitPrice + packagingQtyDelivered × packagingUnitPrice`, so it always matches the invoice total and reflects over- or under-delivery. It is also recalculated by the price override and sync-prices endpoints.
 
 `syncRequired` is `true` on `GET /api/v1/treks/{id}` when at least one stop product's snapshotted price or packaging configuration is out of date with the current catalog. Use this to dynamically show a "Sync Prices" button on the trek detail page. `syncRequired` is always `false` on the list endpoint and on create — it is only computed on the single trek fetch.
 
@@ -400,7 +400,7 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
   "status": "InProgress",
   "recorded": 1,
   "invoices": [
-    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "INV-GAR00001" }
   ]
 }
 ```
@@ -415,7 +415,7 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
    ```
    and sets `balance` to `0`.
 4. If the customer paid only **part** of the amount, the frontend sends an explicit `amtPaid` (what was collected) and `balance` (what is still owed). The backend stores both as provided.
-5. `amountDue` (from the product listing) is the **planned** total based on planned quantities — it is display-only and should **not** be submitted during delivery recording.
+5. `amountDue` (from the product listing) is the billable total — planned × price before delivery, then rewritten to delivered × price once delivery is recorded. It is display-only and should **not** be submitted during delivery recording.
 
 > **Frontend guidance:** leave the amount field empty by default. Only show/require it when the driver indicates a partial or different payment. This allows the auto-calculation to handle the normal full-payment case without the driver doing manual arithmetic.
 
@@ -590,7 +590,7 @@ Same as `POST /api/v1/treks/{id}/record`
   "status": "InProgress",
   "recorded": 1,
   "invoices": [
-    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "INV-GAR00001" }
   ]
 }
 ```

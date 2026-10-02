@@ -37,7 +37,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
     {
       "sequence": 1,
       "customerName": "Accra Pharmacy Ltd",
-      "invoiceNumber": "GAR-INV-00001",
+      "invoiceNumber": "INV-GAR00001",
       "amountDue": 100,
       "amtPaid": 60,
       "balance": 40,
@@ -72,7 +72,7 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 
 | Field | Current calculation |
 |---|---|
-| `totalSalesValue` | Sum of stop-product `amountDue` (planned sales values, not invoice delivered totals) |
+| `totalSalesValue` | Sum of `amountDue` across stop products that have been delivered (`deliveredAt` set or `basicQtyDelivered` recorded). Planned-but-undelivered products are excluded. Matches the sum of all invoice totals on the trek. |
 | `totalCollected` | Sum of stop-product `amtPaid` |
 | `totalOutstanding` | Sum of stored stop-product `balance` |
 | `totalApprovedRefunds` | Sum of refund amounts on approved returns captured on this trek |
@@ -83,6 +83,8 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 Label net cash clearly: it includes MobileMoney and does not subtract MobileMoney refunds. It is not a physical-cash-only balance. Collections come from product records, so independent customer ledger payments are not included.
 
 `collectionsByMethod` contains only methods with positive paid entries, sorted by amount descending; do not expect zero-valued rows for every method. Stops are ordered by sequence; their `paymentMethod` is the first non-null product method and cannot describe a mixed-payment stop fully. Return lists show all approval states, but totals and stock reconciliation use approved returns only.
+
+Each stop's `amountDue`, like the trek-level `totalSalesValue`, only counts products that have been delivered — a stop with planned-but-undelivered products shows `amountDue = 0` until the first delivery is recorded, and `amountDue − amtPaid === balance` always holds.
 
 Stock reconciliation covers **only products with trek stock-load rows**, using basic units only. It omits unallocated products and packaging quantities. It is a trek allocation calculation, not the live vehicle warehouse balance. Stop rows do not include sold-product line items or IDs; use the existing trek detail data if the UI needs those details. The phase notes' richer per-product stop breakdown is not in this DTO.
 

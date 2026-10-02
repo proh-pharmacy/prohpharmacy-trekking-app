@@ -61,8 +61,9 @@ public static class LoadVehicleStock
             if (vehicle is null)
                 return Result.Failure<LoadResponse>(Error.CreateNotFoundError("Vehicle not found."));
 
-            var userId = auth.GetUserId();
-            Guid? staffId = Guid.TryParse(userId, out var uid) ? uid : null;
+            if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
+                return Result.Failure<LoadResponse>(
+                    Error.BadRequest("Authenticated staff identity is missing or invalid."));
 
             var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
 
@@ -104,7 +105,8 @@ public static class LoadVehicleStock
                     Source = StockChangeSource.ManualLoad,
                     BasicQtyChange = item.BasicQty,
                     PackagingQtyChange = item.PackagingQty,
-                    BalanceAfter = stock.BasicQuantityOnHand,
+                    BasicBalanceAfter = stock.BasicQuantityOnHand,
+                    PackagingBalanceAfter = stock.PackagingQuantityOnHand,
                     Reason = "Batch stock addition",
                     AuthorStaffId = staffId,
                     RecordedAt = now
@@ -116,6 +118,9 @@ public static class LoadVehicleStock
 
             var updatedStock = await db.VehicleProductStocks
                 .Include(s => s.Product)
+                    .ThenInclude(p => p.BasicUnit)
+                .Include(s => s.Product)
+                    .ThenInclude(p => p.PackagingUnit)
                 .Where(s => s.VehicleId == request.VehicleId && productIds.Contains(s.ProductId))
                 .AsNoTracking()
                 .ToListAsync(cancellationToken);
@@ -123,17 +128,7 @@ public static class LoadVehicleStock
             return Result.Success(new LoadResponse
             {
                 ProductsUpdated = ledgerEntries.Count,
-                UpdatedStock = updatedStock.Select(s => new GetVehicleStock.StockItem
-                {
-                    StockId = s.Id,
-                    ProductId = s.ProductId,
-                    ProductName = s.Product.Name,
-                    BasicQuantityOnHand = s.BasicQuantityOnHand,
-                    PackagingQuantityOnHand = s.PackagingQuantityOnHand,
-                    LowStockThreshold = s.LowStockThreshold,
-                    IsLowStock = s.LowStockThreshold.HasValue && s.BasicQuantityOnHand <= s.LowStockThreshold.Value,
-                    UpdatedAt = s.UpdatedAt
-                }).ToList()
+                UpdatedStock = updatedStock.Select(GetVehicleStock.ToStockItem).ToList()
             });
         }
     }

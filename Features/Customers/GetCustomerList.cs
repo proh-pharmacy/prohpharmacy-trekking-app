@@ -112,7 +112,7 @@ public class GetCustomerListEndpoint : ICarterModule
         .WithTags("Customers")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Customers)
         .WithSummary("List customers")
-        .WithDescription("Returns a paginated list of customers. Filter by region, district, branch, type or status. Search by business name, customer code or phone number.")
+        .WithDescription("Returns full customer responses, including ID document type/number and front/back image URLs. Filter by region, district, branch, type or status. Search by business name, customer code or phone number.")
         .Produces<Paginator.PaginatedData<CreateCustomer.CustomerResponse>>(200)
         .RequireAuthorization();
     }

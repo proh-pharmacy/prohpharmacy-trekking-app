@@ -59,8 +59,9 @@ public static class BulkSetTrekStockLoads
                 return Result.Failure<List<GetTrekStockLoads.StockLoadItem>>(
                     Error.BadRequest($"Cannot modify stock loads on a {trip.Status} trek."));
 
-            var userId = auth.GetUserId();
-            Guid staffId = Guid.TryParse(userId, out var uid) ? uid : Guid.Empty;
+            if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
+                return Result.Failure<List<GetTrekStockLoads.StockLoadItem>>(
+                    Error.BadRequest("Authenticated staff identity is missing or invalid."));
 
             var productIds = request.Items.Select(i => i.ProductId).Distinct().ToList();
 
@@ -100,6 +101,9 @@ public static class BulkSetTrekStockLoads
 
             var updatedLoads = await db.TrekStockLoads
                 .Include(l => l.Product)
+                    .ThenInclude(p => p.BasicUnit)
+                .Include(l => l.Product)
+                    .ThenInclude(p => p.PackagingUnit)
                 .Include(l => l.LoadedBy)
                 .Where(l => l.TrekkingTripId == request.TrekId && productIds.Contains(l.ProductId))
                 .AsNoTracking()
@@ -108,20 +112,27 @@ public static class BulkSetTrekStockLoads
             var vehicleStock = await db.VehicleProductStocks
                 .Where(s => s.VehicleId == trip.VehicleId && productIds.Contains(s.ProductId))
                 .AsNoTracking()
-                .ToDictionaryAsync(s => s.ProductId, s => s.BasicQuantityOnHand, cancellationToken);
+                .ToDictionaryAsync(s => s.ProductId, cancellationToken);
 
             return Result.Success(updatedLoads.Select(l =>
             {
-                vehicleStock.TryGetValue(l.ProductId, out var onHand);
+                vehicleStock.TryGetValue(l.ProductId, out var stock);
                 return new GetTrekStockLoads.StockLoadItem
                 {
                     Id = l.Id,
                     ProductId = l.ProductId,
                     ProductName = l.Product.Name,
+                    BasicUnitId = l.Product.BasicUnitId,
+                    BasicUnitName = l.Product.BasicUnit.Name,
+                    PackagingUnitId = l.Product.PackagingUnitId,
+                    PackagingUnitName = l.Product.PackagingUnit?.Name,
                     BasicQuantityLoaded = l.BasicQuantityLoaded,
                     PackagingQuantityLoaded = l.PackagingQuantityLoaded,
-                    VehicleBasicOnHand = vehicleStock.ContainsKey(l.ProductId) ? onHand : null,
-                    ExceedsVehicleStock = vehicleStock.ContainsKey(l.ProductId) && l.BasicQuantityLoaded > onHand,
+                    VehicleBasicOnHand = stock?.BasicQuantityOnHand,
+                    VehiclePackagingOnHand = stock?.PackagingQuantityOnHand,
+                    ExceedsVehicleStock = stock is not null &&
+                        (l.BasicQuantityLoaded > stock.BasicQuantityOnHand ||
+                         l.PackagingQuantityLoaded > stock.PackagingQuantityOnHand),
                     LoadedBy = l.LoadedBy.FullName,
                     LoadedAt = l.LoadedAt
                 };

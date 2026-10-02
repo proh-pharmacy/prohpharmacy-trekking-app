@@ -1,10 +1,12 @@
 # 21 — Data Export
 
+Vehicle stock-cycle Excel export is documented in [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md#export-stock-ledger-to-excel). Its `productId` filter is optional: omit it to export every matching product, or supply it to export one product. It also supports optional source/date filters plus a single combined worksheet or one worksheet per product.
+
 New PDF download: `GET /api/v1/treks/driver/{token}/report/pdf` (driver token, no JWT), returning `application/pdf` named `TrekReport-{trekNumber}-{scheduledDate}.pdf`. See [Driver Trek Report](./25-driver-trek-report.md). Trekking-sheet PDFs now show return approval status and mute rejected rows. Invoice PDF rendering remains a frontend responsibility; see [Sale Invoices](./22-sale-invoices.md).
 
 ## Overview
 
-The **Data Export** section provides five download-only endpoints that package operational data as `.xlsx` files. These are distinct from the Reports section — they export raw entity data (customers, products, staff, markup rules) rather than aggregated analytics. All endpoints require authentication and respond with a file attachment.
+The **Data Export** section provides six download-only endpoints that package operational data as `.xlsx` files. These are distinct from the Reports section — they export raw entity data (customers, products, staff, markup rules and vehicle stock movements) rather than aggregated analytics. All endpoints require authentication and respond with a file attachment.
 
 ---
 
@@ -17,12 +19,13 @@ The **Data Export** section provides five download-only endpoints that package o
 | `GET` | `api/v1/staff/export` | Export staff list |
 | `GET` | `api/v1/organisation/markups/export` | Export regional markup rules |
 | `GET` | `api/v1/customers/markups/export` | Export customer-specific markup rules |
+| `GET` | `api/v1/vehicles/{vehicleId}/stock/ledger/export` | Export filtered vehicle stock movements |
 
 ---
 
 ## Reusable download helper
 
-All five endpoints follow the same fetch pattern — Bearer token in the header, filename read from `Content-Disposition`:
+All six endpoints follow the same fetch pattern — Bearer token in the header, filename read from `Content-Disposition`:
 
 ```js
 async function downloadExport(url, fallbackName, token) {

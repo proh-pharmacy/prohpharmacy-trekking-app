@@ -569,7 +569,7 @@ Driver submits delivery results for one or more products. Can be called multiple
    ```
    and sets `balance` to `0`.
 4. If the customer paid only **part** of the amount, the frontend sends an explicit `amtPaid` (what was collected) and `balance` (what is still owed). The backend stores both as provided.
-5. `amountDue` (from the product listing) is the **planned** total based on planned quantities — it is display-only and should **not** be submitted during delivery recording.
+5. `amountDue` (from the product listing) is the billable total — planned × price before delivery, then rewritten to delivered × price once delivery is recorded. It is display-only and should **not** be submitted during delivery recording.
 
 > **Frontend guidance:** leave the amount field empty by default. Only show/require it when the driver indicates a partial or different payment. This allows the auto-calculation to handle the normal full-payment case without the driver doing manual arithmetic.
 
@@ -582,7 +582,7 @@ Driver submits delivery results for one or more products. Can be called multiple
   "status": "InProgress",
   "recorded": 1,
   "invoices": [
-    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "GAR-INV-00001" }
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "INV-GAR00001" }
   ]
 }
 ```
@@ -659,7 +659,7 @@ When status changes to `Cancelled`, all auto-generated entries for the trek are 
 
 ## PATCH /api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price
 
-Corrects the snapshotted `basicUnitPrice` and/or `packagingUnitPrice` on a specific stop product — use this when a price was wrong at the time the stop was added. `amountDue` is recalculated from planned quantities × new prices. Not allowed once the trek is `Completed`.
+Corrects the snapshotted `basicUnitPrice` and/or `packagingUnitPrice` on a specific stop product — use this when a price was wrong at the time the stop was added. `amountDue` is recalculated: delivered quantities × new prices when delivery has been recorded, otherwise planned quantities × new prices. Not allowed once the trek is `Completed`.
 
 ### Request body
 
@@ -840,7 +840,7 @@ Response `201 Created`:
 ```json
 {
   "returnId": "<return-guid>",
-  "invoiceNumber": "GAR-INV-00001",
+  "invoiceNumber": "INV-GAR00001",
   "productId": "<product-guid>",
   "productName": "Paracetamol 500mg",
   "basicQtyReturned": 4,

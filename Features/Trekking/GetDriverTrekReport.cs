@@ -127,10 +127,13 @@ public static class GetDriverTrekReport
             List<Entities.TrekStockLoad> stockLoads)
         {
             var allProducts = trip.Stops.SelectMany(s => s.Products).ToList();
+            var deliveredProducts = allProducts
+                .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
+                .ToList();
             var allReturns  = trip.Stops.SelectMany(s => s.Returns).ToList();
             var approvedReturns = allReturns.Where(r => r.ApprovalStatus == ReturnApprovalStatus.Approved).ToList();
 
-            var totalSales      = allProducts.Sum(p => p.AmountDue ?? 0);
+            var totalSales      = deliveredProducts.Sum(p => p.AmountDue ?? 0);
             var totalCollected  = allProducts.Sum(p => p.AmtPaid ?? 0);
             var totalOutstanding= allProducts.Sum(p => p.Balance ?? 0);
             var totalRefunds    = approvedReturns.Sum(r => r.RefundAmount ?? 0);
@@ -168,7 +171,7 @@ public static class GetDriverTrekReport
                     Sequence     = s.Sequence,
                     CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                     InvoiceNumber= invoice?.InvoiceNumber,
-                    AmountDue    = s.Products.Sum(p => p.AmountDue ?? 0),
+                    AmountDue    = s.Products.Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue).Sum(p => p.AmountDue ?? 0),
                     AmtPaid      = s.Products.Sum(p => p.AmtPaid ?? 0),
                     Balance      = s.Products.Sum(p => p.Balance ?? 0),
                     PaymentMethod= s.Products.FirstOrDefault(p => p.PaymentMethod.HasValue)?.PaymentMethod?.ToString(),

@@ -91,8 +91,9 @@ public static class RecordStopReturn
             var refundAmount = request.BasicQtyReturned * lineItem.BasicUnitPrice
                 + (request.PackagingQtyReturned ?? 0) * (lineItem.PackagingUnitPrice ?? 0);
 
-            var userId = auth.GetUserId();
-            Guid? staffId = Guid.TryParse(userId, out var uid) ? uid : null;
+            if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
+                return Result.Failure<ReturnResponse>(
+                    Error.BadRequest("Authenticated staff identity is missing or invalid."));
 
             var ret = new TrekkingTripStopReturn
             {

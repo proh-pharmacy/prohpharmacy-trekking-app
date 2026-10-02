@@ -57,8 +57,9 @@ public static class RejectReturn
             if (ret.ApprovalStatus != ReturnApprovalStatus.Pending)
                 return Result.Failure<RejectionResponse>(Error.BadRequest($"Return is already {ret.ApprovalStatus}."));
 
-            var userId = auth.GetUserId();
-            Guid? staffId = Guid.TryParse(userId, out var uid) ? uid : null;
+            if (!Guid.TryParse(auth.GetStaffId(), out var staffId))
+                return Result.Failure<RejectionResponse>(
+                    Error.BadRequest("Authenticated staff identity is missing or invalid."));
 
             ret.ApprovalStatus = ReturnApprovalStatus.Rejected;
             ret.ApprovedByStaffId = staffId;

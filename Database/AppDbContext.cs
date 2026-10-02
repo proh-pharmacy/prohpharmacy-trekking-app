@@ -226,7 +226,8 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(l => l.Source).HasConversion<string>().HasMaxLength(30).IsRequired();
                 entity.Property(l => l.BasicQtyChange).HasPrecision(10, 3).IsRequired();
                 entity.Property(l => l.PackagingQtyChange).HasPrecision(10, 3).IsRequired();
-                entity.Property(l => l.BalanceAfter).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.BasicBalanceAfter).HasPrecision(10, 3).IsRequired();
+                entity.Property(l => l.PackagingBalanceAfter).HasPrecision(10, 3).IsRequired();
                 entity.Property(l => l.Reason).HasMaxLength(300).IsRequired();
                 entity.HasOne(l => l.Vehicle)
                     .WithMany()

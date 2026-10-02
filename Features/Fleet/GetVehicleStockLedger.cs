@@ -15,6 +15,8 @@ public static class GetVehicleStockLedger
         public Guid VehicleId { get; set; }
         public Guid? ProductId { get; set; }
         public string? Source { get; set; }
+        public DateTime? From { get; set; }
+        public DateTime? To { get; set; }
         public int? PageNumber { get; set; }
         public int? PageSize { get; set; }
     }
@@ -24,11 +26,14 @@ public static class GetVehicleStockLedger
         public Guid Id { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
+        public string BasicUnitName { get; set; } = string.Empty;
+        public string? PackagingUnitName { get; set; }
         public string ChangeType { get; set; } = string.Empty;
         public string Source { get; set; } = string.Empty;
         public decimal BasicQtyChange { get; set; }
         public decimal PackagingQtyChange { get; set; }
-        public decimal BalanceAfter { get; set; }
+        public decimal BasicBalanceAfter { get; set; }
+        public decimal PackagingBalanceAfter { get; set; }
         public string Reason { get; set; } = string.Empty;
         public string? AuthorName { get; set; }
         public DateTime RecordedAt { get; set; }
@@ -45,7 +50,8 @@ public static class GetVehicleStockLedger
                 return Result.Failure<object>(Error.CreateNotFoundError("Vehicle not found."));
 
             var query = db.VehicleStockLedger
-                .Include(l => l.Product)
+                .Include(l => l.Product).ThenInclude(p => p.BasicUnit)
+                .Include(l => l.Product).ThenInclude(p => p.PackagingUnit)
                 .Include(l => l.Author)
                 .Where(l => l.VehicleId == request.VehicleId)
                 .AsNoTracking();
@@ -56,6 +62,12 @@ public static class GetVehicleStockLedger
             if (!string.IsNullOrWhiteSpace(request.Source))
                 query = query.Where(l => l.Source.ToString().ToLower() == request.Source.ToLower());
 
+            if (request.From.HasValue)
+                query = query.Where(l => l.RecordedAt >= request.From.Value);
+
+            if (request.To.HasValue)
+                query = query.Where(l => l.RecordedAt <= request.To.Value);
+
             var result = await new QueryBuilder<global::prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStockLedger>(query)
                 .WithSort("recordedAt_desc")
                 .Paginate(request.PageNumber, request.PageSize)
@@ -64,11 +76,14 @@ public static class GetVehicleStockLedger
                     Id = l.Id,
                     ProductId = l.ProductId,
                     ProductName = l.Product.Name,
+                    BasicUnitName = l.Product.BasicUnit.Name,
+                    PackagingUnitName = l.Product.PackagingUnit != null ? l.Product.PackagingUnit.Name : null,
                     ChangeType = l.ChangeType.ToString(),
                     Source = l.Source.ToString(),
                     BasicQtyChange = l.BasicQtyChange,
                     PackagingQtyChange = l.PackagingQtyChange,
-                    BalanceAfter = l.BalanceAfter,
+                    BasicBalanceAfter = l.BasicBalanceAfter,
+                    PackagingBalanceAfter = l.PackagingBalanceAfter,
                     Reason = l.Reason,
                     AuthorName = l.Author?.FullName,
                     RecordedAt = l.RecordedAt
@@ -87,6 +102,8 @@ public class GetVehicleStockLedgerEndpoint : ICarterModule
             async (Guid vehicleId, ISender sender,
                 [Microsoft.AspNetCore.Mvc.FromQuery] Guid? productId,
                 [Microsoft.AspNetCore.Mvc.FromQuery] string? source,
+                [Microsoft.AspNetCore.Mvc.FromQuery] DateTime? from,
+                [Microsoft.AspNetCore.Mvc.FromQuery] DateTime? to,
                 [Microsoft.AspNetCore.Mvc.FromQuery] int? pageNumber,
                 [Microsoft.AspNetCore.Mvc.FromQuery] int? pageSize) =>
             {
@@ -95,6 +112,8 @@ public class GetVehicleStockLedgerEndpoint : ICarterModule
                     VehicleId = vehicleId,
                     ProductId = productId,
                     Source = source,
+                    From = from,
+                    To = to,
                     PageNumber = pageNumber,
                     PageSize = pageSize
                 });
@@ -103,7 +122,7 @@ public class GetVehicleStockLedgerEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Get stock cycle (ledger) for a vehicle")
-        .WithDescription("Returns paginated history of all stock changes. Filter by productId or source (ManualLoad, TrekCompletion, ReturnApproval).")
+        .WithDescription("Returns paginated history of all stock changes. Filter by productId, source (ManualLoad, TrekCompletion, ReturnApproval), or date range (from/to on RecordedAt).")
         .Produces<Paginator.PaginatedData<GetVehicleStockLedger.LedgerEntry>>(200)
         .Produces<Error>(404)
         .RequireAuthorization();

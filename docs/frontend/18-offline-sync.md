@@ -249,7 +249,7 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `GET` | `api/v1/treks/driver/{token}/assigned` | All active treks assigned to this driver |
 | `GET` | `api/v1/treks/driver/{token}/region/treks` | All active treks in the region |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/generate-token` | Get or generate a token for another trek |
-| `GET` | `api/v1/treks/driver/{token}/offline/products` | Product catalogue seed (supports `?since=`) |
+| `GET` | `api/v1/treks/driver/{token}/offline/products` | Vehicle-scoped product catalogue seed (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/customers` | Slim customer list for the region (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/districts` | All active districts in the trek's region (supports `?since=`) |
 | `GET` | `api/v1/treks/driver/{token}/offline/trek` | Full assigned trek with stops + returns (supports `?since=`) |
@@ -263,6 +263,7 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |
 | `GET` | `api/v1/treks/driver/{token}/report` | Live financial and stock summary |
 | `GET` | `api/v1/treks/driver/{token}/report/pdf` | Download financial report PDF |
+| `POST` | `api/v1/treks/driver/{token}/stock-loads/check` | Dry-run basic/packaging stock availability check |
 | `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
 | `GET` | `api/v1/treks/driver/{token}/device` | Last known device position, battery, speed, motion |
 | `POST` | `api/v1/treks/driver/{token}/location` | Report current GPS location to Traccar |
@@ -695,7 +696,13 @@ await seedLocal('trek',       `/api/v1/treks/driver/${token}/offline/trek?since=
 
 ### GET .../offline/products
 
-Returns a bundle containing the full product catalogue and per-stop customer price overrides.
+**Query parameters**
+- `since=ISO8601` — delta sync, only records created/updated after this timestamp
+- `all=true` — opt out of vehicle scoping and return the full catalogue (default `false`)
+
+By default, returns a bundle containing the **trek vehicle's product catalogue** and per-stop customer price overrides. Only products that have a `VehicleProductStock` record on the trek's vehicle are included — regardless of current quantity (zero-stock entries still ship, as they're part of the vehicle's catalogue). Pass `?all=true` to include every product in the system instead.
+
+Every product carries an `inVehicleCatalogue` flag so the UI can mark non-vehicle items (useful when `all=true`, or when you want to warn the driver about a product that was removed from their truck). Products not loaded onto the vehicle appear with `inVehicleCatalogue: false`; if a driver needs to sell a new product mid-trek, an admin must first load it via `POST /api/v1/vehicles/{vehicleId}/stock/load` and the driver re-syncs.
 
 **Response `200 OK`**
 
@@ -712,7 +719,8 @@ Returns a bundle containing the full product catalogue and per-stop customer pri
       "basicUnitId": "...",
       "packagingUnitName": "Box",
       "packagingUnitId": "...",
-      "isActive": true
+      "isActive": true,
+      "inVehicleCatalogue": true
     }
   ],
   "stopPriceOverrides": {
@@ -726,7 +734,7 @@ Returns a bundle containing the full product catalogue and per-stop customer pri
 }
 ```
 
-**`products`** — the region-adjusted catalogue. Prices have the trek's regional markup rules applied (product-specific first, then region-wide, then catalog base).
+**`products`** — the vehicle-scoped, region-adjusted catalogue. Only products present on the trek's vehicle are returned. Prices have the trek's regional markup rules applied (product-specific first, then region-wide, then catalog base).
 
 **`stopPriceOverrides`** — keyed by stop ID, then product ID. Only populated for stops whose customer has markup rules that produce a price different from the region baseline. When displaying a product price for an unplanned sale at a specific stop, check `stopPriceOverrides[stopId][productId]` first; fall back to the product's price in `products` if no override entry exists. Walk-in stops added during the trek (not yet in the database) will not have entries here — they fall back to the region price.
 

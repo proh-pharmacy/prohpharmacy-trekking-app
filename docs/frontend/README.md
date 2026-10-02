@@ -16,7 +16,7 @@ The Phase 1–5 changes were reviewed against the code and the 2026-10-01 commit
 | 05 | [User Onboarding](./05-user-onboarding.md) | Direct invitations, first-time setup, accepting invitations |
 | 06 | [Password Reset](./06-password-reset.md) | Forgot password flow, reset token, set new password |
 | 07 | [Organisation](./07-organisation.md) | Regions, districts, branches |
-| 08 | [Products](./08-products.md) | Product catalogue — create, list, update, toggle status |
+| 08 | [Products](./08-products.md) | Product catalogue — CRUD plus vehicle stock inclusion/exclusion filters |
 | 09 | [Customers](./09-customers.md) | Customer registration, locations, representative portrait |
 | 10 | [Fleet](./10-fleet.md) | Vehicles, GPS devices, Traccar drivers and sync |
 | 11 | [Trekking](./11-trekking.md) | Trek scheduling, stops, driver link, delivery recording, PDF sheet |
@@ -32,7 +32,7 @@ The Phase 1–5 changes were reviewed against the code and the 2026-10-01 commit
 | 21 | [Data Export](./21-data-export.md) | Export endpoints and downloads |
 | 22 | [Sale Invoices](./22-sale-invoices.md) | Invoice issuance, scoped numbering, lookup, delivery sync and printing |
 | 23 | [Invoice Returns & Approval](./23-invoice-returns.md) | Online invoice returns, review decisions and ledger effects |
-| 24 | [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md) | Bulk restocking/removal, stock ledger, allocations and warnings |
+| 24 | [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md) | Vehicle stock summary, catalogue picker, per-product quantities, adjustments, ledger and trek allocations |
 | 25 | [Driver Trek Report](./25-driver-trek-report.md) | Live financial/stock reconciliation and PDF download |
 
 ## Phase implementation map

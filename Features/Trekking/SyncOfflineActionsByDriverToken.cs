@@ -50,6 +50,7 @@ public static class SyncOfflineActionsByDriverToken
         {
             var trip = await db.TrekkingTrips
                 .Include(t => t.Region)
+                .Include(t => t.Branch)
                 .Include(t => t.Driver)
                 .Include(t => t.SalesStaff)
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
@@ -76,6 +77,7 @@ public static class SyncOfflineActionsByDriverToken
             var stopClientMap = new Dictionary<Guid, Guid>();
             var returnClientMap = new Dictionary<Guid, Guid>();
             var regionCustomerOffset = new Dictionary<Guid, int>();
+            var invoiceAffectedStopIds = new HashSet<Guid>();
 
             foreach (var action in ordered)
             {
@@ -86,13 +88,24 @@ public static class SyncOfflineActionsByDriverToken
                     "AddCustomerLocation"     => await ProcessAddCustomerLocationAsync(action, trip, attributedStaffId, customerClientMap, locationClientMap, cancellationToken),
                     "UpdateCustomerLocation"  => await ProcessUpdateCustomerLocationAsync(action, trip, locationClientMap, cancellationToken),
                     "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
-                    "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, cancellationToken),
-                    "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
+                    "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, invoiceAffectedStopIds, cancellationToken),
+                    "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, invoiceAffectedStopIds, cancellationToken),
                     "RecordReturn"       => await ProcessRecordReturnAsync(action, trip, attributedStaffId, stopClientMap, returnClientMap, cancellationToken),
                     "VoidReturn"         => await ProcessVoidReturnAsync(action, trip, returnClientMap, cancellationToken),
                     _ => new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Unknown action type: {action.Type}" }
                 };
                 results.Add(result);
+            }
+
+            if (invoiceAffectedStopIds.Count > 0)
+            {
+                var affectedStops = await db.TrekkingTripStops
+                    .Include(s => s.Products)
+                    .Where(s => invoiceAffectedStopIds.Contains(s.Id))
+                    .ToListAsync(cancellationToken);
+
+                await RecordTrekDelivery.BuildInvoicesAsync(
+                    db, trip, affectedStops, new Dictionary<Guid, RecordTrekDelivery.StopInvoiceSync>(), cancellationToken);
             }
 
             try
@@ -677,6 +690,7 @@ public static class SyncOfflineActionsByDriverToken
             OfflineAction action,
             Entities.TrekkingTrip trip,
             Dictionary<Guid, Guid> stopClientMap,
+            HashSet<Guid> invoiceAffectedStopIds,
             CancellationToken ct)
         {
             var existing = await db.TrekkingTripStopProducts
@@ -712,10 +726,18 @@ public static class SyncOfflineActionsByDriverToken
             var pkgQty = payload.TryGetProperty("packagingQtyDelivered", out var pq) ? (decimal?)pq.GetDecimal() : null;
             var pmStr = payload.TryGetProperty("paymentMethod", out var pm) ? pm.GetString() : null;
             Enum.TryParse<PaymentMethod>(pmStr, ignoreCase: true, out var paymentMethod);
-            var amtPaid = payload.TryGetProperty("amtPaid", out var ap) ? (decimal?)ap.GetDecimal() : null;
+            var amtPaidProvided = payload.TryGetProperty("amtPaid", out var ap);
+            var amtPaid = amtPaidProvided ? (decimal?)ap.GetDecimal() : null;
             var balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : null;
 
             var (resolvedBasicPrice, resolvedPkgPrice) = await ResolveStopProductPriceAsync(stopId, product, trip, ct);
+
+            var effectivePkgQty = product.PackagingUnitId.HasValue ? pkgQty : null;
+            if (!amtPaidProvided && (basicQty > 0 || (effectivePkgQty ?? 0) > 0))
+            {
+                amtPaid = basicQty * resolvedBasicPrice + (effectivePkgQty ?? 0) * (resolvedPkgPrice ?? 0);
+                balance = 0;
+            }
 
             db.TrekkingTripStopProducts.Add(new TrekkingTripStopProduct
             {
@@ -725,7 +747,8 @@ public static class SyncOfflineActionsByDriverToken
                 BasicUnitPrice = resolvedBasicPrice,
                 PackagingUnitPrice = resolvedPkgPrice,
                 BasicQtyDelivered = basicQty,
-                PackagingQtyDelivered = product.PackagingUnitId.HasValue ? pkgQty : null,
+                PackagingQtyDelivered = effectivePkgQty,
+                AmountDue = basicQty * resolvedBasicPrice + (effectivePkgQty ?? 0) * (resolvedPkgPrice ?? 0),
                 PaymentMethod = pmStr is not null ? paymentMethod : null,
                 AmtPaid = amtPaid,
                 Balance = balance,
@@ -734,12 +757,15 @@ public static class SyncOfflineActionsByDriverToken
                 ClientGeneratedId = action.ClientId
             });
 
+            invoiceAffectedStopIds.Add(stopId);
+
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
         }
 
         private async Task<ActionResult> ProcessRecordDeliveryAsync(
             OfflineAction action,
             Entities.TrekkingTrip trip,
+            HashSet<Guid> invoiceAffectedStopIds,
             CancellationToken ct)
         {
             var payload = action.Payload;
@@ -768,10 +794,26 @@ public static class SyncOfflineActionsByDriverToken
             stopProduct.BasicQtyDelivered = payload.TryGetProperty("basicQtyDelivered", out var bq) ? bq.GetDecimal() : stopProduct.BasicQtyDelivered;
             stopProduct.PackagingQtyDelivered = payload.TryGetProperty("packagingQtyDelivered", out var pq) ? (decimal?)pq.GetDecimal() : stopProduct.PackagingQtyDelivered;
             stopProduct.PaymentMethod = pmStr is not null ? paymentMethod : stopProduct.PaymentMethod;
-            stopProduct.AmtPaid = payload.TryGetProperty("amtPaid", out var ap) ? (decimal?)ap.GetDecimal() : stopProduct.AmtPaid;
-            stopProduct.Balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : stopProduct.Balance;
+
+            stopProduct.AmountDue = (stopProduct.BasicQtyDelivered ?? 0) * stopProduct.BasicUnitPrice
+                                  + (stopProduct.PackagingQtyDelivered ?? 0) * (stopProduct.PackagingUnitPrice ?? 0);
+
+            var amtPaidProvided = payload.TryGetProperty("amtPaid", out var ap);
+            if (amtPaidProvided)
+            {
+                stopProduct.AmtPaid = (decimal?)ap.GetDecimal();
+                stopProduct.Balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : stopProduct.Balance;
+            }
+            else if ((stopProduct.BasicQtyDelivered ?? 0) > 0 || (stopProduct.PackagingQtyDelivered ?? 0) > 0)
+            {
+                stopProduct.AmtPaid = stopProduct.AmountDue;
+                stopProduct.Balance = 0;
+            }
+
             stopProduct.Notes = payload.TryGetProperty("notes", out var n) ? n.GetString()?.Trim() ?? stopProduct.Notes : stopProduct.Notes;
             stopProduct.DeliveredAt ??= action.OccurredAt;
+
+            invoiceAffectedStopIds.Add(stopProduct.TrekkingTripStopId);
 
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = stopProductId };
         }

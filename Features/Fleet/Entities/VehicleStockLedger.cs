@@ -13,7 +13,8 @@ public class VehicleStockLedger
     public StockChangeSource Source { get; set; }
     public decimal BasicQtyChange { get; set; }
     public decimal PackagingQtyChange { get; set; }
-    public decimal BalanceAfter { get; set; }
+    public decimal BasicBalanceAfter { get; set; }
+    public decimal PackagingBalanceAfter { get; set; }
     public string Reason { get; set; } = string.Empty;
     public Guid? ReferenceId { get; set; }
     public Guid? AuthorStaffId { get; set; }

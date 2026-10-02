@@ -89,10 +89,12 @@ public static class RecordTrekDelivery
                 product.PackagingQtyDelivered = record.PackagingQtyDelivered;
                 product.PaymentMethod = record.PaymentMethod;
 
+                product.AmountDue = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
+                                  + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
+
                 if (record.AmtPaid is null && (record.BasicQtyDelivered > 0 || record.PackagingQtyDelivered > 0))
                 {
-                    product.AmtPaid = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
-                                    + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
+                    product.AmtPaid = product.AmountDue;
                     product.Balance = 0;
                 }
                 else
@@ -205,16 +207,16 @@ public static class RecordTrekDelivery
                 continue;
             }
 
-            var seq = await db.Database.SqlQueryRaw<long>(
+            var seq = (await db.Database.SqlQueryRaw<long>(
                 """
                 INSERT INTO "InvoiceNumberTrackers" ("ScopeId", "ScopeType", "LastSequence")
                 VALUES ({0}, {1}, 1)
                 ON CONFLICT ("ScopeId", "ScopeType") DO UPDATE
                 SET "LastSequence" = "InvoiceNumberTrackers"."LastSequence" + 1
                 RETURNING "LastSequence" AS "Value"
-                """, scopeId, scopeType).FirstAsync(ct);
+                """, scopeId, scopeType).ToListAsync(ct)).First();
 
-            var invoiceNumber = $"{scopeCode.ToUpper()}-INV-{seq:D5}";
+            var invoiceNumber = $"INV-{scopeCode.ToUpper()}{seq:D5}";
 
             var newInvoice = new SaleInvoice
             {

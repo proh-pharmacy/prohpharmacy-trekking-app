@@ -61,10 +61,12 @@ public static class RecordTrekDeliveryByToken
                 product.PackagingQtyDelivered = record.PackagingQtyDelivered;
                 product.PaymentMethod = record.PaymentMethod;
 
+                product.AmountDue = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
+                                  + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
+
                 if (record.AmtPaid is null && (record.BasicQtyDelivered > 0 || record.PackagingQtyDelivered > 0))
                 {
-                    product.AmtPaid = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
-                                    + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
+                    product.AmtPaid = product.AmountDue;
                     product.Balance = 0;
                 }
                 else

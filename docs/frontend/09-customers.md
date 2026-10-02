@@ -257,6 +257,36 @@ function getCustomerIcon(customerType) {
 
 ### Response `200 OK` — `PaginatedData<CustomerResponse>`
 
+Each item in `data` uses the same complete shape as `GET /api/v1/customers/{id}`, including the nullable identification fields:
+
+```json
+{
+  "totalCount": 1,
+  "totalPages": 1,
+  "currentPage": 1,
+  "pageSize": 20,
+  "nextPageUrl": null,
+  "previousPageUrl": null,
+  "path": "https://api.example.com/api/v1/customers?pageNumber=1&pageSize=20",
+  "links": [
+    "https://api.example.com/api/v1/customers?pageNumber=1&pageSize=20"
+  ],
+  "data": [
+    {
+      "id": "<customer-guid>",
+      "customerCode": "GAR-00001",
+      "businessName": "Accra Pharmacy Ltd",
+      "idDocumentType": "PharmacyLicence",
+      "idDocumentNumber": "GH-PHARM-00234",
+      "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg",
+      "idCardBackUrl": "https://ik.imagekit.io/example/customers/id-cards/back.jpg"
+    }
+  ]
+}
+```
+
+The item above is abbreviated to highlight the new fields; all existing `CustomerResponse` properties are still returned. Any identification field that has not been captured is `null`. As with other `QueryBuilder` lists, send `pageSize` to receive the pagination envelope; without it the endpoint returns a plain array of the same customer objects.
+
 ---
 
 ## GET /api/v1/customers/{id}
@@ -282,6 +312,10 @@ function getCustomerIcon(customerType) {
   "registeredDuringTrekId": null,
   "createdOffline": false,
   "premisesPhotoUrl": "https://ik.imagekit.io/prohpharmacy/customers/premises/abc.jpg",
+  "idDocumentType": "PharmacyLicence",
+  "idDocumentNumber": "GH-PHARM-00234",
+  "idCardFrontUrl": "https://ik.imagekit.io/example/customers/id-cards/front.jpg",
+  "idCardBackUrl": "https://ik.imagekit.io/example/customers/id-cards/back.jpg",
   "recordedAt": "2026-09-09T10:00:00Z",
   "createdAt": "2026-09-09T10:00:00Z",
   "updatedAt": null,

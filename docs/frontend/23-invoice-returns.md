@@ -38,7 +38,7 @@ Response `201`:
 ```json
 {
   "returnId": "<return-guid>",
-  "invoiceNumber": "GAR-INV-00001",
+  "invoiceNumber": "INV-GAR00001",
   "productId": "<product-guid>",
   "productName": "Paracetamol 500mg",
   "basicQtyReturned": 4,
@@ -65,7 +65,7 @@ Both GET routes return this shape:
     "returnId": "<return-guid>",
     "stopId": "<current-stop-guid>",
     "customerName": "Accra Pharmacy Ltd",
-    "invoiceNumber": "GAR-INV-00001",
+    "invoiceNumber": "INV-GAR00001",
     "productId": "<product-guid>",
     "productName": "Paracetamol 500mg",
     "basicQtyReturned": 4,
@@ -90,7 +90,7 @@ Approval takes no body and returns:
 ```json
 {
   "returnId": "<return-guid>",
-  "invoiceNumber": "GAR-INV-00001",
+  "invoiceNumber": "INV-GAR00001",
   "productName": "Paracetamol 500mg",
   "refundAmount": 10,
   "approvalStatus": "Approved",
@@ -103,7 +103,7 @@ Rejection requires `{ "reason": "Goods do not match the invoice" }` (nonempty, m
 ```json
 {
   "returnId": "<return-guid>",
-  "invoiceNumber": "GAR-INV-00001",
+  "invoiceNumber": "INV-GAR00001",
   "productName": "Paracetamol 500mg",
   "approvalStatus": "Rejected",
   "rejectionReason": "Goods do not match the invoice",
