@@ -11,12 +11,83 @@ Only invoices whose originating trek has status `Completed` are returnable. Invo
 | GET | `/api/v1/treks/driver/{token}/customers/{customerId}/invoices` | Driver token | `200`, invoice-list array |
 | POST | `/api/v1/treks/driver/{token}/returns` | Driver token | `201`, batch return response |
 | POST | `/api/v1/treks/{trekId}/stops/{stopId}/returns` | Staff JWT | `201`, single return response |
+| GET | `/api/v1/returns` | Staff JWT | `200`, paginated return list across all treks (approvals inbox) |
+| GET | `/api/v1/returns/pending-count` | Staff JWT | `200`, `{ "count": number }` for sidebar badge |
 | GET | `/api/v1/treks/{trekId}/returns?approvalStatus=Pending` | Staff JWT | `200`, return-list array |
 | GET | `/api/v1/invoices/{invoiceNumber}/returns` | Staff JWT | `200`, same array |
 | POST | `/api/v1/returns/{returnId}/approve` | Staff JWT | `200`, approval response; no request body |
 | POST | `/api/v1/returns/{returnId}/reject` | Staff JWT | `200`, rejection response |
 
-`approvalStatus` is optional and case-insensitive: `Pending`, `Approved`, `Rejected`. Review lists are unpaginated, ordered by `recordedAt` ascending. POST handler failures use HTTP `422` even when the body code is `404` or `400`. The routes use plain `RequireAuthorization()` for staff; they do not enforce a dedicated admin role policy.
+`approvalStatus` is optional and case-insensitive: `Pending`, `Approved`, `Rejected`. Scoped review lists (`/treks/.../returns`, `/invoices/.../returns`) are unpaginated and ordered by `recordedAt` ascending. The global `/api/v1/returns` list is paginated and defaults to `recordedAt_desc`. POST handler failures use HTTP `422` even when the body code is `404` or `400`. The routes use plain `RequireAuthorization()` for staff; they do not enforce a dedicated admin role policy.
+
+### Cross-trek approvals inbox
+
+```
+GET /api/v1/returns
+    ?approvalStatus=Pending
+    &regionId=<guid>
+    &trekId=<guid>
+    &customerId=<guid>
+    &dateFrom=2026-10-01T00:00:00Z
+    &dateTo=2026-10-31T23:59:59Z
+    &search=INV-GAR
+    &sort=recordedAt_desc
+    &pageNumber=1
+    &pageSize=20
+```
+
+Returns are visible across all treks. **Pending returns only appear once their parent trek is `Completed`** — same rule as the scoped `/treks/{trekId}/returns` endpoint, so the inbox never shows a refund the admin can't yet act on. `search` matches invoice number, customer business name, or product name (case-insensitive). Each item carries full context so the admin can review without extra lookups:
+
+```json
+{
+  "returnId": "<guid>",
+  "stopId": "<guid>",
+  "trekId": "<trek-guid>",
+  "trekNumber": "TRK-00042",
+  "trekDate": "2026-10-15",
+  "trekStatus": "Completed",
+  "regionName": "Greater Accra Region",
+  "driverName": "Kwame Asante",
+  "customerId": "<customer-guid>",
+  "customerName": "Accra Pharmacy Ltd",
+  "customerCode": "GAR00001",
+  "invoiceId": "<invoice-guid>",
+  "invoiceNumber": "INV-GAR00042",
+  "productId": "<product-guid>",
+  "productName": "Paracetamol 500mg",
+  "basicUnitName": "Tablet",
+  "packagingUnitName": "Box",
+  "basicQtyReturned": 10,
+  "packagingQtyReturned": null,
+  "basicUnitPrice": 1.5,
+  "packagingUnitPrice": 15,
+  "refundAmount": 15,
+  "refundMethod": "Cash",
+  "reason": "Expired",
+  "approvalStatus": "Pending",
+  "rejectionReason": null,
+  "recordedAt": "2026-10-15T14:30:00Z",
+  "approvedAt": null,
+  "recordedByName": "Kwame Asante",
+  "approvedByName": null
+}
+```
+
+Pair this with the existing `POST /api/v1/returns/{returnId}/approve` and `/reject` to action rows directly from the inbox.
+
+### Sidebar badge count
+
+```
+GET /api/v1/returns/pending-count
+```
+
+Returns the number of refund records awaiting approval across all treks, applying the same visibility rule as the inbox (pending returns on `Completed` treks only). Use this to drive a sidebar badge next to the approvals link.
+
+```json
+{ "count": 3 }
+```
+
+Poll on an interval appropriate for your UX (e.g. every 30–60s), or refresh after an approve/reject action to keep the badge in sync. The response is a single object so new counts can be added later without breaking clients.
 
 ## Driver flow
 
