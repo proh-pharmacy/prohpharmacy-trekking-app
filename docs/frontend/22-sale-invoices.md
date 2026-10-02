@@ -18,6 +18,7 @@ All routes below require a staff Bearer JWT, except the explicitly marked driver
 |---|---|---|
 | GET | `/api/v1/invoices` | `200`, array or paginated invoice responses |
 | GET | `/api/v1/invoices/{invoiceNumber}` | `200`, invoice response |
+| GET | `/api/v1/invoices/export` | `200`, `.xlsx` or `.pdf` stream (see [Export](#export)) |
 | GET | `/api/v1/treks/{trekId}/stops/{stopId}/invoice` | `200`, invoice response |
 | POST | `/api/v1/treks/{id}/record` | `200`, delivery response including invoices |
 | POST | `/api/v1/treks/driver/{token}/record` | `200`, same response; driver token only |
@@ -29,6 +30,7 @@ Single-invoice lookups return HTTP `404` when absent. The stop lookup is useful 
 | Query | Meaning |
 |---|---|
 | `customerId`, `trekId` | Optional GUID filters |
+| `regionId` | Scopes to invoices whose **trek** ran in the given region (`TrekkingTrip.RegionId`). Walk-ins and cross-region deliveries follow trek region, not customer region. |
 | `status` | Case-insensitive status filter |
 | `dateFrom`, `dateTo` | Inclusive `issuedAt` bounds, ISO date-times |
 | `search` | Invoice number search |
@@ -138,6 +140,68 @@ Persist the returned stop-to-invoice mapping, then refresh trek details and invo
 The separate `/sync` action handler and direct unplanned-sale handlers do not call the invoice builder. After syncing deliveries or creating unplanned products, submit the affected product rows through `/record` with their server IDs and complete recorded values before completing the trek. Do not assume a successful sync has issued an invoice. See [offline integration](./18-offline-sync.md) and [returns](./23-invoice-returns.md).
 
 Sources: `Features/Trekking/RecordTrekDelivery.cs`, `RecordTrekDeliveryByToken.cs`, `GetInvoice.cs`, `GetInvoiceList.cs`, `GetStopInvoice.cs`, `Utilities/QueryBuilder.cs`.
+
+## Export
+
+```
+GET /api/v1/invoices/export?format=excel|pdf
+```
+
+Staff Bearer JWT. Streams **all** invoices matching the filters — pagination is intentionally ignored so the export reflects the full result set the current filters describe. The file is generated on-demand and not persisted server-side; immutability is provided by streaming a self-describing snapshot (filter line + generation timestamp + row count are embedded in the file header).
+
+### Query parameters
+
+The filter pipeline is identical to [`GET /api/v1/invoices`](#list-filters):
+
+| Query | Meaning |
+|---|---|
+| `format` | `excel` (default) or `pdf` |
+| `customerId` | Scope to one customer's invoices |
+| `trekId` | Scope to one trek's invoices |
+| `regionId` | Scope to invoices from treks that ran in a region (`TrekkingTrip.RegionId`) |
+| `status` | Case-insensitive — `Issued`, `PartiallyPaid`, `Paid`, `Voided` |
+| `dateFrom`, `dateTo` | Inclusive `issuedAt` bounds, ISO date-times |
+| `search` | Invoice-number substring (case-insensitive) |
+| `sort` | Entity field + `_asc` / `_desc`; default `issuedAt_desc` |
+
+Omitting `format` defaults to Excel. An invalid value returns `422` with `code=BadRequest`.
+
+### Response
+
+Both formats stream with `Content-Disposition: attachment; filename="Invoices-YYYYMMDDHHmm.<ext>"`:
+
+| `format` | Content-Type | Extension |
+|---|---|---|
+| `excel` | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | `.xlsx` |
+| `pdf` | `application/pdf` | `.pdf` |
+
+### File contents
+
+Same columns in both formats, same order:
+
+`INVOICE NO.` · `ISSUED AT` · `STATUS` · `TREK NO.` · `TREK DATE` · `CUSTOMER CODE` · `CUSTOMER NAME` · `REGION` · `TOTAL AMOUNT (GHS)` · `TOTAL PAID (GHS)` · `BALANCE (GHS)`
+
+A header band at the top of each file states the applied filters (Customer, Trek, Status, Period, Search, Sort), the generation timestamp (`UTC`), and the total row count. A `TOTAL` row at the bottom sums `TOTAL AMOUNT`, `TOTAL PAID`, and `BALANCE` across every row returned. Lines are **invoices** (one row per invoice) — line-item breakdowns are not included; link to the invoice detail endpoint for per-line data.
+
+### Frontend usage
+
+```ts
+const url = new URL("/api/v1/invoices/export", API_BASE);
+url.searchParams.set("format", "excel"); // or "pdf"
+if (customerId) url.searchParams.set("customerId", customerId);
+if (dateFrom)   url.searchParams.set("dateFrom", dateFrom.toISOString());
+// ...other filters identical to the list endpoint
+
+const res = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+const blob = await res.blob();
+const filename = /filename="(.+)"/.exec(res.headers.get("content-disposition") ?? "")?.[1]
+              ?? `Invoices.${format === "pdf" ? "pdf" : "xlsx"}`;
+// save blob as `filename`
+```
+
+Mirror the exact filter state currently applied to the list view before firing the export so the saved file matches what the user is looking at. The embedded filter line in the file makes mismatches obvious if they occur.
+
+Sources: `Features/Trekking/ExportInvoiceList.cs`, `Services/Pdf/InvoiceListPdfGenerator.cs`.
 
 ## Client-side invoice generation (QR / offline)
 

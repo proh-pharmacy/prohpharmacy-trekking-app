@@ -19,6 +19,7 @@ public static class GetInvoiceList
         public int? PageSize { get; set; }
         public Guid? CustomerId { get; set; }
         public Guid? TrekId { get; set; }
+        public Guid? RegionId { get; set; }
         public string? Status { get; set; }
         public DateTime? DateFrom { get; set; }
         public DateTime? DateTo { get; set; }
@@ -40,6 +41,9 @@ public static class GetInvoiceList
 
             if (request.TrekId.HasValue)
                 query = query.Where(i => i.TrekkingTripId == request.TrekId.Value);
+
+            if (request.RegionId.HasValue)
+                query = query.Where(i => i.Stop.TrekkingTrip.RegionId == request.RegionId.Value);
 
             if (!string.IsNullOrWhiteSpace(request.Status))
                 query = query.Where(i => i.Status.ToString().ToLower() == request.Status.ToLower());
@@ -73,6 +77,7 @@ public class GetInvoiceListEndpoint : ICarterModule
             [FromQuery] int? pageSize,
             [FromQuery] Guid? customerId,
             [FromQuery] Guid? trekId,
+            [FromQuery] Guid? regionId,
             [FromQuery] string? status,
             [FromQuery] DateTime? dateFrom,
             [FromQuery] DateTime? dateTo) =>
@@ -85,6 +90,7 @@ public class GetInvoiceListEndpoint : ICarterModule
                 PageSize = pageSize,
                 CustomerId = customerId,
                 TrekId = trekId,
+                RegionId = regionId,
                 Status = status,
                 DateFrom = dateFrom,
                 DateTo = dateTo
