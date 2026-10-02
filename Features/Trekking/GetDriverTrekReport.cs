@@ -32,6 +32,7 @@ public static class GetDriverTrekReport
         public List<CollectionByMethod> CollectionsByMethod { get; set; } = [];
         public List<StopReport> Stops { get; set; } = [];
         public List<StockSummaryItem> StockSummary { get; set; } = [];
+        public List<RefundLineItem> Refunds { get; set; } = [];
     }
 
     public class ReportSummary
@@ -40,9 +41,41 @@ public static class GetDriverTrekReport
         public decimal TotalCollected { get; set; }
         public decimal TotalOutstanding { get; set; }
         public decimal TotalApprovedRefunds { get; set; }
+        public decimal TotalPendingRefunds { get; set; }
+        public decimal TotalRejectedRefunds { get; set; }
+        public int ApprovedRefundCount { get; set; }
+        public int PendingRefundCount { get; set; }
+        public int RejectedRefundCount { get; set; }
         public decimal NetCashOnHand { get; set; }
+        public decimal TrekNetSales { get; set; }
+        public decimal CashCollected { get; set; }
+        public decimal MobileMoneyCollected { get; set; }
+        public decimal CashRefundsPaidOut { get; set; }
+        public decimal MobileMoneyRefundsPaidOut { get; set; }
+        public decimal PhysicalCashInHand { get; set; }
+        public decimal MobileMoneyBalance { get; set; }
         public int TotalStops { get; set; }
         public int StopsVisited { get; set; }
+    }
+
+    public class RefundLineItem
+    {
+        public Guid ReturnId { get; set; }
+        public int Sequence { get; set; }
+        public string CustomerName { get; set; } = string.Empty;
+        public Guid? InvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
+        public Guid ProductId { get; set; }
+        public string ProductName { get; set; } = string.Empty;
+        public decimal BasicQtyReturned { get; set; }
+        public decimal? PackagingQtyReturned { get; set; }
+        public decimal? RefundAmount { get; set; }
+        public string? RefundMethod { get; set; }
+        public string ApprovalStatus { get; set; } = string.Empty;
+        public string? Reason { get; set; }
+        public string? RejectionReason { get; set; }
+        public DateTime RecordedAt { get; set; }
+        public DateTime? ApprovedAt { get; set; }
     }
 
     public class CollectionByMethod
@@ -133,6 +166,8 @@ public static class GetDriverTrekReport
                 .ToList();
             var allReturns  = trip.Stops.SelectMany(s => s.Returns).ToList();
             var approvedReturns = allReturns.Where(r => r.ApprovalStatus == ReturnApprovalStatus.Approved).ToList();
+            var pendingReturns  = allReturns.Where(r => r.ApprovalStatus == ReturnApprovalStatus.Pending).ToList();
+            var rejectedReturns = allReturns.Where(r => r.ApprovalStatus == ReturnApprovalStatus.Rejected).ToList();
 
             var totalSales      = deliveredProducts.Sum(p =>
                 (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
@@ -140,6 +175,8 @@ public static class GetDriverTrekReport
             var totalCollected  = allProducts.Sum(p => p.AmtPaid ?? 0);
             var totalOutstanding= allProducts.Sum(p => p.Balance ?? 0);
             var totalRefunds    = approvedReturns.Sum(r => r.RefundAmount ?? 0);
+            var pendingRefunds  = pendingReturns.Sum(r => r.RefundAmount ?? 0);
+            var rejectedRefunds = rejectedReturns.Sum(r => r.RefundAmount ?? 0);
 
             var cashCollected   = allProducts
                 .Where(p => p.PaymentMethod == PaymentMethod.Cash)
@@ -151,6 +188,18 @@ public static class GetDriverTrekReport
                 .Where(r => r.RefundMethod == PaymentMethod.Cash)
                 .Sum(r => r.RefundAmount ?? 0);
             var netCash = cashCollected + momoCollected - cashRefunds;
+
+            var cashRefundsPaidOut = allReturns
+                .Where(r => r.ApprovalStatus != ReturnApprovalStatus.Rejected
+                         && r.RefundMethod == PaymentMethod.Cash)
+                .Sum(r => r.RefundAmount ?? 0);
+            var momoRefundsPaidOut = allReturns
+                .Where(r => r.ApprovalStatus != ReturnApprovalStatus.Rejected
+                         && r.RefundMethod == PaymentMethod.MobileMoney)
+                .Sum(r => r.RefundAmount ?? 0);
+            var physicalCashInHand = cashCollected - cashRefundsPaidOut;
+            var momoBalance        = momoCollected - momoRefundsPaidOut;
+            var trekNetSales       = totalSales - totalRefunds;
 
             var collectionsByMethod = allProducts
                 .Where(p => p.PaymentMethod.HasValue && p.AmtPaid > 0)
@@ -223,6 +272,34 @@ public static class GetDriverTrekReport
                 };
             }).OrderBy(s => s.ProductName).ToList();
 
+            var stopById = trip.Stops.ToDictionary(s => s.Id);
+            var refunds = allReturns
+                .OrderBy(r => r.RecordedAt)
+                .Select(r =>
+                {
+                    stopById.TryGetValue(r.TrekkingTripStopId, out var stop);
+                    invoices.TryGetValue(r.TrekkingTripStopId, out var invoice);
+                    return new RefundLineItem
+                    {
+                        ReturnId             = r.Id,
+                        Sequence             = stop?.Sequence ?? 0,
+                        CustomerName         = stop?.CustomerAccount?.BusinessName ?? string.Empty,
+                        InvoiceId            = invoice?.Id,
+                        InvoiceNumber        = invoice?.InvoiceNumber,
+                        ProductId            = r.ProductId,
+                        ProductName          = r.Product?.Name ?? string.Empty,
+                        BasicQtyReturned     = r.BasicQtyReturned,
+                        PackagingQtyReturned = r.PackagingQtyReturned,
+                        RefundAmount         = r.RefundAmount,
+                        RefundMethod         = r.RefundMethod?.ToString(),
+                        ApprovalStatus       = r.ApprovalStatus.ToString(),
+                        Reason               = r.Reason,
+                        RejectionReason      = r.RejectionReason,
+                        RecordedAt           = r.RecordedAt,
+                        ApprovedAt           = r.ApprovedAt
+                    };
+                }).ToList();
+
             return new TrekReportData
             {
                 GeneratedAt        = DateTime.UtcNow,
@@ -239,13 +316,26 @@ public static class GetDriverTrekReport
                     TotalCollected       = totalCollected,
                     TotalOutstanding     = totalOutstanding,
                     TotalApprovedRefunds = totalRefunds,
+                    TotalPendingRefunds  = pendingRefunds,
+                    TotalRejectedRefunds = rejectedRefunds,
+                    ApprovedRefundCount  = approvedReturns.Count,
+                    PendingRefundCount   = pendingReturns.Count,
+                    RejectedRefundCount  = rejectedReturns.Count,
                     NetCashOnHand        = netCash,
+                    TrekNetSales         = trekNetSales,
+                    CashCollected        = cashCollected,
+                    MobileMoneyCollected = momoCollected,
+                    CashRefundsPaidOut   = cashRefundsPaidOut,
+                    MobileMoneyRefundsPaidOut = momoRefundsPaidOut,
+                    PhysicalCashInHand   = physicalCashInHand,
+                    MobileMoneyBalance   = momoBalance,
                     TotalStops           = trip.Stops.Count,
                     StopsVisited         = stopsVisited
                 },
                 CollectionsByMethod = collectionsByMethod,
                 Stops               = stopReports,
-                StockSummary        = stockSummary
+                StockSummary        = stockSummary,
+                Refunds             = refunds
             };
         }
     }

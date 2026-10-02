@@ -4,5 +4,6 @@ public enum StockChangeSource
 {
     ManualLoad,
     TrekCompletion,
-    ReturnApproval
+    ReturnApproval,
+    StockReset
 }

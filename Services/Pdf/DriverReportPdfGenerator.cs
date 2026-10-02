@@ -101,6 +101,9 @@ public static class DriverReportPdfGenerator
             if (data.Stops.Count > 0)
                 col.Item().Element(c => ComposeStopsTable(c, data.Stops));
 
+            if (data.Refunds.Count > 0)
+                col.Item().Element(c => ComposeRefundsTable(c, data.Refunds));
+
             if (data.StockSummary.Count > 0)
                 col.Item().Element(c => ComposeStockTable(c, data.StockSummary));
         });
@@ -112,10 +115,10 @@ public static class DriverReportPdfGenerator
     {
         container.Column(col =>
         {
-            col.Spacing(4);
+            col.Spacing(6);
 
-            col.Item().Text("Financial Summary").FontSize(8f).SemiBold().FontColor(TextColor);
-
+            // Block 1 — Trek P&L (what the trek earned)
+            col.Item().Text("Trek P&L").FontSize(8f).SemiBold().FontColor(TextColor);
             col.Item().Table(table =>
             {
                 table.ColumnsDefinition(cols =>
@@ -124,18 +127,57 @@ public static class DriverReportPdfGenerator
                     cols.RelativeColumn();
                     cols.RelativeColumn();
                 });
+                SummaryCard(table, "Total Sales Value",   $"GHS {s.TotalSalesValue:0.00}",      PrimaryColor);
+                SummaryCard(table, "Approved Refunds",    FormatDeduction(s.TotalApprovedRefunds), DeductionColor(s.TotalApprovedRefunds),
+                    sub: $"{s.ApprovedRefundCount} item(s)");
+                SummaryCard(table, "Trek Net Sales",      $"GHS {s.TrekNetSales:0.00}",         "#1e293b");
+            });
 
-                SummaryCard(table, "Total Sales Value",    $"GHS {s.TotalSalesValue:0.00}",      PrimaryColor);
-                SummaryCard(table, "Total Collected",      $"GHS {s.TotalCollected:0.00}",       "#15803d");
-                SummaryCard(table, "Total Outstanding",    $"GHS {s.TotalOutstanding:0.00}",     "#b45309");
-                SummaryCard(table, "Approved Refunds",     $"GHS {s.TotalApprovedRefunds:0.00}", "#b91c1c");
-                SummaryCard(table, "Net Cash on Hand",     $"GHS {s.NetCashOnHand:0.00}",        "#1e293b");
-                table.Cell(); // empty cell to fill row of 3
+            // Block 2 — Money Position (what's where right now)
+            col.Item().PaddingTop(2).Text("Money Position").FontSize(8f).SemiBold().FontColor(TextColor);
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn();
+                    cols.RelativeColumn();
+                    cols.RelativeColumn();
+                    cols.RelativeColumn();
+                });
+                SummaryCard(table, "Cash Collected",         $"GHS {s.CashCollected:0.00}",        "#15803d");
+                SummaryCard(table, "Cash Refunds Paid Out",  FormatDeduction(s.CashRefundsPaidOut), DeductionColor(s.CashRefundsPaidOut),
+                    sub: "approved + pending");
+                SummaryCard(table, "Physical Cash in Hand",  $"GHS {s.PhysicalCashInHand:0.00}",   "#1e293b");
+                SummaryCard(table, "Mobile Money Balance",   $"GHS {s.MobileMoneyBalance:0.00}",   "#1e293b",
+                    sub: $"collected GHS {s.MobileMoneyCollected:0.00}");
+            });
+
+            // Block 3 — Deferred / Exposure
+            col.Item().PaddingTop(2).Text("Deferred & Exposure").FontSize(8f).SemiBold().FontColor(TextColor);
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.RelativeColumn();
+                    cols.RelativeColumn();
+                    cols.RelativeColumn();
+                });
+                SummaryCard(table, "Outstanding (Customer Debt)", $"GHS {s.TotalOutstanding:0.00}",     "#b45309");
+                SummaryCard(table, "Pending Refunds",             $"GHS {s.TotalPendingRefunds:0.00}",  "#b45309",
+                    sub: $"{s.PendingRefundCount} awaiting approval");
+                SummaryCard(table, "Rejected Refunds",            $"GHS {s.TotalRejectedRefunds:0.00}", MutedText,
+                    sub: $"{s.RejectedRefundCount} item(s) — informational");
             });
         });
     }
 
-    private static void SummaryCard(TableDescriptor table, string label, string value, string valueColor)
+    private static string FormatDeduction(decimal value) =>
+        value > 0 ? $"(GHS {value:0.00})" : $"GHS {value:0.00}";
+
+    private static string DeductionColor(decimal value) =>
+        value > 0 ? "#b91c1c" : TextColor;
+
+    private static void SummaryCard(TableDescriptor table, string label, string value, string valueColor, string? sub = null)
     {
         table.Cell()
             .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
@@ -144,6 +186,8 @@ public static class DriverReportPdfGenerator
             {
                 c.Item().Text(label).FontSize(6.5f).FontColor(LabelColor);
                 c.Item().PaddingTop(3).Text(value).FontSize(9.5f).SemiBold().FontColor(valueColor);
+                if (!string.IsNullOrEmpty(sub))
+                    c.Item().PaddingTop(2).Text(sub).FontSize(6f).FontColor(MutedText);
             });
     }
 
@@ -219,6 +263,78 @@ public static class DriverReportPdfGenerator
                     BodyCell(table, $"GHS {stop.AmtPaid:0.00}", bg, alignCenter: true);
                     BodyCell(table, stop.Balance > 0 ? $"GHS {stop.Balance:0.00}" : "—", bg, alignCenter: true, color: stop.Balance > 0 ? "#b45309" : null);
                     BodyCell(table, stop.PaymentMethods.Count > 0 ? string.Join(" · ", stop.PaymentMethods) : "—", bg, alignCenter: true);
+                }
+            });
+        });
+    }
+
+    // ── Refunds table ──────────────────────────────────────────────────────────
+
+    private static void ComposeRefundsTable(IContainer container, List<GetDriverTrekReport.RefundLineItem> refunds)
+    {
+        container.Column(col =>
+        {
+            col.Spacing(4);
+            col.Item().Text("Refunds").FontSize(8f).SemiBold().FontColor(TextColor);
+
+            col.Item().Table(table =>
+            {
+                table.ColumnsDefinition(cols =>
+                {
+                    cols.ConstantColumn(18);        // #
+                    cols.RelativeColumn(2.5f);      // Customer
+                    cols.RelativeColumn(1.6f);      // Invoice
+                    cols.RelativeColumn(2.5f);      // Product
+                    cols.RelativeColumn(1f);        // Basic Qty
+                    cols.RelativeColumn(1.6f);      // Amount
+                    cols.RelativeColumn(1.3f);      // Method
+                    cols.RelativeColumn(1.3f);      // Status
+                    cols.RelativeColumn(2.2f);      // Reason / Recorded
+                });
+
+                HeaderCell(table, "#",         alignCenter: true);
+                HeaderCell(table, "Customer");
+                HeaderCell(table, "Invoice");
+                HeaderCell(table, "Product");
+                HeaderCell(table, "Basic Qty", alignCenter: true);
+                HeaderCell(table, "Amount",    alignCenter: true);
+                HeaderCell(table, "Method",    alignCenter: true);
+                HeaderCell(table, "Status",    alignCenter: true);
+                HeaderCell(table, "Reason / Recorded");
+
+                var i = 1;
+                foreach (var r in refunds)
+                {
+                    var bg = i++ % 2 == 1 ? CardBg : "#f8fbf9";
+                    var statusColor = r.ApprovalStatus switch
+                    {
+                        "Approved" => "#15803d",
+                        "Pending"  => "#b45309",
+                        "Rejected" => "#b91c1c",
+                        _          => TextColor
+                    };
+                    var reasonLine = string.IsNullOrWhiteSpace(r.Reason) ? "—" : r.Reason;
+                    var recordedLine = $"{r.RecordedAt:dd MMM yyyy HH:mm} UTC";
+
+                    BodyCell(table, r.Sequence > 0 ? r.Sequence.ToString() : "—", bg, alignCenter: true);
+                    BodyCell(table, r.CustomerName, bg);
+                    BodyCell(table, r.InvoiceNumber ?? "—", bg);
+                    BodyCell(table, r.ProductName, bg);
+                    BodyCell(table, $"{r.BasicQtyReturned:0.###}", bg, alignCenter: true);
+                    BodyCell(table, r.RefundAmount.HasValue ? $"GHS {r.RefundAmount.Value:0.00}" : "—", bg, alignCenter: true);
+                    BodyCell(table, r.RefundMethod ?? "—", bg, alignCenter: true);
+                    BodyCell(table, r.ApprovalStatus, bg, alignCenter: true, color: statusColor);
+
+                    table.Cell()
+                        .Background(bg).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
+                        .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle()
+                        .Column(c =>
+                        {
+                            c.Item().Text(reasonLine).FontSize(7.5f).FontColor(TextColor);
+                            c.Item().Text(recordedLine).FontSize(6.3f).FontColor(MutedText);
+                            if (r.ApprovalStatus == "Rejected" && !string.IsNullOrWhiteSpace(r.RejectionReason))
+                                c.Item().Text($"Rejected: {r.RejectionReason}").FontSize(6.3f).FontColor("#b91c1c");
+                        });
                 }
             });
         });

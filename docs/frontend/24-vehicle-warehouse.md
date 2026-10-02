@@ -15,6 +15,8 @@ For a searchable, paginated product picker limited to a vehicle, use `GET /api/v
 | GET | `/api/v1/vehicles/{vehicleId}/stock/{productId}` | `200`, one current `StockItem` |
 | POST | `/api/v1/vehicles/{vehicleId}/stock/load` | `200`, mutation response |
 | POST | `/api/v1/vehicles/{vehicleId}/stock/remove` | `200`, same mutation shape |
+| POST | `/api/v1/vehicles/{vehicleId}/stock/reset` | `200`, reset summary; refuses while active treks exist |
+| GET | `/api/v1/vehicles/{vehicleId}/stock/export` | `200`, current-stock `.xlsx` download |
 | GET | `/api/v1/vehicles/{vehicleId}/stock/ledger` | `200`, array or pagination envelope |
 | GET | `/api/v1/vehicles/{vehicleId}/stock/ledger/export` | `200`, filtered `.xlsx` download |
 
@@ -244,6 +246,7 @@ The downloaded workbook includes the vehicle, applied period, human-readable pro
 | Method | Route | Success |
 |---|---|---|
 | GET | `/api/v1/treks/{trekId}/stock-loads` | `200`, all load rows |
+| GET | `/api/v1/treks/driver/{token}/vehicle-stock` | `200`, `StockItem[]` — the trek vehicle's current warehouse stock; no staff JWT |
 | GET | `/api/v1/treks/{trekId}/stock-loads/check` | `200`, warnings; **requires JSON body** |
 | POST | `/api/v1/treks/{trekId}/stock-loads/check` | `200`, browser-compatible staff warning check |
 | POST | `/api/v1/treks/driver/{token}/stock-loads/check` | `200`, driver-token warnings; no staff JWT |
@@ -360,6 +363,57 @@ POST /api/v1/treks/driver/{token}/stock-loads/check
 
 This route requires no `Authorization` header. The driver token is the credential and resolves the trek and its vehicle; an invalid token returns `404`. It is a read-only dry run and returns the same warning response documented above. Keep the token private and do not make the staff `trekId` route anonymous.
 
+### Driver vehicle-stock list (offline-cached read)
+
+```http
+GET /api/v1/treks/driver/{token}/vehicle-stock
+```
+
+Anonymous driver-token GET. Resolves the token → trek → `VehicleId`, then returns the trek vehicle's `VehicleProductStocks` using the **same `StockItem` shape as the staff route `GET /api/v1/vehicles/{vehicleId}/stock`** (product metadata, basic/packaging units and prices, `basicQuantityOnHand`, `packagingQuantityOnHand`, `isLowStock`, `updatedAt`, etc.). Rows are ordered by stock-record `createdAt` descending. Invalid token returns `404`.
+
+This endpoint does **not** read the per-trek `TrekStockLoads` allocation table. The driver sees exactly what's physically tracked on their assigned van — the same data the admin maintains via `POST /vehicles/{id}/stock/load`, `POST /vehicles/{id}/stock/remove` and `POST /vehicles/{id}/stock/reset`.
+
+The driver portal is expected to cache the response in IndexedDB keyed by the trek/token at pickup, then read from the cache while offline so the driver can browse what's in the van without a network call. The `basicQuantityOnHand` / `packagingQuantityOnHand` values are the **server-side balance at cache time** — treat as stale during offline operation. Authoritative decrements happen on trek completion server-side; refresh the cache once the device is back online. The driver side pushes no stock mutations against this endpoint — the trek-level offline queue (`SyncOfflineActionsByDriverToken`) still handles deliveries, unplanned sales and returns.
+
+## Stock snapshot export
+
+```http
+GET /api/v1/vehicles/{vehicleId}/stock/export?productId={productId}&includeOutOfStock=true
+```
+
+Both query parameters are optional. `productId` restricts the sheet to a single tracked product. `includeOutOfStock` defaults to `true` — set `false` to hide rows whose basic and packaging balances are both zero. The downloaded `.xlsx` includes the vehicle, generation timestamp (GMT), product name, combined readable on-hand (e.g. `2 Boxes, 15 Tablets`), basic and packaging unit prices, low-stock threshold, last-updated timestamp and a derived status column (`In stock`, `Low stock`, `Out of stock`). Low-stock rows render in red; out-of-stock rows render muted. Unknown vehicle returns `404`.
+
+## Full stock reset
+
+```http
+POST /api/v1/vehicles/{vehicleId}/stock/reset
+```
+
+```json
+{ "reason": "End-of-month van reconciliation" }
+```
+
+Removes every `VehicleProductStock` row for the vehicle after writing one `Reduction` / `StockReset` ledger entry per product capturing the pre-reset `basicQuantityOnHand` and `packagingQuantityOnHand` (balances after = 0). Historical ledger rows are untouched — the ledger has no foreign key to the stock table, so audit history survives the delete and still reports via `/stock/ledger` and `/stock/ledger/export`. After reset the vehicle shows no tracked products until the admin re-loads via `POST /stock/load`.
+
+**Preconditions**
+- `reason` is required and max 300 characters.
+- The vehicle must have at least one stock record (otherwise `422` with `"This vehicle has no stock records to reset."`).
+- The vehicle **must not** have any `Scheduled` or `InProgress` trek. Attempting the reset while active treks exist returns `422` with a message naming the blocking trek numbers and statuses — e.g. `"Cannot reset stock — vehicle has active trek(s): TRK-00009 (InProgress), TRK-00011 (Scheduled). Complete or cancel them first."` Call `/api/v1/treks/{id}/change-status` to complete or cancel them first.
+
+**Side-effect to be aware of.** A `Pending` return captured before the reset and approved afterwards credits returned quantities onto the vehicle's existing stock record. After a reset there is no stock record, so the stock credit is **silently skipped** (customer ledger credit still happens). Only reset when all pending returns on the vehicle's recently completed treks have been reviewed.
+
+Response `200`:
+
+```json
+{
+  "productsRemoved": 7,
+  "ledgerEntriesCreated": 7,
+  "resetAt": "2026-10-02T15:30:00Z"
+}
+```
+
+The response does not list product IDs — pull the historical breakdown from `/stock/ledger?source=StockReset` or the stock-ledger export.
+
 ## Completion and return effects
 
 Completion deducts delivered quantities for tracked products from the trek's vehicle, floors balances at zero and appends `Reduction` / `TrekCompletion` ledger rows. Both planned and unplanned products are considered, but the current code only includes stop-product rows where `basicQtyDelivered > 0`; packaging-only deliveries are skipped. Products without vehicle stock records are skipped too. Trek load amounts do not cap deductions.
@@ -368,4 +422,4 @@ Approved returns add basic and packaging quantities to an existing stock record 
 
 After completion or approval, refresh stock, stock ledger, trek allocations and the [driver report](./25-driver-trek-report.md). Treat staff completion as a single action: the status handler currently allows repeated completion and deducts again. Reopening/cancelling does not restore vehicle stock. The driver completion endpoint rejects an already completed trek.
 
-Sources: `Features/Fleet/GetVehicleStock.cs`, `LoadVehicleStock.cs`, `RemoveVehicleStock.cs`, `GetVehicleStockLedger.cs`; `Features/Trekking/GetTrekStockLoads.cs`, `CheckTrekStockLoads.cs`, `BulkSetTrekStockLoads.cs`, `RemoveTrekStockLoad.cs`, `ChangeTrekStatus.cs`, `CompleteTrekByDriverToken.cs`, `ApproveReturn.cs`.
+Sources: `Features/Fleet/GetVehicleStock.cs`, `LoadVehicleStock.cs`, `RemoveVehicleStock.cs`, `ResetVehicleStock.cs`, `ExportVehicleStock.cs`, `GetVehicleStockLedger.cs`, `ExportVehicleStockLedger.cs`; `Features/Trekking/GetTrekStockLoads.cs`, `GetVehicleStockByDriverToken.cs`, `CheckTrekStockLoads.cs`, `BulkSetTrekStockLoads.cs`, `RemoveTrekStockLoad.cs`, `ChangeTrekStatus.cs`, `CompleteTrekByDriverToken.cs`, `ApproveReturn.cs`.

@@ -126,3 +126,67 @@ Persist the returned stop-to-invoice mapping, then refresh trek details and invo
 The separate `/sync` action handler and direct unplanned-sale handlers do not call the invoice builder. After syncing deliveries or creating unplanned products, submit the affected product rows through `/record` with their server IDs and complete recorded values before completing the trek. Do not assume a successful sync has issued an invoice. See [offline integration](./18-offline-sync.md) and [returns](./23-invoice-returns.md).
 
 Sources: `Features/Trekking/RecordTrekDelivery.cs`, `RecordTrekDeliveryByToken.cs`, `GetInvoice.cs`, `GetInvoiceList.cs`, `GetStopInvoice.cs`, `Utilities/QueryBuilder.cs`.
+
+## Client-side invoice generation (QR / offline)
+
+For driver-side client-generated invoice PDFs (where a QR scan at the stop must resolve to the delivered line items without regenerating an invoice number):
+
+| Method | Route | Success |
+|---|---|---|
+| GET | `/api/v1/treks/driver/{token}/stops/by-customer/{customerCode}` | `200`, delivery payload below |
+
+Anonymous (driver token). `customerCode` is an exact, case-insensitive match on `CustomerAccount.CustomerCode`. 404 is returned with a specific message when the token is invalid or when that code is not on this trek.
+
+```json
+{
+  "trekNumber": "TRK-00001",
+  "scheduledDate": "2026-10-02",
+  "trekStatus": "InProgress",
+  "regionName": "Greater Accra Region",
+  "driverName": "Kwame Asante",
+  "salesStaffName": null,
+  "vehicleDisplayName": "Delivery Van 1",
+  "stop": {
+    "stopId": "<stop-guid>",
+    "sequence": 1,
+    "isWalkIn": false,
+    "customer": {
+      "id": "<customer-guid>",
+      "customerCode": "GAR00001",
+      "businessName": "Accra Pharmacy Ltd",
+      "tradingName": null,
+      "primaryPhoneNumber": "+233 24 000 0000",
+      "whatsAppNumber": null,
+      "regionName": "Greater Accra Region"
+    },
+    "invoice": {
+      "id": "<invoice-guid>",
+      "invoiceNumber": "INV-GAR00001",
+      "status": "PartiallyPaid",
+      "issuedAt": "2026-10-02T10:30:00Z"
+    },
+    "products": [
+      {
+        "productId": "<product-guid>",
+        "productName": "Paracetamol 500mg",
+        "basicUnitName": "Tablet",
+        "packagingUnitName": "Box",
+        "basicQtyDelivered": 8,
+        "packagingQtyDelivered": 0,
+        "basicUnitPrice": 1.50,
+        "packagingUnitPrice": 15.00,
+        "lineTotal": 12.00,
+        "amtPaid": 10.00,
+        "balance": 2.00,
+        "paymentMethod": "Cash",
+        "deliveredAt": "2026-10-02T10:30:00Z"
+      }
+    ],
+    "totals": { "amountDue": 12.00, "amtPaid": 10.00, "balance": 2.00 }
+  }
+}
+```
+
+Only **delivered** product lines are returned (`deliveredAt` or `basicQtyDelivered` set) — planned-but-undelivered rows and returns are excluded. `stop.invoice` is `null` until the first delivery has been recorded for the stop (which is also when the server allocates the invoice number). `totals` are summed from the returned lines; the frontend does not need to recompute.
+
+Use this when the driver's QR links to a customer-code anchor and the client needs to render the invoice without round-tripping through the staff invoice endpoints (which require a Bearer JWT).

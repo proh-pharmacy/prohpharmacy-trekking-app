@@ -73,9 +73,9 @@ public static class ExportProducts
                 var hasPackaging = products.Any(p => p.PackagingUnit != null && p.PackagingUnitPrice.HasValue);
 
                 if (hasPackaging)
-                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "PACKAGING UNIT", "PACKAGING PRICE", "ACTIVE" });
+                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE (GHS)", "PACKAGING UNIT", "PACKAGING PRICE (GHS)", "ACTIVE" });
                 else
-                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE", "ACTIVE" });
+                    ApplyGreenHeader(ws, new[] { "PRODUCT NAME", "UNIT", "BASIC PRICE (GHS)", "ACTIVE" });
 
                 int row = 2;
                 foreach (var p in products)
@@ -173,7 +173,7 @@ public static class ExportProducts
                 var pricingSheet1Labels = new string[3 + regions.Count];
                 pricingSheet1Labels[0] = "PRODUCT NAME";
                 pricingSheet1Labels[1] = "UNIT";
-                pricingSheet1Labels[2] = "BASIC PRICE";
+                pricingSheet1Labels[2] = "BASIC PRICE (GHS)";
                 for (int i = 0; i < regions.Count; i++)
                 {
                     var region = regions[i];
@@ -223,7 +223,7 @@ public static class ExportProducts
                     var pricingSheet2Labels = new string[3 + regions.Count];
                     pricingSheet2Labels[0] = "PRODUCT NAME";
                     pricingSheet2Labels[1] = "PACKAGING UNIT";
-                    pricingSheet2Labels[2] = "PACKAGING PRICE";
+                    pricingSheet2Labels[2] = "PACKAGING PRICE (GHS)";
                     for (int i = 0; i < regions.Count; i++)
                     {
                         var region = regions[i];

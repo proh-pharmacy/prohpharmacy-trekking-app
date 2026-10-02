@@ -259,11 +259,13 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
 | `GET` | `api/v1/treks/driver/{token}/customers/{customerId}/invoices` | List a customer's invoices for the return picker (optional `from`, `to`, `invoiceNumber`) |
+| `GET` | `api/v1/treks/driver/{token}/stops/by-customer/{customerCode}` | Delivery payload (customer, delivered lines, invoice if issued) for client-side invoice/QR generation — see [sale invoices](./22-sale-invoices.md) |
 | `POST` | `api/v1/treks/driver/{token}/returns` | Customer-focused batch return, initially Pending; auto-adds a walk-in stop if needed |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
 | `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |
 | `GET` | `api/v1/treks/driver/{token}/report` | Live financial and stock summary |
 | `GET` | `api/v1/treks/driver/{token}/report/pdf` | Download financial report PDF |
+| `GET` | `api/v1/treks/driver/{token}/vehicle-stock` | Current warehouse stock of the trek's assigned vehicle (cache at pickup, read offline) |
 | `POST` | `api/v1/treks/driver/{token}/stock-loads/check` | Dry-run basic/packaging stock availability check |
 | `POST` | `api/v1/treks/driver/{token}/sync` | Push all queued offline actions in one batch |
 | `GET` | `api/v1/treks/driver/{token}/device` | Last known device position, battery, speed, motion |

@@ -64,7 +64,7 @@ public static class ExportVehicleStockLedger
             {
                 if (!Enum.TryParse<StockChangeSource>(request.Source, true, out var parsedSource))
                     return Result.Failure<ExportResult>(Error.BadRequest(
-                        "source must be ManualLoad, TrekCompletion, or ReturnApproval."));
+                        "source must be ManualLoad, TrekCompletion, ReturnApproval, or StockReset."));
                 source = parsedSource;
             }
 
