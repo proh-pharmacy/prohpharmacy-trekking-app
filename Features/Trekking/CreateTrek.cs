@@ -54,6 +54,7 @@ public static class CreateTrek
         public int Sequence { get; set; }
         public bool IsWalkIn { get; set; }
         public Guid CustomerAccountId { get; set; }
+        public Guid? CustomerClientGeneratedId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
         public string? CustomerPhone { get; set; }

@@ -227,6 +227,7 @@ At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0
   "stopId": "...",
   "sequence": 1,
   "customerAccountId": "...",
+  "customerClientGeneratedId": null,
   "customerName": "Tema Central Pharmacy",
   "customerCode": "GAR-00001",
   "customerPhone": "+233244123456",
@@ -463,6 +464,8 @@ Fetches the full trek for the driver view.
     {
       "stopId": "...",
       "sequence": 1,
+      "customerAccountId": "...",
+      "customerClientGeneratedId": null,
       "customerName": "Tema Central Pharmacy",
       "customerCode": "GAR-00001",
       "primaryPhoneNumber": "+233244123456",
