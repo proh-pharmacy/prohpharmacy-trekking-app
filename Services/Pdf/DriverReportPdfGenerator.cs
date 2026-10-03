@@ -259,10 +259,10 @@ public static class DriverReportPdfGenerator
                 HeaderCell(table, "#",               alignCenter: true);
                 HeaderCell(table, "Customer");
                 HeaderCell(table, "Invoice");
-                HeaderCell(table, "Amount Due",      alignCenter: true);
+                HeaderCell(table, "Amt. Due",        alignCenter: true);
                 HeaderCell(table, "Collected",       alignCenter: true);
                 HeaderCell(table, "Balance",         alignCenter: true);
-                HeaderCell(table, "Payment Method",  alignCenter: true);
+                HeaderCell(table, "Pymt. Method",    alignCenter: true);
 
                 var i = 1;
                 foreach (var stop in stops)
@@ -312,7 +312,7 @@ public static class DriverReportPdfGenerator
                 HeaderCell(table, "Amount",    alignCenter: true);
                 HeaderCell(table, "Method",    alignCenter: true);
                 HeaderCell(table, "Status",    alignCenter: true);
-                HeaderCell(table, "Reason / Recorded");
+                HeaderCell(table, "Reason / Rec.");
 
                 var i = 1;
                 foreach (var r in refunds)

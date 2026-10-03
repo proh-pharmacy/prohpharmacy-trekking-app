@@ -322,7 +322,7 @@ public static class TrekkingSheetPdfGenerator
                     HeaderCell(header, "Description", alignCenter: false);
                     HeaderCell(header, "Planned", alignCenter: true);
                     HeaderCell(header, "Delivered", alignCenter: true);
-                    HeaderCell(header, "Payment Method", alignCenter: true);
+                    HeaderCell(header, "Pymt. Method", alignCenter: true);
                     HeaderCell(header, "Amt Paid", alignCenter: true);
                     HeaderCell(header, "Balance", alignCenter: true);
                     HeaderCell(header, "Notes", alignCenter: false);
@@ -387,10 +387,10 @@ public static class TrekkingSheetPdfGenerator
                     table.Header(header =>
                     {
                         ReturnHeaderCell(header, "#", alignCenter: true);
-                        ReturnHeaderCell(header, "Returns — Description", alignCenter: false);
-                        ReturnHeaderCell(header, "Qty Returned", alignCenter: true);
-                        ReturnHeaderCell(header, "Refund Amount", alignCenter: true);
-                        ReturnHeaderCell(header, "Refund Method", alignCenter: true);
+                        ReturnHeaderCell(header, "Returns — Item", alignCenter: false);
+                        ReturnHeaderCell(header, "Qty Ret.", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Amt.", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Mthd.", alignCenter: true);
                         ReturnHeaderCell(header, string.Empty, alignCenter: true);
                         ReturnHeaderCell(header, "Status", alignCenter: true);
                         ReturnHeaderCell(header, "Reason", alignCenter: false);
