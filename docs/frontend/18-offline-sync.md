@@ -259,7 +259,7 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
 | `GET` | `api/v1/treks/driver/{token}/customers/{customerId}/invoices` | List a customer's invoices for the return picker (optional `from`, `to`, `invoiceNumber`) |
-| `GET` | `api/v1/treks/driver/{token}/stops/by-customer/{customerCode}` | Delivery payload (customer, delivered lines, invoice if issued) for client-side invoice/QR generation — see [sale invoices](./22-sale-invoices.md) |
+| `GET` | `api/v1/treks/driver/{token}/stops/by-customer?customerCode=…` or `?clientGeneratedId=…` | Delivery payload (customer, delivered lines, invoice if issued) for client-side invoice/QR generation. Exactly one of `customerCode` or `clientGeneratedId` is required — see [sale invoices](./22-sale-invoices.md) |
 | `POST` | `api/v1/treks/driver/{token}/returns` | Customer-focused batch return, initially Pending; auto-adds a walk-in stop if needed |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
 | `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |

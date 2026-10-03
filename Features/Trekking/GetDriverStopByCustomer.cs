@@ -1,18 +1,21 @@
 using Carter;
 using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
+using prohpharmacy_trekking_app.Features.Trekking.Entities;
 using prohpharmacy_trekking_app.Shared;
 
 namespace prohpharmacy_trekking_app.Features.Trekking;
 
-public static class GetDriverStopByCustomerCode
+public static class GetDriverStopByCustomer
 {
     public class Query : IRequest<Result<StopDeliveryResponse>>
     {
         public Guid Token { get; set; }
-        public string CustomerCode { get; set; } = string.Empty;
+        public string? CustomerCode { get; set; }
+        public Guid? ClientGeneratedId { get; set; }
     }
 
     public class StopDeliveryResponse
@@ -42,6 +45,7 @@ public static class GetDriverStopByCustomerCode
     {
         public Guid Id { get; set; }
         public string CustomerCode { get; set; } = string.Empty;
+        public Guid? ClientGeneratedId { get; set; }
         public string BusinessName { get; set; } = string.Empty;
         public string? TradingName { get; set; }
         public string PrimaryPhoneNumber { get; set; } = string.Empty;
@@ -85,8 +89,16 @@ public static class GetDriverStopByCustomerCode
     {
         public async Task<Result<StopDeliveryResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
-            if (string.IsNullOrWhiteSpace(request.CustomerCode))
-                return Result.Failure<StopDeliveryResponse>(Error.BadRequest("Customer code is required."));
+            var hasCode = !string.IsNullOrWhiteSpace(request.CustomerCode);
+            var hasClientId = request.ClientGeneratedId.HasValue && request.ClientGeneratedId.Value != Guid.Empty;
+
+            if (!hasCode && !hasClientId)
+                return Result.Failure<StopDeliveryResponse>(
+                    Error.BadRequest("Provide either customerCode or clientGeneratedId."));
+
+            if (hasCode && hasClientId)
+                return Result.Failure<StopDeliveryResponse>(
+                    Error.BadRequest("Provide only one of customerCode or clientGeneratedId."));
 
             var trip = await db.TrekkingTrips
                 .Include(t => t.Region)
@@ -100,21 +112,35 @@ public static class GetDriverStopByCustomerCode
                 return Result.Failure<StopDeliveryResponse>(
                     Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
-            var code = request.CustomerCode.Trim();
-
-            var stop = await db.TrekkingTripStops
+            var baseQuery = db.TrekkingTripStops
                 .Include(s => s.CustomerAccount).ThenInclude(c => c.Region)
                 .Include(s => s.Products).ThenInclude(p => p.Product).ThenInclude(p => p.BasicUnit)
                 .Include(s => s.Products).ThenInclude(p => p.Product).ThenInclude(p => p.PackagingUnit)
                 .AsNoTracking()
-                .FirstOrDefaultAsync(
-                    s => s.TrekkingTripId == trip.Id
-                      && s.CustomerAccount.CustomerCode.ToLower() == code.ToLower(),
-                    cancellationToken);
+                .Where(s => s.TrekkingTripId == trip.Id);
+
+            TrekkingTripStop? stop;
+            if (hasCode)
+            {
+                var code = request.CustomerCode!.Trim().ToLower();
+                stop = await baseQuery.FirstOrDefaultAsync(
+                    s => s.CustomerAccount.CustomerCode.ToLower() == code, cancellationToken);
+            }
+            else
+            {
+                var cgId = request.ClientGeneratedId!.Value;
+                stop = await baseQuery.FirstOrDefaultAsync(
+                    s => s.CustomerAccount.ClientGeneratedId == cgId, cancellationToken);
+            }
 
             if (stop is null)
+            {
+                var ident = hasCode
+                    ? $"code '{request.CustomerCode}'"
+                    : $"client-generated ID '{request.ClientGeneratedId}'";
                 return Result.Failure<StopDeliveryResponse>(
-                    Error.CreateNotFoundError($"Customer '{code}' is not on this trek."));
+                    Error.CreateNotFoundError($"Customer with {ident} is not on this trek."));
+            }
 
             var invoice = await db.SaleInvoices
                 .AsNoTracking()
@@ -167,6 +193,7 @@ public static class GetDriverStopByCustomerCode
                     {
                         Id                 = stop.CustomerAccount.Id,
                         CustomerCode       = stop.CustomerAccount.CustomerCode,
+                        ClientGeneratedId  = stop.CustomerAccount.ClientGeneratedId,
                         BusinessName       = stop.CustomerAccount.BusinessName,
                         TradingName        = stop.CustomerAccount.TradingName,
                         PrimaryPhoneNumber = stop.CustomerAccount.PrimaryPhoneNumber,
@@ -190,26 +217,39 @@ public static class GetDriverStopByCustomerCode
     }
 }
 
-public class GetDriverStopByCustomerCodeEndpoint : ICarterModule
+public class GetDriverStopByCustomerEndpoint : ICarterModule
 {
     public void AddRoutes(IEndpointRouteBuilder app)
     {
-        app.MapGet("api/v1/treks/driver/{token:guid}/stops/by-customer/{customerCode}",
-            async (Guid token, string customerCode, ISender sender) =>
+        app.MapGet("api/v1/treks/driver/{token:guid}/stops/by-customer",
+            async (
+                Guid token,
+                [FromQuery] string? customerCode,
+                [FromQuery] Guid? clientGeneratedId,
+                ISender sender) =>
             {
-                var result = await sender.Send(new GetDriverStopByCustomerCode.Query
+                var result = await sender.Send(new GetDriverStopByCustomer.Query
                 {
                     Token = token,
-                    CustomerCode = customerCode
+                    CustomerCode = customerCode,
+                    ClientGeneratedId = clientGeneratedId
                 });
-                return result.IsFailure ? Results.NotFound(result.Error) : Results.Ok(result.Value);
+
+                if (result.IsFailure)
+                {
+                    return result.Error.Code == "404"
+                        ? Results.NotFound(result.Error)
+                        : Results.UnprocessableEntity(result.Error);
+                }
+                return Results.Ok(result.Value);
             })
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
-        .WithSummary("Get a trek stop's delivery details by customer code (driver portal)")
-        .WithDescription("Resolves the driver token to its trek, then returns the stop (customer, products, invoice if issued, totals) for the matching customer code — intended for client-side invoice generation. Case-insensitive exact match on CustomerAccount.CustomerCode.")
-        .Produces<GetDriverStopByCustomerCode.StopDeliveryResponse>(200)
+        .WithSummary("Get a trek stop's delivery details by customer code or client-generated ID (driver portal)")
+        .WithDescription("Resolves the driver token to its trek, then returns the stop (customer, products, invoice if issued, totals) for the matching customer — intended for client-side invoice generation. Provide exactly one of 'customerCode' or 'clientGeneratedId'. 'customerCode' is a case-insensitive exact match on CustomerAccount.CustomerCode. 'clientGeneratedId' matches CustomerAccount.ClientGeneratedId (populated for customers registered offline).")
+        .Produces<GetDriverStopByCustomer.StopDeliveryResponse>(200)
         .Produces<Error>(404)
+        .Produces<Error>(422)
         .AllowAnonymous();
     }
 }
