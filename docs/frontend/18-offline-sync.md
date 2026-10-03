@@ -288,6 +288,7 @@ Returns the driver's assigned trek with all stops, products, and returns. See [d
 - `stops[].isWalkIn` — `true` for stops added mid-trek
 - `stops[].returns[]` — list of product returns recorded at this stop
 - `stops[].products[].isUnplanned` — `true` for products added outside the original plan
+- `stops[].products[].clientGeneratedId` — original `clientId` from an offline `RecordUnplannedSale` (null for products created online). Use this to reconcile a local sale whose `serverId` was lost before the trek payload refreshed.
 
 ### GET /api/v1/treks/driver/{token}/region/treks
 

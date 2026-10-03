@@ -241,6 +241,7 @@ At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0
   "products": [
     {
       "stopProductId": "...",
+      "clientGeneratedId": null,
       "productId": "...",
       "productName": "Paracetamol 500mg",
       "basicUnitName": "Tab",
@@ -262,7 +263,7 @@ At least one of `plannedBasicQuantity` or `plannedPackagingQuantity` must be > 0
 }
 ```
 
-> `stopProductId` is the ID to pass when recording delivery results — use it directly in the `POST /record` body.
+> `stopProductId` is the ID to pass when recording delivery results — use it directly in the `POST /record` body. `clientGeneratedId` is the device-generated UUID originally submitted with an offline `RecordUnplannedSale`; it is `null` for products created from the admin panel and non-null for sales reconciled from an offline queue. Use it to match local records whose `serverId` was lost after acknowledgement.
 
 ### Errors
 - `404` — trek, customer, or product not found
@@ -476,6 +477,7 @@ Fetches the full trek for the driver view.
       "products": [
         {
           "stopProductId": "...",
+          "clientGeneratedId": null,
           "productName": "Paracetamol 500mg",
           "basicUnitName": "Tab",
           "packagingUnitName": "Box",
