@@ -77,7 +77,8 @@ public static class GetTrekStockSnapshot
             var rows = await db.TrekkingTripStockSnapshots
                 .AsNoTracking()
                 .Where(s => s.TrekkingTripId == trip.Id)
-                .OrderBy(s => s.ProductName)
+                .OrderByDescending(s => s.BasicQtySold > 0 || s.PackagingQtySold > 0)
+                .ThenBy(s => s.ProductName)
                 .ToListAsync(cancellationToken);
 
             var items = rows.Select(r => new SnapshotItem
