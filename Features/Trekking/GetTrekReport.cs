@@ -32,6 +32,9 @@ public static class GetTrekReport
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.Product)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.SaleInvoice)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.TrekId, cancellationToken);
 

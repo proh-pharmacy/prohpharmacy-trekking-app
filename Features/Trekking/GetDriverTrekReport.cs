@@ -135,6 +135,9 @@ public static class GetDriverTrekReport
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.Product)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.SaleInvoice)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
@@ -278,14 +281,13 @@ public static class GetDriverTrekReport
                 .Select(r =>
                 {
                     stopById.TryGetValue(r.TrekkingTripStopId, out var stop);
-                    invoices.TryGetValue(r.TrekkingTripStopId, out var invoice);
                     return new RefundLineItem
                     {
                         ReturnId             = r.Id,
                         Sequence             = stop?.Sequence ?? 0,
                         CustomerName         = stop?.CustomerAccount?.BusinessName ?? string.Empty,
-                        InvoiceId            = invoice?.Id,
-                        InvoiceNumber        = invoice?.InvoiceNumber,
+                        InvoiceId            = r.SaleInvoice?.Id,
+                        InvoiceNumber        = r.SaleInvoice?.InvoiceNumber,
                         ProductId            = r.ProductId,
                         ProductName          = r.Product?.Name ?? string.Empty,
                         BasicQtyReturned     = r.BasicQtyReturned,
