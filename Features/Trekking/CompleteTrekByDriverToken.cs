@@ -149,7 +149,10 @@ public static class CompleteTrekByDriverToken
             }
         }
 
-        private async Task CaptureStockSnapshotAsync(Entities.TrekkingTrip trip, CancellationToken cancellationToken)
+        private Task CaptureStockSnapshotAsync(Entities.TrekkingTrip trip, CancellationToken cancellationToken) =>
+            CaptureStockSnapshotAsync(db, trip, cancellationToken);
+
+        internal static async Task CaptureStockSnapshotAsync(AppDbContext db, Entities.TrekkingTrip trip, CancellationToken cancellationToken)
         {
             var alreadyCaptured = await db.TrekkingTripStockSnapshots
                 .AnyAsync(s => s.TrekkingTripId == trip.Id, cancellationToken);
