@@ -10,6 +10,7 @@ For a searchable, paginated product picker limited to a vehicle, use `GET /api/v
 
 | Method | Route | Success |
 |---|---|---|
+| GET | `/api/v1/fleet/vehicles/stock-overview` | `200`, paginated vehicle list with per-vehicle stock summary |
 | GET | `/api/v1/vehicles/{vehicleId}/stock` | `200`, `StockItem[]`, newest stock records first |
 | GET | `/api/v1/vehicles/{vehicleId}/stock/summary` | `200`, tracked/in-stock/out-of-stock product counts |
 | GET | `/api/v1/vehicles/{vehicleId}/stock/{productId}` | `200`, one current `StockItem` |
@@ -21,6 +22,81 @@ For a searchable, paginated product picker limited to a vehicle, use `GET /api/v
 | GET | `/api/v1/vehicles/{vehicleId}/stock/ledger/export` | `200`, filtered `.xlsx` download |
 
 GET routes return HTTP `404` for an unknown vehicle. POST handler failures return HTTP `422` (including missing vehicle, with body `code: "404"`). See [error conventions](./00-api-conventions.md).
+
+### Fleet stock overview (vehicle stock management page)
+
+```
+GET /api/v1/fleet/vehicles/stock-overview
+    ?regionId=<guid>
+    &branchId=<guid>
+    &status=Active
+    &stockState=loaded
+    &search=GR-
+    &sort=createdAt_desc
+    &pageNumber=1
+    &pageSize=20
+```
+
+Paginated vehicle list enriched with each vehicle's stock summary. Intended for a dedicated **vehicle stock management** page: one row per vehicle with its loaded-product counts, no extra per-vehicle calls needed.
+
+Query parameters:
+
+- `regionId`, `branchId` — vehicle organisation filters.
+- `status` — vehicle operational status: `Active`, `UnderMaintenance`, `Decommissioned` (case-insensitive). Invalid values return `400`.
+- `stockState` — `loaded` to show only vehicles that have at least one product with a non-zero quantity; `empty` to show vehicles with no stock rows or all rows at zero. Omit to show all. Invalid values return `400`.
+- `search` — matches `registrationNumber`, `displayName`, `make`, `model` (case-insensitive).
+- `sort` — any vehicle field with `_asc`/`_desc`. Default `createdAt_desc`. Stock summary fields are not sortable in this version.
+- `pageNumber`, `pageSize` — standard pagination.
+
+Response `200 OK` — standard `PaginatedData<T>` envelope:
+
+```json
+{
+  "data": [
+    {
+      "id": "<vehicle-guid>",
+      "registrationNumber": "GR-1234-24",
+      "displayName": "Van 7",
+      "make": "Toyota",
+      "model": "HiAce",
+      "year": 2022,
+      "colour": "White",
+      "regionId": "<region-guid>",
+      "regionName": "Greater Accra",
+      "branchId": "<branch-guid>",
+      "branchName": "Accra Central",
+      "operationalStatus": "Active",
+      "currentStaffId": "<staff-guid>",
+      "currentStaffName": "Kwame Asante",
+      "createdAt": "2026-01-10T09:00:00Z",
+      "updatedAt": null,
+      "stock": {
+        "trackedProductCount": 24,
+        "inStockProductCount": 18,
+        "outOfStockProductCount": 6,
+        "lowStockProductCount": 3,
+        "hasStockLoaded": true,
+        "lastUpdatedAt": "2026-10-02T14:12:03Z"
+      }
+    }
+  ],
+  "pageNumber": 1,
+  "pageSize": 20,
+  "totalItems": 42,
+  "totalPages": 3
+}
+```
+
+Notes:
+
+- A product counts as **out of stock** only when **both** `basicQuantityOnHand == 0` and `packagingQuantityOnHand == 0` — same rule as `/stock/summary`.
+- `lowStockProductCount` counts tracked products whose `lowStockThreshold` is set and whose `basicQuantityOnHand <= lowStockThreshold`.
+- `hasStockLoaded` is `true` whenever `inStockProductCount > 0`. Use this for a simple "Loaded / Empty" badge on each row.
+- `lastUpdatedAt` is the most recent `updatedAt` (falling back to `createdAt`) across the vehicle's stock rows, or `null` if the vehicle has no tracked products.
+- `currentStaffId` / `currentStaffName` reflect the currently active staff assignment (where `unassignedAt` is null); `null` when unassigned.
+- A vehicle with no tracked products at all returns a zeroed `stock` object with `lastUpdatedAt: null`.
+
+Drill-down for a row stays on the existing per-vehicle endpoints (`/stock`, `/stock/summary`, `/stock/{productId}`, `/stock/load`, `/stock/remove`, `/stock/reset`, `/stock/export`, `/stock/ledger`).
 
 ### Current stock
 
