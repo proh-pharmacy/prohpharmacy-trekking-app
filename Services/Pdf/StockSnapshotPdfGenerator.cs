@@ -148,9 +148,9 @@ public static class StockSnapshotPdfGenerator
                 });
 
                 HeaderCell(table, "Product");
-                HeaderCell(table, "Start", alignCenter: true);
-                HeaderCell(table, "Sold", alignCenter: true);
-                HeaderCell(table, "Remain", alignCenter: true);
+                HeaderCell(table, "Opening Qty", alignCenter: true);
+                HeaderCell(table, "Sold Qty", alignCenter: true);
+                HeaderCell(table, "Balance Qty", alignCenter: true);
                 HeaderCell(table, "Revenue", alignCenter: true);
 
                 var i = 1;
@@ -167,7 +167,7 @@ public static class StockSnapshotPdfGenerator
                 }
             });
 
-            col.Item().PaddingTop(4).Text("Red remaining = sold beyond start-of-trek stock")
+            col.Item().PaddingTop(4).Text("Red balance = sold beyond opening stock")
                 .FontSize(6f).FontColor(MutedText);
         });
     }
