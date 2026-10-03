@@ -106,7 +106,7 @@ public static class StockSnapshotPdfGenerator
                     cols.RelativeColumn();
                 });
                 SummaryCard(table, "Products Tracked", totals.ProductCount.ToString(), PrimaryColor);
-                SummaryCard(table, "Total Revenue", $"GHS {totals.TotalRevenue:0.00}", "#1e293b");
+                SummaryCard(table, "Total Sale", $"GHS {totals.TotalRevenue:0.00}", "#1e293b");
                 SummaryCard(table, "Discrepancies",
                     totals.DiscrepancyCount.ToString(),
                     totals.DiscrepancyCount > 0 ? AlertColor : TextColor,
@@ -151,7 +151,7 @@ public static class StockSnapshotPdfGenerator
                 HeaderCell(table, "Qty Loaded", alignCenter: true);
                 HeaderCell(table, "Qty Sold", alignCenter: true);
                 HeaderCell(table, "Qty Remaining", alignCenter: true);
-                HeaderCell(table, "Revenue", alignCenter: true);
+                HeaderCell(table, "Sale", alignCenter: true);
 
                 var i = 1;
                 foreach (var item in items)
