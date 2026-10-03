@@ -317,7 +317,7 @@ public static class CompleteTrekByDriverToken
                 TrekNumber = trip.TrekNumber ?? string.Empty,
                 CompletedDate = DateTime.UtcNow.ToString("dd MMM yyyy"),
                 PendingReturnCount = pendingCount,
-                ReviewUrl = $"{frontendUrl}/treks/{trip.Id}",
+                ReviewUrl = $"{frontendUrl}/portal/finance/refund-approvals",
                 AppName = appName,
                 SupportEmail = supportEmail
             });
