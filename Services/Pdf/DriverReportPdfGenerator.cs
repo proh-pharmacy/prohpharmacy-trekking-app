@@ -326,7 +326,7 @@ public static class DriverReportPdfGenerator
                         _          => TextColor
                     };
                     var reasonLine = string.IsNullOrWhiteSpace(r.Reason) ? "—" : r.Reason;
-                    var recordedLine = $"{r.RecordedAt:dd MMM yyyy HH:mm} UTC";
+                    var recordedLine = r.RecordedAt.ToString("dd MMM yyyy  'at'  h:mm tt");
 
                     BodyCell(table, r.Sequence > 0 ? r.Sequence.ToString() : "—", bg, alignCenter: true);
                     BodyCell(table, r.CustomerName, bg);
