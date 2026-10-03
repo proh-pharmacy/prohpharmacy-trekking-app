@@ -69,6 +69,8 @@ public static class GetDriverTrekReport
         public string ProductName { get; set; } = string.Empty;
         public decimal BasicQtyReturned { get; set; }
         public decimal? PackagingQtyReturned { get; set; }
+        public string? BasicUnitName { get; set; }
+        public string? PackagingUnitName { get; set; }
         public decimal? RefundAmount { get; set; }
         public string? RefundMethod { get; set; }
         public string ApprovalStatus { get; set; } = string.Empty;
@@ -135,6 +137,11 @@ public static class GetDriverTrekReport
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.BasicUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.Product)
+                            .ThenInclude(p => p.PackagingUnit)
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.SaleInvoice)
@@ -292,6 +299,8 @@ public static class GetDriverTrekReport
                         ProductName          = r.Product?.Name ?? string.Empty,
                         BasicQtyReturned     = r.BasicQtyReturned,
                         PackagingQtyReturned = r.PackagingQtyReturned,
+                        BasicUnitName        = r.Product?.BasicUnit?.Name,
+                        PackagingUnitName    = r.Product?.PackagingUnit?.Name,
                         RefundAmount         = r.RefundAmount,
                         RefundMethod         = r.RefundMethod?.ToString(),
                         ApprovalStatus       = r.ApprovalStatus.ToString(),

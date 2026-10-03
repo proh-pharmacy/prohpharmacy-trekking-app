@@ -175,6 +175,15 @@ public static class DriverReportPdfGenerator
         });
     }
 
+    private static string FormatQty(decimal? pkgQty, string? pkgUnit, decimal basicQty, string? basicUnit)
+    {
+        var hasPkg = !string.IsNullOrWhiteSpace(pkgUnit) && pkgQty.HasValue && pkgQty.Value != 0;
+        var basicLabel = string.IsNullOrWhiteSpace(basicUnit) ? "" : $" {basicUnit}";
+        var basicPart = $"{basicQty:0.###}{basicLabel}";
+        if (!hasPkg) return basicPart;
+        return $"{pkgQty!.Value:0.###} {pkgUnit}  ·  {basicPart}";
+    }
+
     private static string FormatDeduction(decimal value) =>
         value > 0 ? $"(GHS {value:0.00})" : $"GHS {value:0.00}";
 
@@ -294,11 +303,11 @@ public static class DriverReportPdfGenerator
                 table.ColumnsDefinition(cols =>
                 {
                     cols.ConstantColumn(18);        // #
-                    cols.RelativeColumn(2.5f);      // Customer
-                    cols.RelativeColumn(1.6f);      // Ref. Invoice
-                    cols.RelativeColumn(2.5f);      // Product
-                    cols.RelativeColumn(1f);        // Basic Qty
-                    cols.RelativeColumn(1.6f);      // Amount
+                    cols.RelativeColumn(2.3f);      // Customer
+                    cols.RelativeColumn(1.5f);      // Ref. Invoice
+                    cols.RelativeColumn(2.3f);      // Product
+                    cols.RelativeColumn(1.8f);      // Qty (packaging + basic)
+                    cols.RelativeColumn(1.4f);      // Amount
                     cols.RelativeColumn(1.3f);      // Method
                     cols.RelativeColumn(1.3f);      // Status
                     cols.RelativeColumn(2.2f);      // Reason / Recorded
@@ -308,7 +317,7 @@ public static class DriverReportPdfGenerator
                 HeaderCell(table, "Customer");
                 HeaderCell(table, "Ref. Invoice");
                 HeaderCell(table, "Product");
-                HeaderCell(table, "Basic Qty", alignCenter: true);
+                HeaderCell(table, "Qty",       alignCenter: true);
                 HeaderCell(table, "Amount",    alignCenter: true);
                 HeaderCell(table, "Method",    alignCenter: true);
                 HeaderCell(table, "Status",    alignCenter: true);
@@ -332,7 +341,7 @@ public static class DriverReportPdfGenerator
                     BodyCell(table, r.CustomerName, bg);
                     BodyCell(table, r.InvoiceNumber ?? "—", bg);
                     BodyCell(table, r.ProductName, bg);
-                    BodyCell(table, $"{r.BasicQtyReturned:0.###}", bg, alignCenter: true);
+                    BodyCell(table, FormatQty(r.PackagingQtyReturned, r.PackagingUnitName, r.BasicQtyReturned, r.BasicUnitName), bg, alignCenter: true);
                     BodyCell(table, r.RefundAmount.HasValue ? $"GHS {r.RefundAmount.Value:0.00}" : "—", bg, alignCenter: true);
                     BodyCell(table, r.RefundMethod ?? "—", bg, alignCenter: true);
                     BodyCell(table, r.ApprovalStatus, bg, alignCenter: true, color: statusColor);
