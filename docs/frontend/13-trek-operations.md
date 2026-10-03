@@ -45,6 +45,12 @@ Draft and Scheduled treks can be deleted at any time. Once a trek is InProgress 
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Required | Override snapshotted price on a stop product |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Required | Re-sync all stop product prices from the current catalog |
 | `GET` | `api/v1/treks/{trekId}/price-diff` | Required | Get price differences between trek and current catalog |
+| `GET` | `api/v1/treks/{trekId}/report` | Required | Admin trek financial report (JSON) |
+| `GET` | `api/v1/treks/{trekId}/report/pdf` | Required | Admin trek financial report (PDF) |
+| `GET` | `api/v1/treks/{trekId}/stock-snapshot` | Required | Admin stock reconciliation snapshot (JSON, Completed treks only) |
+| `GET` | `api/v1/treks/{trekId}/stock-snapshot/pdf` | Required | Admin stock reconciliation snapshot (PDF) |
+| `GET` | `api/v1/treks/driver/{token}/stock-snapshot` | None | Driver stock reconciliation snapshot (JSON) |
+| `GET` | `api/v1/treks/driver/{token}/stock-snapshot/pdf` | None | Driver stock reconciliation snapshot (PDF) |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Required | Download delivery sheet PDF |
 | `GET` | `api/v1/treks/driver/{token}` | None | Driver views their trek |
 | `POST` | `api/v1/treks/driver/{token}/start` | None | Driver starts the trek (Scheduled → InProgress) |
@@ -875,16 +881,20 @@ Voids (permanently deletes) a return record from the driver portal. Blocked on `
 
 ### Returns on the trek response
 
-Returns appear inside each stop under the `returns` array when fetching `GET /api/v1/treks/{id}` or `GET /api/v1/treks/driver/{token}`. These embedded DTOs retain the older shape below and do not include invoice or approval fields. Use the dedicated staff return lists in [guide 23](./23-invoice-returns.md) for review state:
+Returns appear inside each stop under the `returns` array when fetching `GET /api/v1/treks/{id}` or `GET /api/v1/treks/driver/{token}`. Each return now carries its **own** `saleInvoiceId` + `invoiceNumber` — this is the historical invoice the return was recorded against, not the stop's current-trek invoice. Approval fields are not embedded; use the dedicated staff return lists in [guide 23](./23-invoice-returns.md) for review state:
 
 ```json
 {
   "stopId": "...",
   "customerName": "Tema Central Pharmacy",
+  "invoiceId": "<current-trek-invoice-guid>",
+  "invoiceNumber": "INV-GAR00099",
   "products": [...],
   "returns": [
     {
       "returnId": "...",
+      "saleInvoiceId": "<historical-invoice-guid>",
+      "invoiceNumber": "INV-GAR00042",
       "productId": "...",
       "productName": "Paracetamol 500mg",
       "basicUnitName": "Tab",
@@ -902,4 +912,148 @@ Returns appear inside each stop under the `returns` array when fetching `GET /ap
 }
 ```
 
+> **Important:** when a driver records a return against a historical invoice (an invoice from a previous trek), the return's `invoiceNumber` is that historical one — **not** the stop-level `invoiceNumber` which refers to the current trek's invoice. Always render `returns[i].invoiceNumber`, never fall back to `stop.invoiceNumber` for return rows.
+
 Returns also appear on the PDF delivery sheet with product, quantity returned, refund amount, refund method, reason and approval status. Rejected rows are muted. The separate [driver financial report](./25-driver-trek-report.md) includes approved refunds in its totals.
+
+---
+
+## GET /api/v1/treks/{trekId}/stock-snapshot
+
+Returns the **vehicle stock reconciliation snapshot** captured at the moment the trek was completed. The snapshot is written once by the server inside the `complete trek` transaction, is **never updated**, and persists even after subsequent treks mutate the vehicle's live warehouse stock. Use this endpoint to show "what was in the van for this trek, what was sold, what should still be on the van after completion" on the trek details page and in audit/reconciliation views.
+
+Rows are included for every product that was either loaded for the trek (`TrekStockLoad`) or sold during the trek (any stop product with `basicQtyDelivered` or `packagingQtyDelivered`). A product that was loaded but not sold shows `basicQtySold = 0` and the full load as `basicQtyRemaining`. A product that was sold without having been loaded shows a negative remaining — surfacing a reconciliation discrepancy rather than hiding it.
+
+The snapshot is **only available for `Completed` treks**. Calling this endpoint on a `Draft`, `Scheduled`, `InProgress`, or `Cancelled` trek returns `400 Bad Request` with `"Stock snapshot is only available for completed treks."`. Hide the download/open controls on the trek details page until `status === 'Completed'`.
+
+### Response `200 OK`
+
+```json
+{
+  "trekId": "<trek-guid>",
+  "trekNumber": "T-2026-00041",
+  "trekDate": "2026-10-03",
+  "trekStatus": "Completed",
+  "capturedAt": "2026-10-03T15:42:11Z",
+  "items": [
+    {
+      "productId": "<product-guid>",
+      "productName": "Paracetamol 500mg",
+      "basicUnitName": "Tab",
+      "packagingUnitName": "Box",
+      "basicUnitPrice": 2.50,
+      "packagingUnitPrice": 60.00,
+      "basicQtyAtStart": 100,
+      "packagingQtyAtStart": 4,
+      "basicQtySold": 35,
+      "packagingQtySold": 1,
+      "basicQtyRemaining": 65,
+      "packagingQtyRemaining": 3,
+      "revenueAmount": 147.50,
+      "hasDiscrepancy": false
+    }
+  ],
+  "totals": {
+    "productCount": 1,
+    "totalRevenue": 147.50,
+    "discrepancyCount": 0
+  }
+}
+```
+
+**Fields**
+
+- `capturedAt` — UTC timestamp of the snapshot. Always non-null since this endpoint only returns `200` for completed treks.
+- `basicQtyAtStart` / `packagingQtyAtStart` — the vehicle's warehouse quantity for this product **immediately before** the completion deduction ran. This is the trek-start baseline.
+- `basicQtySold` / `packagingQtySold` — total delivered quantities across all stops on this trek.
+- `basicQtyRemaining` / `packagingQtyRemaining` — `start − sold`. **Not clamped** — a negative value means more was sold than was on the vehicle (a counting error or a mid-trek load that didn't go through the system).
+- `revenueAmount` — money attributable to this product on this trek (`AmountDue`, or `AmtPaid + Balance` if `AmountDue` is null).
+- `hasDiscrepancy` — `true` if either remaining value is negative. Flag the row in the UI.
+- Unit names and prices are **snapshot values** captured at completion — later product renames or price changes do not alter history.
+- `totals.discrepancyCount` — number of rows with `hasDiscrepancy = true`; useful for a header badge.
+
+Items are ordered alphabetically by product name.
+
+The snapshot is **independent** of the live `/api/v1/vehicles/{vehicleId}/stock` state. If the van's catalogue is reset after this trek, the snapshot is still intact and still reflects what the van held during this trek.
+
+### Errors
+- `400` — trek is not `Completed`
+- `404` — trek not found
+
+---
+
+## GET /api/v1/treks/{trekId}/stock-snapshot/pdf (admin)
+
+Downloads the stock reconciliation snapshot as a landscape A4 PDF. Same payload as the JSON endpoint, same `Completed`-only guard. Open in a new tab or trigger a download.
+
+```js
+window.open(`/api/v1/treks/${trekId}/stock-snapshot/pdf`, '_blank')
+```
+
+Filename: `StockSnapshot-{trekNumber}-{trekDate}.pdf`.
+
+### Errors
+- `400` — trek is not `Completed`
+- `404` — trek not found
+
+---
+
+## GET /api/v1/treks/driver/{token}/stock-snapshot (driver portal)
+
+Driver-token twin of the admin stock snapshot endpoint. Same response shape, same `Completed`-only guard. No authentication required — the token is the access key.
+
+Use this to let drivers download/view the reconciliation record for a completed trek from the no-auth portal.
+
+### Errors
+- `400` — trek is not `Completed`
+- `404` — invalid token
+
+---
+
+## GET /api/v1/treks/driver/{token}/stock-snapshot/pdf (driver portal)
+
+PDF variant of the driver snapshot endpoint. Returns the same landscape A4 PDF as the admin endpoint. Filename: `StockSnapshot-{trekNumber}-{trekDate}.pdf`.
+
+### Errors
+- `400` — trek is not `Completed`
+- `404` — invalid token
+
+---
+
+## GET /api/v1/treks/{trekId}/report (admin)
+
+Staff-authenticated twin of the [driver financial report](./25-driver-trek-report.md). Returns the exact same `TrekReportData` shape — sales value, collections, outstanding balances, approved refunds, net cash on hand, per-stop breakdowns and stock reconciliation. Available at any trek status.
+
+Use this on the admin trek details page so staff can view the same financial roll-up the driver sees in their portal.
+
+See [guide 25 — Driver Trek Report](./25-driver-trek-report.md) for the full response schema.
+
+### Errors
+- `404` — trek not found
+
+---
+
+## GET /api/v1/treks/{trekId}/report/pdf (admin)
+
+PDF variant of the admin financial report — same layout as the driver portal PDF. Filename: `TrekReport-{trekNumber}-{scheduledDate}.pdf`.
+
+```js
+window.open(`/api/v1/treks/${trekId}/report/pdf`, '_blank')
+```
+
+### Errors
+- `404` — trek not found
+
+---
+
+## Three downloadable reports per trek
+
+Each completed trek has three independent reports available from both the admin trek details page and the driver portal. Design the trek details screen with a single "Downloads" section that lists them:
+
+| Report | Admin endpoint | Driver endpoint | Availability |
+|---|---|---|---|
+| Delivery sheet | `GET /api/v1/treks/{trekId}/sheet/pdf` | `GET /api/v1/treks/driver/{token}/sheet/pdf` | Any status |
+| Financial report | `GET /api/v1/treks/{trekId}/report` + `/pdf` | `GET /api/v1/treks/driver/{token}/report` + `/pdf` (see [guide 25](./25-driver-trek-report.md)) | Any status |
+| Stock reconciliation snapshot | `GET /api/v1/treks/{trekId}/stock-snapshot` + `/pdf` | `GET /api/v1/treks/driver/{token}/stock-snapshot` + `/pdf` | `Completed` only (400 otherwise) |
+
+Hide or disable the snapshot entries until the trek is `Completed`. The delivery sheet and financial report are safe to expose at any status.

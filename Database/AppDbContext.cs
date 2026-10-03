@@ -51,6 +51,7 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<TrekkingTripStop> TrekkingTripStops => Set<TrekkingTripStop>();
         public DbSet<TrekkingTripStopProduct> TrekkingTripStopProducts => Set<TrekkingTripStopProduct>();
         public DbSet<TrekkingTripStopReturn> TrekkingTripStopReturns => Set<TrekkingTripStopReturn>();
+        public DbSet<TrekkingTripStockSnapshot> TrekkingTripStockSnapshots => Set<TrekkingTripStockSnapshot>();
         public DbSet<SaleInvoice> SaleInvoices => Set<SaleInvoice>();
         public DbSet<InvoiceNumberTracker> InvoiceNumberTrackers => Set<InvoiceNumberTracker>();
 
@@ -532,6 +533,32 @@ namespace prohpharmacy_trekking_app.Database
             {
                 entity.HasKey(t => new { t.ScopeId, t.ScopeType });
                 entity.Property(t => t.ScopeType).HasMaxLength(20).IsRequired();
+            });
+
+            modelBuilder.Entity<TrekkingTripStockSnapshot>(entity =>
+            {
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.ProductName).HasMaxLength(200).IsRequired();
+                entity.Property(s => s.BasicUnitName).HasMaxLength(60);
+                entity.Property(s => s.PackagingUnitName).HasMaxLength(60);
+                entity.Property(s => s.BasicUnitPrice).HasPrecision(14, 2).IsRequired();
+                entity.Property(s => s.PackagingUnitPrice).HasPrecision(14, 2);
+                entity.Property(s => s.BasicQtyAtStart).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.PackagingQtyAtStart).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.BasicQtySold).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.PackagingQtySold).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.BasicQtyRemaining).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.PackagingQtyRemaining).HasPrecision(10, 3).IsRequired();
+                entity.Property(s => s.RevenueAmount).HasPrecision(14, 2).IsRequired();
+                entity.HasOne(s => s.TrekkingTrip)
+                    .WithMany()
+                    .HasForeignKey(s => s.TrekkingTripId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasOne(s => s.Product)
+                    .WithMany()
+                    .HasForeignKey(s => s.ProductId)
+                    .OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(s => new { s.TrekkingTripId, s.ProductId }).IsUnique();
             });
 
             modelBuilder.Entity<TrekStockLoad>(entity =>

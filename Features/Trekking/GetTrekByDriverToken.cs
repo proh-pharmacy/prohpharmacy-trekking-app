@@ -78,6 +78,8 @@ public static class GetTrekByDriverToken
     public class DriverReturnResponse
     {
         public Guid ReturnId { get; set; }
+        public Guid SaleInvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? BasicUnitName { get; set; }
@@ -128,6 +130,9 @@ public static class GetTrekByDriverToken
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.Product)
                             .ThenInclude(p => p.PackagingUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.SaleInvoice)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.DriverToken == request.Token, cancellationToken);
 
@@ -200,6 +205,8 @@ public static class GetTrekByDriverToken
                         Returns = s.Returns.Select(r => new DriverReturnResponse
                         {
                             ReturnId = r.Id,
+                            SaleInvoiceId = r.SaleInvoiceId,
+                            InvoiceNumber = r.SaleInvoice?.InvoiceNumber,
                             ProductId = r.ProductId,
                             ProductName = r.Product?.Name ?? string.Empty,
                             BasicUnitName = r.Product?.BasicUnit?.Name,
