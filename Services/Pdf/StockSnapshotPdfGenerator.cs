@@ -63,6 +63,11 @@ public static class StockSnapshotPdfGenerator
                 .Column(card =>
                 {
                     card.Spacing(3);
+                    var vehicleLabel = string.IsNullOrWhiteSpace(data.RegionName)
+                        ? (data.VehicleDisplayName ?? "—")
+                        : $"{data.RegionName} - {data.VehicleDisplayName ?? "—"}";
+                    InfoRow(card, "Vehicle:", vehicleLabel, 90);
+                    card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
                     InfoRow(card, "Trek No.:", data.TrekNumber, 90);
                     card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
                     InfoRow(card, "Date:", data.TrekDate.ToString("dd MMM yyyy"), 90);

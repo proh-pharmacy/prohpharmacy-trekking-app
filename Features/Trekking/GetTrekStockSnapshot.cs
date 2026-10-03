@@ -22,6 +22,8 @@ public static class GetTrekStockSnapshot
         public string TrekNumber { get; set; } = string.Empty;
         public DateOnly TrekDate { get; set; }
         public string TrekStatus { get; set; } = string.Empty;
+        public string? RegionName { get; set; }
+        public string? VehicleDisplayName { get; set; }
         public DateTime? CapturedAt { get; set; }
         public List<SnapshotItem> Items { get; set; } = new();
         public SnapshotTotals Totals { get; set; } = new();
@@ -64,7 +66,15 @@ public static class GetTrekStockSnapshot
         {
             var trip = await db.TrekkingTrips.AsNoTracking()
                 .Where(lookup)
-                .Select(t => new { t.Id, t.TrekNumber, t.ScheduledDate, t.Status })
+                .Select(t => new
+                {
+                    t.Id,
+                    t.TrekNumber,
+                    t.ScheduledDate,
+                    t.Status,
+                    RegionName = t.Region != null ? t.Region.Name : null,
+                    VehicleDisplayName = t.Vehicle != null ? t.Vehicle.DisplayName : null
+                })
                 .FirstOrDefaultAsync(cancellationToken);
 
             if (trip is null)
@@ -105,6 +115,8 @@ public static class GetTrekStockSnapshot
                 TrekNumber = trip.TrekNumber,
                 TrekDate = trip.ScheduledDate,
                 TrekStatus = trip.Status.ToString(),
+                RegionName = trip.RegionName,
+                VehicleDisplayName = trip.VehicleDisplayName,
                 CapturedAt = rows.Count > 0 ? rows[0].CapturedAt : null,
                 Items = items,
                 Totals = new SnapshotTotals
