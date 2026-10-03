@@ -170,12 +170,20 @@ public static class CompleteTrekByDriverToken
                 .Select(l => l.ProductId)
                 .ToListAsync(cancellationToken);
 
-            var productIds = soldByProduct.Keys.Union(loadedProductIds).Distinct().ToList();
-            if (productIds.Count == 0) return;
-
             var stockByProduct = await db.VehicleProductStocks
-                .Where(s => s.VehicleId == trip.VehicleId && productIds.Contains(s.ProductId))
+                .Where(s => s.VehicleId == trip.VehicleId)
                 .ToDictionaryAsync(s => s.ProductId, cancellationToken);
+
+            var vehicleStockProductIds = stockByProduct
+                .Where(kv => kv.Value.BasicQuantityOnHand > 0 || kv.Value.PackagingQuantityOnHand > 0)
+                .Select(kv => kv.Key);
+
+            var productIds = soldByProduct.Keys
+                .Union(loadedProductIds)
+                .Union(vehicleStockProductIds)
+                .Distinct()
+                .ToList();
+            if (productIds.Count == 0) return;
 
             var productMetadata = await db.Products
                 .Where(p => productIds.Contains(p.Id))
