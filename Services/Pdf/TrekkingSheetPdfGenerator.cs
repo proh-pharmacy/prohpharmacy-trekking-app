@@ -460,13 +460,7 @@ public static class TrekkingSheetPdfGenerator
             .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle();
 
-        if (alignCenter)
-        {
-            if (muted) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
-            cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color);
-            return;
-        }
-        if (muted) { cell.Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
+        if (alignCenter) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color); return; }
         cell.Text(text).FontSize(7.5f).FontColor(color);
     }
 
@@ -482,7 +476,7 @@ public static class TrekkingSheetPdfGenerator
         table.Cell()
             .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle().AlignCenter()
-            .Text(label).FontSize(7f).SemiBold().FontColor(color);
+            .Text(label).FontSize(7.5f).FontColor(color);
     }
 
     private static void ComposeFooter(IContainer container)

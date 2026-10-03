@@ -197,7 +197,10 @@ public static class DriverReportPdfGenerator
 
     private static void EmptyCard(TableDescriptor table)
     {
-        table.Cell().Column(_ => { });
+        table.Cell()
+            .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
+            .Padding(8)
+            .Column(_ => { });
     }
 
     // ── Collections by method ──────────────────────────────────────────────────
@@ -340,9 +343,9 @@ public static class DriverReportPdfGenerator
                         .Column(c =>
                         {
                             c.Item().Text(reasonLine).FontSize(7.5f).FontColor(TextColor);
-                            c.Item().Text(recordedLine).FontSize(6.3f).FontColor(MutedText);
+                            c.Item().Text(recordedLine).FontSize(6.5f).FontColor(MutedText);
                             if (r.ApprovalStatus == "Rejected" && !string.IsNullOrWhiteSpace(r.RejectionReason))
-                                c.Item().Text($"Rejected: {r.RejectionReason}").FontSize(6.3f).FontColor("#b91c1c");
+                                c.Item().Text($"Rejected: {r.RejectionReason}").FontSize(6.5f).FontColor("#b91c1c");
                         });
                 }
             });
