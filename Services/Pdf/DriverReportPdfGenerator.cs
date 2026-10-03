@@ -283,7 +283,7 @@ public static class DriverReportPdfGenerator
                 {
                     cols.ConstantColumn(18);        // #
                     cols.RelativeColumn(2.5f);      // Customer
-                    cols.RelativeColumn(1.6f);      // Invoice
+                    cols.RelativeColumn(1.6f);      // Ref. Invoice
                     cols.RelativeColumn(2.5f);      // Product
                     cols.RelativeColumn(1f);        // Basic Qty
                     cols.RelativeColumn(1.6f);      // Amount
@@ -294,7 +294,7 @@ public static class DriverReportPdfGenerator
 
                 HeaderCell(table, "#",         alignCenter: true);
                 HeaderCell(table, "Customer");
-                HeaderCell(table, "Invoice");
+                HeaderCell(table, "Ref. Invoice");
                 HeaderCell(table, "Product");
                 HeaderCell(table, "Basic Qty", alignCenter: true);
                 HeaderCell(table, "Amount",    alignCenter: true);
