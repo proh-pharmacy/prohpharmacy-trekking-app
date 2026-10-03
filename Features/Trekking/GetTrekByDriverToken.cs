@@ -57,6 +57,7 @@ public static class GetTrekByDriverToken
     public class DriverProductResponse
     {
         public Guid StopProductId { get; set; }
+        public Guid? ClientGeneratedId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? BasicUnitName { get; set; }
         public string? PackagingUnitName { get; set; }
@@ -185,6 +186,7 @@ public static class GetTrekByDriverToken
                         Products = s.Products.Select(p => new DriverProductResponse
                         {
                             StopProductId = p.Id,
+                            ClientGeneratedId = p.ClientGeneratedId,
                             ProductName = p.Product?.Name ?? string.Empty,
                             BasicUnitName = p.Product?.BasicUnit?.Name,
                             PackagingUnitName = p.Product?.PackagingUnit?.Name,

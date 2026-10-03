@@ -75,6 +75,7 @@ public static class CreateTrek
     public class TrekStopProductResponse
     {
         public Guid StopProductId { get; set; }
+        public Guid? ClientGeneratedId { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? BasicUnitName { get; set; }
