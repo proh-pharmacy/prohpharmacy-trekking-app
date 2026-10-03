@@ -126,11 +126,13 @@ public static class DriverReportPdfGenerator
                     cols.RelativeColumn();
                     cols.RelativeColumn();
                     cols.RelativeColumn();
+                    cols.RelativeColumn();
                 });
                 SummaryCard(table, "Total Sales Value",   $"GHS {s.TotalSalesValue:0.00}",      PrimaryColor);
                 SummaryCard(table, "Approved Refunds",    FormatDeduction(s.TotalApprovedRefunds), DeductionColor(s.TotalApprovedRefunds),
                     sub: $"{s.ApprovedRefundCount} item(s)");
                 SummaryCard(table, "Trek Net Sales",      $"GHS {s.TrekNetSales:0.00}",         "#1e293b");
+                EmptyCard(table);
             });
 
             // Block 2 — Money Position (what's where right now)
@@ -161,12 +163,14 @@ public static class DriverReportPdfGenerator
                     cols.RelativeColumn();
                     cols.RelativeColumn();
                     cols.RelativeColumn();
+                    cols.RelativeColumn();
                 });
                 SummaryCard(table, "Outstanding (Customer Debt)", $"GHS {s.TotalOutstanding:0.00}",     "#b45309");
                 SummaryCard(table, "Pending Refunds",             $"GHS {s.TotalPendingRefunds:0.00}",  "#b45309",
                     sub: $"{s.PendingRefundCount} awaiting approval");
                 SummaryCard(table, "Rejected Refunds",            $"GHS {s.TotalRejectedRefunds:0.00}", MutedText,
                     sub: $"{s.RejectedRefundCount} item(s) — informational");
+                EmptyCard(table);
             });
         });
     }
@@ -189,6 +193,11 @@ public static class DriverReportPdfGenerator
                 if (!string.IsNullOrEmpty(sub))
                     c.Item().PaddingTop(2).Text(sub).FontSize(6f).FontColor(MutedText);
             });
+    }
+
+    private static void EmptyCard(TableDescriptor table)
+    {
+        table.Cell().Column(_ => { });
     }
 
     // ── Collections by method ──────────────────────────────────────────────────
