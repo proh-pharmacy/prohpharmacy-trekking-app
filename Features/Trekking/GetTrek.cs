@@ -205,6 +205,7 @@ public static class GetTrek
                 Products = stop.Products.Select(p => new TrekStopProductResponse
                 {
                     StopProductId = p.Id,
+                    ClientGeneratedId = p.ClientGeneratedId,
                     ProductId = p.ProductId,
                     ProductName = p.Product?.Name ?? string.Empty,
                     BasicUnitName = p.Product?.BasicUnit?.Name,

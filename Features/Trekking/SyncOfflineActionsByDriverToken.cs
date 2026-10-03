@@ -739,7 +739,7 @@ public static class SyncOfflineActionsByDriverToken
                 balance = 0;
             }
 
-            db.TrekkingTripStopProducts.Add(new TrekkingTripStopProduct
+            var stopProduct = new TrekkingTripStopProduct
             {
                 TrekkingTripStopId = stopId,
                 ProductId = productId,
@@ -755,11 +755,12 @@ public static class SyncOfflineActionsByDriverToken
                 IsUnplanned = true,
                 DeliveredAt = action.OccurredAt,
                 ClientGeneratedId = action.ClientId
-            });
+            };
+            db.TrekkingTripStopProducts.Add(stopProduct);
 
             invoiceAffectedStopIds.Add(stopId);
 
-            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
+            return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = stopProduct.Id };
         }
 
         private async Task<ActionResult> ProcessRecordDeliveryAsync(
