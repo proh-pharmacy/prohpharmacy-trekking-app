@@ -97,6 +97,8 @@ public static class CreateTrek
     public class TrekStopReturnResponse
     {
         public Guid ReturnId { get; set; }
+        public Guid SaleInvoiceId { get; set; }
+        public string? InvoiceNumber { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? BasicUnitName { get; set; }

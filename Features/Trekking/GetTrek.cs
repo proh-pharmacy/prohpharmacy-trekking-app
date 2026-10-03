@@ -56,6 +56,9 @@ public static class GetTrek
                     .ThenInclude(s => s.Returns)
                         .ThenInclude(r => r.Product)
                             .ThenInclude(p => p.PackagingUnit)
+                .Include(t => t.Stops)
+                    .ThenInclude(s => s.Returns)
+                        .ThenInclude(r => r.SaleInvoice)
                 .AsNoTracking()
                 .FirstOrDefaultAsync(t => t.Id == request.Id, cancellationToken);
 
@@ -223,6 +226,8 @@ public static class GetTrek
                 Returns = stop.Returns.Select(r => new TrekStopReturnResponse
                 {
                     ReturnId = r.Id,
+                    SaleInvoiceId = r.SaleInvoiceId,
+                    InvoiceNumber = r.SaleInvoice?.InvoiceNumber,
                     ProductId = r.ProductId,
                     ProductName = r.Product?.Name ?? string.Empty,
                     BasicUnitName = r.Product?.BasicUnit?.Name,

@@ -2,12 +2,16 @@
 
 Verified against `Features/Trekking/GetDriverTrekReport.cs` and `Services/Pdf/DriverReportPdfGenerator.cs` on 2026-10-01 (`aa7f3d8`). Add a **Report** tab and **Download PDF** action to the driver portal. Both routes use the driver token, need no JWT and work at any trek status, including completed/cancelled treks.
 
-| Method | Route | Success |
-|---|---|---|
-| GET | `/api/v1/treks/driver/{token}/report` | `200`, JSON below |
-| GET | `/api/v1/treks/driver/{token}/report/pdf` | `200`, `application/pdf` attachment |
+| Method | Route | Auth | Success |
+|---|---|---|---|
+| GET | `/api/v1/treks/driver/{token}/report` | Driver token | `200`, JSON below |
+| GET | `/api/v1/treks/driver/{token}/report/pdf` | Driver token | `200`, `application/pdf` attachment |
+| GET | `/api/v1/treks/{trekId}/report` | Staff JWT | `200`, same JSON shape |
+| GET | `/api/v1/treks/{trekId}/report/pdf` | Staff JWT | `200`, same PDF |
 
-Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not found. The token may be invalid." }`. There is no `/api/v1/treks/{trekId}/driver-report` route, despite that route appearing in the phase notes.
+The admin and driver endpoints return the exact same `TrekReportData` shape and the same PDF — admins see the same financial roll-up the driver sees in their portal. Both pairs are available at any trek status.
+
+Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not found. The token may be invalid." }`. The admin routes return `404` for unknown trek IDs.
 
 ## JSON response
 

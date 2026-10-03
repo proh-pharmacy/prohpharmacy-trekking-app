@@ -322,7 +322,7 @@ public static class TrekkingSheetPdfGenerator
                     HeaderCell(header, "Description", alignCenter: false);
                     HeaderCell(header, "Planned", alignCenter: true);
                     HeaderCell(header, "Delivered", alignCenter: true);
-                    HeaderCell(header, "Payment Method", alignCenter: true);
+                    HeaderCell(header, "Pymt. Method", alignCenter: true);
                     HeaderCell(header, "Amt Paid", alignCenter: true);
                     HeaderCell(header, "Balance", alignCenter: true);
                     HeaderCell(header, "Notes", alignCenter: false);
@@ -374,24 +374,26 @@ public static class TrekkingSheetPdfGenerator
                 {
                     table.ColumnsDefinition(columns =>
                     {
-                        columns.RelativeColumn(0.4f);
-                        columns.RelativeColumn(2.6f);
-                        columns.RelativeColumn(1.4f);
-                        columns.RelativeColumn(1.4f);
-                        columns.RelativeColumn(1.4f);
-                        columns.RelativeColumn(2.2f);
-                        columns.RelativeColumn(1.1f);
+                        columns.RelativeColumn(0.4f);  // #
+                        columns.RelativeColumn(2.8f);  // Description
+                        columns.RelativeColumn(1.2f);  // Qty Returned (matches Planned)
+                        columns.RelativeColumn(1.2f);  // Refund Amount (matches Delivered)
+                        columns.RelativeColumn(1.5f);  // Refund Method (matches Payment Method)
+                        columns.RelativeColumn(1.0f);  // (empty — matches Amt Paid)
+                        columns.RelativeColumn(1.0f);  // Status (matches Balance)
+                        columns.RelativeColumn(1.5f);  // Reason (matches Notes)
                     });
 
                     table.Header(header =>
                     {
                         ReturnHeaderCell(header, "#", alignCenter: true);
-                        ReturnHeaderCell(header, "Returns — Description", alignCenter: false);
-                        ReturnHeaderCell(header, "Qty Returned", alignCenter: true);
-                        ReturnHeaderCell(header, "Refund Amount", alignCenter: true);
-                        ReturnHeaderCell(header, "Refund Method", alignCenter: true);
-                        ReturnHeaderCell(header, "Reason", alignCenter: false);
+                        ReturnHeaderCell(header, "Returns — Item", alignCenter: false);
+                        ReturnHeaderCell(header, "Qty Ret.", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Amt.", alignCenter: true);
+                        ReturnHeaderCell(header, "Refund Mthd.", alignCenter: true);
+                        ReturnHeaderCell(header, string.Empty, alignCenter: true);
                         ReturnHeaderCell(header, "Status", alignCenter: true);
+                        ReturnHeaderCell(header, "Reason", alignCenter: false);
                     });
 
                     var returnIndex = 1;
@@ -413,8 +415,9 @@ public static class TrekkingSheetPdfGenerator
                         ReturnBodyCell(table, string.Join("\n", qtyParts), background, alignCenter: true, muted: isRejected);
                         ReturnBodyCell(table, ret.RefundAmount.HasValue ? $"GHS {ret.RefundAmount:0.00}" : string.Empty, background, alignCenter: true, muted: isRejected);
                         ReturnBodyCell(table, ret.RefundMethod ?? string.Empty, background, alignCenter: true, muted: isRejected);
-                        ReturnBodyCell(table, ret.Reason ?? string.Empty, background, alignCenter: false, muted: isRejected);
+                        ReturnBodyCell(table, string.Empty, background, alignCenter: true, muted: isRejected);
                         ReturnStatusCell(table, ret.ApprovalStatus, background);
+                        ReturnBodyCell(table, ret.Reason ?? string.Empty, background, alignCenter: false, muted: isRejected);
 
                         returnIndex++;
                     }
@@ -460,13 +463,7 @@ public static class TrekkingSheetPdfGenerator
             .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle();
 
-        if (alignCenter)
-        {
-            if (muted) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
-            cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color);
-            return;
-        }
-        if (muted) { cell.Text(text).FontSize(7.5f).FontColor(color).Italic(); return; }
+        if (alignCenter) { cell.AlignCenter().Text(text).FontSize(7.5f).FontColor(color); return; }
         cell.Text(text).FontSize(7.5f).FontColor(color);
     }
 
@@ -482,7 +479,7 @@ public static class TrekkingSheetPdfGenerator
         table.Cell()
             .Background(background).BorderRight(0.5f).BorderBottom(0.5f).BorderColor("#ffffff")
             .MinHeight(18).PaddingVertical(3).PaddingHorizontal(4).AlignMiddle().AlignCenter()
-            .Text(label).FontSize(7f).SemiBold().FontColor(color);
+            .Text(label).FontSize(7.5f).FontColor(color);
     }
 
     private static void ComposeFooter(IContainer container)

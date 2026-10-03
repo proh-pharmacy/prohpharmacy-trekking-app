@@ -57,6 +57,7 @@ public static class CompleteTrekByDriverToken
                 trip.UpdatedAt = DateTime.UtcNow;
 
                 await SyncLedgerOnCompletionAsync(trip, cancellationToken);
+                await CaptureStockSnapshotAsync(trip, cancellationToken);
                 await SyncVehicleStockOnCompletionAsync(trip, cancellationToken);
 
                 await db.SaveChangesAsync(cancellationToken);
@@ -145,6 +146,87 @@ public static class CompleteTrekByDriverToken
                         CreatedAt = now
                     });
                 }
+            }
+        }
+
+        private Task CaptureStockSnapshotAsync(Entities.TrekkingTrip trip, CancellationToken cancellationToken) =>
+            CaptureStockSnapshotAsync(db, trip, cancellationToken);
+
+        internal static async Task CaptureStockSnapshotAsync(AppDbContext db, Entities.TrekkingTrip trip, CancellationToken cancellationToken)
+        {
+            var alreadyCaptured = await db.TrekkingTripStockSnapshots
+                .AnyAsync(s => s.TrekkingTripId == trip.Id, cancellationToken);
+            if (alreadyCaptured) return;
+
+            var soldByProduct = trip.Stops
+                .SelectMany(s => s.Products)
+                .GroupBy(p => p.ProductId)
+                .ToDictionary(g => g.Key, g => new
+                {
+                    BasicSold = g.Sum(p => p.BasicQtyDelivered ?? 0),
+                    PackagingSold = g.Sum(p => p.PackagingQtyDelivered ?? 0),
+                    Revenue = g.Sum(p => p.AmountDue ?? ((p.AmtPaid ?? 0) + (p.Balance ?? 0)))
+                });
+
+            var loadedProductIds = await db.TrekStockLoads
+                .Where(l => l.TrekkingTripId == trip.Id)
+                .Select(l => l.ProductId)
+                .ToListAsync(cancellationToken);
+
+            var stockByProduct = await db.VehicleProductStocks
+                .Where(s => s.VehicleId == trip.VehicleId)
+                .ToDictionaryAsync(s => s.ProductId, cancellationToken);
+
+            var vehicleStockProductIds = stockByProduct
+                .Where(kv => kv.Value.BasicQuantityOnHand > 0 || kv.Value.PackagingQuantityOnHand > 0)
+                .Select(kv => kv.Key);
+
+            var productIds = soldByProduct.Keys
+                .Union(loadedProductIds)
+                .Union(vehicleStockProductIds)
+                .Distinct()
+                .ToList();
+            if (productIds.Count == 0) return;
+
+            var productMetadata = await db.Products
+                .Where(p => productIds.Contains(p.Id))
+                .Include(p => p.BasicUnit)
+                .Include(p => p.PackagingUnit)
+                .ToDictionaryAsync(p => p.Id, cancellationToken);
+
+            var capturedAt = DateTime.UtcNow;
+
+            foreach (var productId in productIds)
+            {
+                if (!productMetadata.TryGetValue(productId, out var product)) continue;
+
+                stockByProduct.TryGetValue(productId, out var stock);
+                var basicStart = stock?.BasicQuantityOnHand ?? 0;
+                var packagingStart = stock?.PackagingQuantityOnHand ?? 0;
+
+                soldByProduct.TryGetValue(productId, out var sold);
+                var basicSold = sold?.BasicSold ?? 0;
+                var packagingSold = sold?.PackagingSold ?? 0;
+                var revenue = sold?.Revenue ?? 0;
+
+                db.TrekkingTripStockSnapshots.Add(new Entities.TrekkingTripStockSnapshot
+                {
+                    TrekkingTripId = trip.Id,
+                    ProductId = productId,
+                    ProductName = product.Name,
+                    BasicUnitName = product.BasicUnit?.Name,
+                    PackagingUnitName = product.PackagingUnit?.Name,
+                    BasicUnitPrice = product.BasicUnitPrice,
+                    PackagingUnitPrice = product.PackagingUnitPrice,
+                    BasicQtyAtStart = basicStart,
+                    PackagingQtyAtStart = packagingStart,
+                    BasicQtySold = basicSold,
+                    PackagingQtySold = packagingSold,
+                    BasicQtyRemaining = basicStart - basicSold,
+                    PackagingQtyRemaining = packagingStart - packagingSold,
+                    RevenueAmount = revenue,
+                    CapturedAt = capturedAt
+                });
             }
         }
 

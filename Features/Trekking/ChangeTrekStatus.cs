@@ -87,6 +87,7 @@ public static class ChangeTrekStatus
                 else if (request.Status == TrekStatus.Completed)
                 {
                     await SyncLedgerOnCompletionAsync(trip, cancellationToken);
+                    await CompleteTrekByDriverToken.Handler.CaptureStockSnapshotAsync(_db, trip, cancellationToken);
                     await SyncVehicleStockOnCompletionAsync(trip, cancellationToken);
                 }
                 else if (request.Status == TrekStatus.Cancelled)

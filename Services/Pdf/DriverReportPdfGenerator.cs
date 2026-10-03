@@ -126,11 +126,13 @@ public static class DriverReportPdfGenerator
                     cols.RelativeColumn();
                     cols.RelativeColumn();
                     cols.RelativeColumn();
+                    cols.RelativeColumn();
                 });
                 SummaryCard(table, "Total Sales Value",   $"GHS {s.TotalSalesValue:0.00}",      PrimaryColor);
                 SummaryCard(table, "Approved Refunds",    FormatDeduction(s.TotalApprovedRefunds), DeductionColor(s.TotalApprovedRefunds),
                     sub: $"{s.ApprovedRefundCount} item(s)");
                 SummaryCard(table, "Trek Net Sales",      $"GHS {s.TrekNetSales:0.00}",         "#1e293b");
+                EmptyCard(table);
             });
 
             // Block 2 — Money Position (what's where right now)
@@ -161,14 +163,25 @@ public static class DriverReportPdfGenerator
                     cols.RelativeColumn();
                     cols.RelativeColumn();
                     cols.RelativeColumn();
+                    cols.RelativeColumn();
                 });
                 SummaryCard(table, "Outstanding (Customer Debt)", $"GHS {s.TotalOutstanding:0.00}",     "#b45309");
                 SummaryCard(table, "Pending Refunds",             $"GHS {s.TotalPendingRefunds:0.00}",  "#b45309",
                     sub: $"{s.PendingRefundCount} awaiting approval");
                 SummaryCard(table, "Rejected Refunds",            $"GHS {s.TotalRejectedRefunds:0.00}", MutedText,
                     sub: $"{s.RejectedRefundCount} item(s) — informational");
+                EmptyCard(table);
             });
         });
+    }
+
+    private static string FormatQty(decimal? pkgQty, string? pkgUnit, decimal basicQty, string? basicUnit)
+    {
+        var hasPkg = !string.IsNullOrWhiteSpace(pkgUnit) && pkgQty.HasValue && pkgQty.Value != 0;
+        var basicLabel = string.IsNullOrWhiteSpace(basicUnit) ? "" : $" {basicUnit}";
+        var basicPart = $"{basicQty:0.###}{basicLabel}";
+        if (!hasPkg) return basicPart;
+        return $"{pkgQty!.Value:0.###} {pkgUnit}  ·  {basicPart}";
     }
 
     private static string FormatDeduction(decimal value) =>
@@ -189,6 +202,14 @@ public static class DriverReportPdfGenerator
                 if (!string.IsNullOrEmpty(sub))
                     c.Item().PaddingTop(2).Text(sub).FontSize(6f).FontColor(MutedText);
             });
+    }
+
+    private static void EmptyCard(TableDescriptor table)
+    {
+        table.Cell()
+            .Background(CardBg).Border(0.5f).BorderColor(CardBorder)
+            .Padding(8)
+            .Column(_ => { });
     }
 
     // ── Collections by method ──────────────────────────────────────────────────
@@ -247,10 +268,10 @@ public static class DriverReportPdfGenerator
                 HeaderCell(table, "#",               alignCenter: true);
                 HeaderCell(table, "Customer");
                 HeaderCell(table, "Invoice");
-                HeaderCell(table, "Amount Due",      alignCenter: true);
+                HeaderCell(table, "Amt. Due",        alignCenter: true);
                 HeaderCell(table, "Collected",       alignCenter: true);
                 HeaderCell(table, "Balance",         alignCenter: true);
-                HeaderCell(table, "Payment Method",  alignCenter: true);
+                HeaderCell(table, "Pymt. Method",    alignCenter: true);
 
                 var i = 1;
                 foreach (var stop in stops)
@@ -282,11 +303,11 @@ public static class DriverReportPdfGenerator
                 table.ColumnsDefinition(cols =>
                 {
                     cols.ConstantColumn(18);        // #
-                    cols.RelativeColumn(2.5f);      // Customer
-                    cols.RelativeColumn(1.6f);      // Invoice
-                    cols.RelativeColumn(2.5f);      // Product
-                    cols.RelativeColumn(1f);        // Basic Qty
-                    cols.RelativeColumn(1.6f);      // Amount
+                    cols.RelativeColumn(2.3f);      // Customer
+                    cols.RelativeColumn(1.5f);      // Ref. Invoice
+                    cols.RelativeColumn(2.3f);      // Product
+                    cols.RelativeColumn(1.8f);      // Qty (packaging + basic)
+                    cols.RelativeColumn(1.4f);      // Amount
                     cols.RelativeColumn(1.3f);      // Method
                     cols.RelativeColumn(1.3f);      // Status
                     cols.RelativeColumn(2.2f);      // Reason / Recorded
@@ -294,13 +315,13 @@ public static class DriverReportPdfGenerator
 
                 HeaderCell(table, "#",         alignCenter: true);
                 HeaderCell(table, "Customer");
-                HeaderCell(table, "Invoice");
+                HeaderCell(table, "Ref. Invoice");
                 HeaderCell(table, "Product");
-                HeaderCell(table, "Basic Qty", alignCenter: true);
+                HeaderCell(table, "Qty",       alignCenter: true);
                 HeaderCell(table, "Amount",    alignCenter: true);
                 HeaderCell(table, "Method",    alignCenter: true);
                 HeaderCell(table, "Status",    alignCenter: true);
-                HeaderCell(table, "Reason / Recorded");
+                HeaderCell(table, "Reason / Rec.");
 
                 var i = 1;
                 foreach (var r in refunds)
@@ -314,13 +335,13 @@ public static class DriverReportPdfGenerator
                         _          => TextColor
                     };
                     var reasonLine = string.IsNullOrWhiteSpace(r.Reason) ? "—" : r.Reason;
-                    var recordedLine = $"{r.RecordedAt:dd MMM yyyy HH:mm} UTC";
+                    var recordedLine = r.RecordedAt.ToString("dd MMM yyyy  'at'  h:mm tt");
 
                     BodyCell(table, r.Sequence > 0 ? r.Sequence.ToString() : "—", bg, alignCenter: true);
                     BodyCell(table, r.CustomerName, bg);
                     BodyCell(table, r.InvoiceNumber ?? "—", bg);
                     BodyCell(table, r.ProductName, bg);
-                    BodyCell(table, $"{r.BasicQtyReturned:0.###}", bg, alignCenter: true);
+                    BodyCell(table, FormatQty(r.PackagingQtyReturned, r.PackagingUnitName, r.BasicQtyReturned, r.BasicUnitName), bg, alignCenter: true);
                     BodyCell(table, r.RefundAmount.HasValue ? $"GHS {r.RefundAmount.Value:0.00}" : "—", bg, alignCenter: true);
                     BodyCell(table, r.RefundMethod ?? "—", bg, alignCenter: true);
                     BodyCell(table, r.ApprovalStatus, bg, alignCenter: true, color: statusColor);
@@ -331,9 +352,9 @@ public static class DriverReportPdfGenerator
                         .Column(c =>
                         {
                             c.Item().Text(reasonLine).FontSize(7.5f).FontColor(TextColor);
-                            c.Item().Text(recordedLine).FontSize(6.3f).FontColor(MutedText);
+                            c.Item().Text(recordedLine).FontSize(6.5f).FontColor(MutedText);
                             if (r.ApprovalStatus == "Rejected" && !string.IsNullOrWhiteSpace(r.RejectionReason))
-                                c.Item().Text($"Rejected: {r.RejectionReason}").FontSize(6.3f).FontColor("#b91c1c");
+                                c.Item().Text($"Rejected: {r.RejectionReason}").FontSize(6.5f).FontColor("#b91c1c");
                         });
                 }
             });
