@@ -141,48 +141,44 @@ public static class StockSnapshotPdfGenerator
                 table.ColumnsDefinition(cols =>
                 {
                     cols.RelativeColumn(3f);        // Product
-                    cols.RelativeColumn(1.2f);      // Unit
-                    cols.RelativeColumn(1.3f);      // At Start (basic)
-                    cols.RelativeColumn(1.3f);      // Sold (basic)
-                    cols.RelativeColumn(1.3f);      // Remaining (basic)
-                    cols.RelativeColumn(1.2f);      // At Start (pkg)
-                    cols.RelativeColumn(1.2f);      // Sold (pkg)
-                    cols.RelativeColumn(1.2f);      // Remaining (pkg)
-                    cols.RelativeColumn(1.5f);      // Revenue
+                    cols.RelativeColumn(2f);        // Start
+                    cols.RelativeColumn(2f);        // Sold
+                    cols.RelativeColumn(2f);        // Remain
+                    cols.RelativeColumn(1.6f);      // Revenue
                 });
 
                 HeaderCell(table, "Product");
-                HeaderCell(table, "Unit", alignCenter: true);
-                HeaderCell(table, "Start (B)", alignCenter: true);
-                HeaderCell(table, "Sold (B)", alignCenter: true);
-                HeaderCell(table, "Remain (B)", alignCenter: true);
-                HeaderCell(table, "Start (P)", alignCenter: true);
-                HeaderCell(table, "Sold (P)", alignCenter: true);
-                HeaderCell(table, "Remain (P)", alignCenter: true);
+                HeaderCell(table, "Start", alignCenter: true);
+                HeaderCell(table, "Sold", alignCenter: true);
+                HeaderCell(table, "Remain", alignCenter: true);
                 HeaderCell(table, "Revenue", alignCenter: true);
 
                 var i = 1;
                 foreach (var item in items)
                 {
                     var bg = i++ % 2 == 1 ? CardBg : "#f8fbf9";
-                    var basicRemColor = item.BasicQtyRemaining < 0 ? AlertColor : (item.BasicQtyRemaining == 0 ? MutedText : null);
-                    var pkgRemColor   = item.PackagingQtyRemaining < 0 ? AlertColor : (item.PackagingQtyRemaining == 0 ? MutedText : null);
+                    var remainColor = (item.BasicQtyRemaining < 0 || item.PackagingQtyRemaining < 0) ? AlertColor : null;
 
                     BodyCell(table, item.ProductName, bg);
-                    BodyCell(table, item.BasicUnitName ?? "—", bg, alignCenter: true);
-                    BodyCell(table, $"{item.BasicQtyAtStart:0.###}", bg, alignCenter: true);
-                    BodyCell(table, $"{item.BasicQtySold:0.###}", bg, alignCenter: true);
-                    BodyCell(table, $"{item.BasicQtyRemaining:0.###}", bg, alignCenter: true, color: basicRemColor);
-                    BodyCell(table, $"{item.PackagingQtyAtStart:0.###}", bg, alignCenter: true);
-                    BodyCell(table, $"{item.PackagingQtySold:0.###}", bg, alignCenter: true);
-                    BodyCell(table, $"{item.PackagingQtyRemaining:0.###}", bg, alignCenter: true, color: pkgRemColor);
+                    BodyCell(table, FormatQty(item.PackagingQtyAtStart, item.PackagingUnitName, item.BasicQtyAtStart, item.BasicUnitName), bg, alignCenter: true);
+                    BodyCell(table, FormatQty(item.PackagingQtySold, item.PackagingUnitName, item.BasicQtySold, item.BasicUnitName), bg, alignCenter: true);
+                    BodyCell(table, FormatQty(item.PackagingQtyRemaining, item.PackagingUnitName, item.BasicQtyRemaining, item.BasicUnitName), bg, alignCenter: true, color: remainColor);
                     BodyCell(table, $"GHS {item.RevenueAmount:0.00}", bg, alignCenter: true);
                 }
             });
 
-            col.Item().PaddingTop(4).Text("B = Basic unit  •  P = Packaging unit  •  Red remaining = sold beyond start-of-trek stock")
+            col.Item().PaddingTop(4).Text("Red remaining = sold beyond start-of-trek stock")
                 .FontSize(6f).FontColor(MutedText);
         });
+    }
+
+    private static string FormatQty(decimal pkgQty, string? pkgUnit, decimal basicQty, string? basicUnit)
+    {
+        var hasPkg = !string.IsNullOrWhiteSpace(pkgUnit) && pkgQty != 0;
+        var basicLabel = string.IsNullOrWhiteSpace(basicUnit) ? "" : $" {basicUnit}";
+        var basicPart = $"{basicQty:0.###}{basicLabel}";
+        if (!hasPkg) return basicPart;
+        return $"{pkgQty:0.###} {pkgUnit}  ·  {basicPart}";
     }
 
     private static void InfoRow(ColumnDescriptor col, string label, string value, int labelWidth = 60)
