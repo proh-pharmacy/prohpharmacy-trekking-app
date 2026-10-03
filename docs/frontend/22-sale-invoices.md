@@ -209,9 +209,18 @@ For driver-side client-generated invoice PDFs (where a QR scan at the stop must 
 
 | Method | Route | Success |
 |---|---|---|
-| GET | `/api/v1/treks/driver/{token}/stops/by-customer/{customerCode}` | `200`, delivery payload below |
+| GET | `/api/v1/treks/driver/{token}/stops/by-customer?customerCode=…` | `200`, delivery payload below |
+| GET | `/api/v1/treks/driver/{token}/stops/by-customer?clientGeneratedId=…` | `200`, delivery payload below |
 
-Anonymous (driver token). `customerCode` is an exact, case-insensitive match on `CustomerAccount.CustomerCode`. 404 is returned with a specific message when the token is invalid or when that code is not on this trek.
+Anonymous (driver token). Provide **exactly one** of `customerCode` or `clientGeneratedId` as a query string parameter:
+
+- `customerCode` — exact, case-insensitive match on `CustomerAccount.CustomerCode`. Use for customers already synced to the device.
+- `clientGeneratedId` — matches `CustomerAccount.ClientGeneratedId` (the device-generated UUID submitted with `RegisterCustomer`). Use for customers created offline whose server-assigned `customerCode` has not yet been reconciled into the local store.
+
+Status codes:
+- `200` — stop found, delivery payload returned
+- `404` — invalid token, or no stop on this trek for the given identifier
+- `422` — neither identifier was provided, or both were provided simultaneously
 
 ```json
 {
@@ -229,6 +238,7 @@ Anonymous (driver token). `customerCode` is an exact, case-insensitive match on 
     "customer": {
       "id": "<customer-guid>",
       "customerCode": "GAR00001",
+      "clientGeneratedId": null,
       "businessName": "Accra Pharmacy Ltd",
       "tradingName": null,
       "primaryPhoneNumber": "+233 24 000 0000",
@@ -265,4 +275,6 @@ Anonymous (driver token). `customerCode` is an exact, case-insensitive match on 
 
 Only **delivered** product lines are returned (`deliveredAt` or `basicQtyDelivered` set) — planned-but-undelivered rows and returns are excluded. `stop.invoice` is `null` until the first delivery has been recorded for the stop (which is also when the server allocates the invoice number). `totals` are summed from the returned lines; the frontend does not need to recompute.
 
-Use this when the driver's QR links to a customer-code anchor and the client needs to render the invoice without round-tripping through the staff invoice endpoints (which require a Bearer JWT).
+`customer.clientGeneratedId` echoes back the UUID originally submitted via `RegisterCustomer` (null for customers created from the admin panel). Use it alongside `customerCode` as a stable local key when reconciling offline-registered customers.
+
+Use this when the driver's QR links to a customer anchor and the client needs to render the invoice without round-tripping through the staff invoice endpoints (which require a Bearer JWT).

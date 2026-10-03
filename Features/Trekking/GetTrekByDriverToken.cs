@@ -36,6 +36,8 @@ public static class GetTrekByDriverToken
         public string? InvoiceNumber { get; set; }
         public int Sequence { get; set; }
         public bool IsWalkIn { get; set; }
+        public Guid CustomerAccountId { get; set; }
+        public Guid? CustomerClientGeneratedId { get; set; }
         public string CustomerName { get; set; } = string.Empty;
         public string CustomerCode { get; set; } = string.Empty;
         public string? PrimaryPhoneNumber { get; set; }
@@ -169,6 +171,8 @@ public static class GetTrekByDriverToken
                         InvoiceNumber = invoice?.InvoiceNumber,
                         Sequence = s.Sequence,
                         IsWalkIn = s.IsWalkIn,
+                        CustomerAccountId = s.CustomerAccountId,
+                        CustomerClientGeneratedId = s.CustomerAccount?.ClientGeneratedId,
                         CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                         CustomerCode = s.CustomerAccount?.CustomerCode ?? string.Empty,
                         PrimaryPhoneNumber = s.CustomerAccount?.PrimaryPhoneNumber,

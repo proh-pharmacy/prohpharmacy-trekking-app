@@ -188,6 +188,7 @@ public static class GetTrek
                 Sequence = stop.Sequence,
                 IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,
+                CustomerClientGeneratedId = stop.CustomerAccount?.ClientGeneratedId,
                 CustomerName = stop.CustomerAccount?.BusinessName ?? string.Empty,
                 CustomerCode = stop.CustomerAccount?.CustomerCode ?? string.Empty,
                 CustomerPhone = stop.CustomerAccount?.PrimaryPhoneNumber,
