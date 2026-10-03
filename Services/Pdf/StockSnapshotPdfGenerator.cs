@@ -69,7 +69,7 @@ public static class StockSnapshotPdfGenerator
                     card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
                     InfoRow(card, "Status:", data.TrekStatus, 90);
                     card.Item().LineHorizontal(0.5f).LineColor(BorderColor);
-                    InfoRow(card, "Captured:", data.CapturedAt?.ToString("dd MMM yyyy HH:mm 'UTC'") ?? "—", 90);
+                    InfoRow(card, "Captured:", data.CapturedAt?.ToString("ddd, dd MMM yyyy  'at'  h:mm tt") ?? "—", 90);
                 });
         });
     }
