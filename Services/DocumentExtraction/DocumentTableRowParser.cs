@@ -116,11 +116,15 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         // product row before matching.
         for (var i = rows.Count - 2; i >= 0; i--)
         {
-            if (!IsQuantityOnly(rows[i].ExtractedName) ||
+            if ((!IsQuantityOnly(rows[i].ExtractedName) &&
+                 !IsDanglingQuantityUnit(rows[i].ExtractedName, knownUnits)) ||
                 string.IsNullOrWhiteSpace(rows[i + 1].ExtractedName) ||
                 !string.IsNullOrWhiteSpace(rows[i + 1].QuantityText))
                 continue;
-            rows[i + 1].QuantityText = string.Join(" ", rows[i].ExtractedName, rows[i].QuantityText).Trim();
+            var quantityPrefix = IsDanglingQuantityUnit(rows[i].ExtractedName, knownUnits)
+                ? PrependQuantityForUnit(rows[i].ExtractedName, rows[i].QuantityText)
+                : rows[i].ExtractedName;
+            rows[i + 1].QuantityText = string.Join(" ", quantityPrefix, rows[i].QuantityText).Trim();
             QuantityParser.Populate(rows[i + 1]);
             rows[i + 1].Warnings.Remove("No supported table header was found; this is an unstructured text line.");
             rows[i + 1].Warnings.AddRange(rows[i].Warnings.Where(w => !rows[i + 1].Warnings.Contains(w)));
@@ -231,6 +235,25 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
     private static bool IsQuantityOnly(string value) => Regex.IsMatch(value.Trim(),
         @"^\d+(?:\.\d+)?\s*[A-Za-z]+(?:\s*[·.]?)?$", RegexOptions.CultureInvariant,
         TimeSpan.FromMilliseconds(100));
+
+    private static bool IsDanglingQuantityUnit(string value, IReadOnlySet<string>? knownUnits)
+    {
+        var unit = Regex.Replace(value.Trim(), @"[·.]", "", RegexOptions.CultureInvariant).Trim();
+        if (unit.Length == 0 || unit.Any(char.IsDigit)) return false;
+        var builtIn = new[] { "strip", "strips", "box", "boxes", "tablet", "tablets", "tab", "tabs",
+            "bottle", "bottles", "piece", "pieces", "pack", "packs", "unit", "units", "vial", "vials",
+            "ampoule", "ampoules" };
+        return builtIn.Contains(unit, StringComparer.OrdinalIgnoreCase) ||
+               (knownUnits?.Contains(unit) ?? false);
+    }
+
+    private static string PrependQuantityForUnit(string unitText, string? quantityText)
+    {
+        var unit = Regex.Replace(unitText.Trim(), @"[·.]", "", RegexOptions.CultureInvariant).Trim();
+        var number = Regex.Match(quantityText ?? "", @"\d+(?:\.\d+)?", RegexOptions.CultureInvariant,
+            TimeSpan.FromMilliseconds(100));
+        return number.Success ? $"{number.Value} {unit}" : unit;
+    }
 
     private static bool IsDocumentFooter(List<DocumentToken> line)
     {
