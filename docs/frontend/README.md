@@ -34,6 +34,7 @@ The Phase 1–5 changes were reviewed against the code and the 2026-10-01 commit
 | 23 | [Invoice Returns & Approval](./23-invoice-returns.md) | Online invoice returns, review decisions and ledger effects |
 | 24 | [Vehicle Warehouse & Trek Stock Loads](./24-vehicle-warehouse.md) | Vehicle stock summary, catalogue picker, per-product quantities, adjustments, ledger and trek allocations |
 | 25 | [Driver Trek Report](./25-driver-trek-report.md) | Live financial/stock reconciliation and PDF download |
+| 26 | [Product Document Matching](./26-product-document-matching.md) | Independent Excel/PDF/photo extraction and product matching for frontend review |
 
 ## Phase implementation map
 

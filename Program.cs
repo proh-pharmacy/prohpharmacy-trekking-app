@@ -67,6 +67,7 @@ builder.Services.AddCarter();
 
 // ─── FluentValidation ────────────────────────────────────────────────────────
 builder.Services.AddValidatorsFromAssembly(assembly);
+builder.Services.AddDocumentMatching(builder.Configuration);
 
 // ─── AutoMapper ───────────────────────────────────────────────────────────────
 builder.Services.AddAutoMapper(assembly);
