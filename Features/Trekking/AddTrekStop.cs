@@ -70,6 +70,9 @@ public static class AddTrekStop
             if (trip is null)
                 return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError("Trekking trip not found."));
 
+            if (trip.Status is TrekStatus.Completed or TrekStatus.Cancelled)
+                return Result.Failure<TrekStopResponse>(Error.BadRequest("Customers cannot be added to a completed or cancelled trek."));
+
             var customer = await _db.CustomerAccounts
                 .Include(ca => ca.Region)
                 .Include(ca => ca.Locations.Where(l => l.IsPrimary))
@@ -148,6 +151,8 @@ public static class AddTrekStop
 
             _db.TrekkingTripStops.Add(stop);
             await _db.SaveChangesAsync(cancellationToken);
+            var invoice = _db.SaleInvoices.Local.SingleOrDefault(i => i.TrekkingTripStopId == stop.Id)
+                ?? await _db.SaleInvoices.SingleOrDefaultAsync(i => i.TrekkingTripStopId == stop.Id, cancellationToken);
 
             var primaryLocation = customer.Locations.FirstOrDefault();
             var primaryContact = customer.People.FirstOrDefault();
@@ -155,6 +160,12 @@ public static class AddTrekStop
             var response = new TrekStopResponse
             {
                 StopId = stop.Id,
+                InvoiceId = invoice?.Id,
+                InvoiceNumber = invoice?.InvoiceNumber,
+                InvoiceStatus = invoice?.Status.ToString(),
+                InvoiceTotal = invoice?.TotalAmount,
+                InvoicePaid = invoice?.TotalPaid,
+                InvoiceBalance = invoice?.Balance,
                 Sequence = stop.Sequence,
                 IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,

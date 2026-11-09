@@ -1,16 +1,19 @@
 # 18 — Trek Driver Control Panel & Offline Sync
 
+> Updated for the invoice-first backend on 2026-11-08. See [Invoice First & Payments](./27-invoice-first-payments.md) for the payment and receipt contracts.
+
+
 ## Overview
 
 The driver token (the UUID sent in trek assignment emails) is the sole credential for a full **field control panel**. No login, no JWT. The driver opens their unique link and gets an operational interface for their assigned trek and all active treks in their region.
 
 Because routes pass through areas with no connectivity, supported customer and delivery actions can be queued locally and pushed when connectivity returns. Customer identification details and front/back images can be captured or replaced offline: queue metadata as customer actions and persist image files separately for upload on reconnect. Invoice-based returns and live report downloads require online access.
 
-## Phase 1–5 integration boundaries (2026-10-01)
+## Integration boundaries (updated 2026-11-08)
 
-- **Invoices:** `/record` now issues/updates invoices and accepts `stopInvoices` metadata; the separate `/sync` handler does not. After synchronizing delivery actions, resolve server stop/product IDs and submit the affected rows with their complete recorded values through `/record` before completing the trek. Persist the returned invoice mapping. See [Sale Invoices](./22-sale-invoices.md).
+- **Invoices:** planned stop invoices are issued when the trek is scheduled. Driver/offline walk-ins are added to an active trek and therefore receive invoices immediately; item/delivery sync updates them automatically. Persist `invoiceId` from active stop/action responses and refresh the trek. No extra `/record` call is required. Queue collections separately as `RecordInvoicePayment`; see [guide 27](./27-invoice-first-payments.md#offline-sync).
 - **Returns:** the driver portal uses a customer-first batch endpoint `POST /treks/driver/{token}/returns` — pick a customer, pick an invoice (`GET /treks/driver/{token}/customers/{customerId}/invoices`), submit one or more products with quantities. The batch auto-adds a walk-in stop when the customer is not on the current trek and returns are Pending until admin approves. The old stop-scoped driver return routes have been removed. Return capture remains online-only; the legacy offline `RecordReturn` handler is incompatible with the new schema — do not enqueue returns or use offline voiding. See [Invoice Returns & Approval](./23-invoice-returns.md).
-- **Access:** invoice lookup and review routes require staff JWT; the driver token cannot yet browse historical invoices. Customer identification now has driver-token routes and `RegisterCustomer` / `UpdateCustomer` sync support. Customer responses and offline seeds include all four document fields; see [identification sync](#customer-identification-offline-capture-and-sync).
+- **Access:** staff review routes require JWT. Driver tokens can read region-scoped invoice details at `GET /api/v1/treks/driver/{token}/invoices/{invoiceId}` and use the existing customer invoice history. Customer identification now has driver-token routes and `RegisterCustomer` / `UpdateCustomer` sync support. Customer responses and offline seeds include all four document fields; see [identification sync](#customer-identification-offline-capture-and-sync).
 - **Completion:** now deducts tracked vehicle stock and notifies the trek creator of pending returns. Return ledger credits are created on approval, not completion.
 - **Report:** add a report view and PDF download using [Driver Trek Report](./25-driver-trek-report.md). Cached reports must show that they may be stale.
 
@@ -258,11 +261,14 @@ All driver portal endpoints use `api/v1/treks/driver/{token}/...` and require **
 | `PATCH` | `api/v1/customers/{id}` *(online only)* | Update an existing customer (requires auth — use `UpdateCustomer` batch action for offline) |
 | `POST` | `api/v1/treks/driver/{token}/treks/{trekId}/stops` | Add a walk-in stop to any active trek in the region |
 | `POST` | `api/v1/treks/driver/{token}/stops/{stopId}/products/unplanned` | Add an unplanned product sale at a stop |
+| `GET` | `api/v1/treks/driver/{token}/invoices/{invoiceId}` | Invoice detail and payment history |
+| `POST` | `api/v1/treks/driver/{token}/invoices/{invoiceId}/payments` | Collect payment and return its receipt |
+| `GET` | `api/v1/treks/driver/{token}/payments/{paymentId}/receipt` | Retrieve a payment receipt |
 | `GET` | `api/v1/treks/driver/{token}/customers/{customerId}/invoices` | List a customer's invoices for the return picker (optional `from`, `to`, `invoiceNumber`) |
-| `GET` | `api/v1/treks/driver/{token}/stops/by-customer?customerCode=…` or `?clientGeneratedId=…` | Delivery payload (customer, delivered lines, invoice if issued) for client-side invoice/QR generation. Exactly one of `customerCode` or `clientGeneratedId` is required — see [sale invoices](./22-sale-invoices.md) |
+| `GET` | `api/v1/treks/driver/{token}/stops/by-customer?customerCode=…` or `?clientGeneratedId=…` | Invoice display payload (customer, planned/delivered lines, invoice) for client-side invoice/QR generation. Exactly one of `customerCode` or `clientGeneratedId` is required — see [sale invoices](./22-sale-invoices.md) |
 | `POST` | `api/v1/treks/driver/{token}/returns` | Customer-focused batch return, initially Pending; auto-adds a walk-in stop if needed |
 | `DELETE` | `api/v1/treks/driver/{token}/stops/{stopId}/returns/{returnId}` | Void a return |
-| `POST` | `api/v1/treks/driver/{token}/complete` | Complete: ledger sync, stock deduction, pending-return notification |
+| `POST` | `api/v1/treks/driver/{token}/complete` | Complete: stock deduction and pending-return notification; ledger entries are already recorded |
 | `GET` | `api/v1/treks/driver/{token}/report` | Live financial and stock summary |
 | `GET` | `api/v1/treks/driver/{token}/report/pdf` | Download financial report PDF |
 | `GET` | `api/v1/treks/driver/{token}/vehicle-stock` | Current warehouse stock of the trek's assigned vehicle (cache at pickup, read offline) |
@@ -587,9 +593,6 @@ Add a product sale at a stop that was not in the original plan. The product is r
   "productId": "...",
   "basicQtyDelivered": 10,
   "packagingQtyDelivered": null,
-  "paymentMethod": "Cash",
-  "amtPaid": 250.00,
-  "balance": 0.00,
   "notes": null,
   "clientGeneratedId": "<device-uuid>"
 }
@@ -598,11 +601,8 @@ Add a product sale at a stop that was not in the original plan. The product is r
 | Field | Required | Notes |
 |---|---|---|
 | `productId` | Yes | |
-| `basicQtyDelivered` | Yes | > 0 |
+| `basicQtyDelivered` | Yes | ≥ 0; basic or packaging quantity must be positive |
 | `packagingQtyDelivered` | No | Only relevant if the product has a packaging unit |
-| `paymentMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
-| `amtPaid` | No | ≥ 0 |
-| `balance` | No | ≥ 0 |
 | `notes` | No | Max 500 chars |
 | `clientGeneratedId` | No | Deduplication key |
 
@@ -645,9 +645,8 @@ Void a return. Not allowed on Completed or Cancelled treks.
 
 ### POST /api/v1/treks/driver/{token}/complete
 
-Marks the trek as `Completed` and runs the full ledger sync in a single transaction:
-- **Credit** entries for each payment group across all stops (`amtPaid > 0`)
-- **Debit** entries for outstanding balances (`balance > 0`)
+Marks the trek as `Completed`. Invoice charges and payment credits were already recorded; completion does not rebuild them.
+
 - Returns remain pending until reviewed; completion creates no return-refund entries.
 - Tracked vehicle stock is deducted for delivered products, and the trek creator is notified of pending returns.
 
@@ -745,7 +744,7 @@ function resolvePrice(stopId, productId, stopPriceOverrides, products) {
   const product = products.find(p => p.id === productId);
   return {
     basicUnitPrice:    override?.basicUnitPrice    ?? product?.basicUnitPrice    ?? 0,
-    packagingUnitPrice: override?.packagingUnitPrice ?? product?.packagingUnitPrice ?? null,
+    packagingUnitPrice: override?.packagingUnitPrice ?? product?.packagingUnitPrice ?? null
   };
 }
 ```
@@ -889,7 +888,7 @@ function getGps() {
 
 ### POST /api/v1/treks/driver/{token}/sync
 
-When connectivity returns, push supported queued actions in one request. Actions are processed in `occurredAt` order. Retry behavior is action-specific: some creation actions return `AlreadySynced`, while update actions reapply values. Exclude `RecordReturn` and `VoidReturn` from the new workflow. Invoice issuance requires a separate `/record` submission after sync.
+When connectivity returns, push supported queued actions in one request. Non-payment actions are processed in `occurredAt` order and saved first; payment actions follow in their own `occurredAt` order. Retry behavior is action-specific: some creation actions return `AlreadySynced`, while update actions reapply values. Exclude `RecordReturn` and `VoidReturn` from the new workflow. Stop creation and item changes update invoices in the same sync request. Do not enqueue payment fields on goods actions.
 
 ### Request
 
@@ -956,10 +955,7 @@ When connectivity returns, push supported queued actions in one request. Actions
       "occurredAt": "2026-09-17T10:38:00Z",
       "payload": {
         "stopProductId": "<existing-server-stop-product-guid>",
-        "basicQtyDelivered": 10,
-        "paymentMethod": "Cash",
-        "amtPaid": 250.00,
-        "balance": 0.00
+        "basicQtyDelivered": 10
       }
     },
     {
@@ -971,10 +967,7 @@ When connectivity returns, push supported queued actions in one request. Actions
         "productId": "<product-guid>",
         "basicUnitPrice": 2.25,
         "packagingUnitPrice": 19.80,
-        "basicQtyDelivered": 10,
-        "paymentMethod": "Cash",
-        "amtPaid": 250.00,
-        "balance": 0.00
+        "basicQtyDelivered": 10
       }
     }
   ]
@@ -1079,6 +1072,38 @@ Updates GPS coordinates and/or address fields on an existing location. Intended 
 
 **Idempotency:** the action's `clientId` is stored as `ClientGeneratedId` on the stop. Re-submitting the same batch (e.g. after a network timeout) returns `AlreadySynced` with the existing `serverId` — no duplicate stop is created.
 
+**`RecordInvoicePayment`**
+
+Queue a separate action for each collection. Use the action's stable `clientId`
+as the payment idempotency key, and keep it unchanged on retries.
+
+```json
+{
+  "type": "RecordInvoicePayment",
+  "clientId": "<payment-uuid>",
+  "occurredAt": "2026-11-08T12:30:00Z",
+  "payload": {
+    "stopClientId": "<AddWalkInStop-clientId>",
+    "amount": 22.50,
+    "paymentMethod": "Cash",
+    "reference": null
+  }
+}
+```
+
+Supply one target: `invoiceId`, `stopId`, or `stopClientId` for an offline-created
+stop. Goods actions must succeed before their payment can be applied. The response
+includes `serverId` (payment ID), `invoiceId` and `receiptNumber`; successful retries
+return `AlreadySynced`. Retrieve the receipt using the driver receipt GET route.
+Validation failures return `Conflict` with a reason. A queued collection has no
+official receipt until accepted by the server. Do not silently drop payment fields
+from old queued delivery actions: preserve the collection details for explicit
+reconciliation into a separate payment action.
+
+See [guide 27](./27-invoice-first-payments.md) for allowed methods, amount limits,
+receipt shape and retry handling. Delivery and unplanned-sale actions must omit
+`amtPaid`, `paymentMethod`, and `balance`, including zero values.
+
 **`RecordDelivery`**
 
 Records the delivery outcome for a **planned** stop product (one that already exists in the trek plan). This is the offline equivalent of the existing driver delivery page. `stopProductId` is the server ID of the `TrekkingTripStopProduct` row — it is available in the offline trek seed (`stops[].products[].stopProductId`). Only fields present in the payload are applied; omitted fields keep their current values.
@@ -1088,9 +1113,6 @@ Records the delivery outcome for a **planned** stop product (one that already ex
 | `stopProductId` | Yes | Server ID of the planned stop product to update |
 | `basicQtyDelivered` | No | Actual qty delivered |
 | `packagingQtyDelivered` | No | Only if product has a packaging unit |
-| `paymentMethod` | No | `Cash`, `MobileMoney`, `Cheque`, `BankTransfer` |
-| `amtPaid` | No | ≥ 0 |
-| `balance` | No | ≥ 0 |
 | `notes` | No | Max 500 chars |
 
 **Note:** `RecordDelivery` is an update, not a create. It is naturally idempotent — applying the same values twice produces the same result. `serverId` in the response echoes back the `stopProductId`.
@@ -1106,13 +1128,10 @@ Records the delivery outcome for a **planned** stop product (one that already ex
 | `packagingUnitPrice` | No | Resolved packaging price — omit if product has no packaging unit |
 | `basicQtyDelivered` | Yes | |
 | `packagingQtyDelivered` | No | |
-| `paymentMethod` | No | |
-| `amtPaid` | No | |
-| `balance` | No | |
 
 **Pricing:** the frontend resolves the correct unit price using `stopPriceOverrides` from the product catalogue seed (customer-specific markup if one exists, otherwise region markup, otherwise catalog base price). Include `basicUnitPrice` and `packagingUnitPrice` in the payload so the amount the driver sees matches what gets recorded — the backend re-resolves the price server-side using the same hierarchy (customer-product → customer-wide → region-product → region-wide → catalog) regardless, so the stored price is always authoritative.
 
-The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, that `serverId` is the `stopProductId` of the newly created stop product — use it with `POST api/v1/treks/driver/{token}/record` to update quantities, payment, or balance exactly like a planned product. No separate endpoint exists for editing unplanned sales.
+The sync response returns a `serverId` for `RecordUnplannedSale`. Once synced, that `serverId` is the `stopProductId` of the newly created stop product — use it with `POST api/v1/treks/driver/{token}/record` to update quantities exactly like a planned product. Use `RecordInvoicePayment` for collections. No separate endpoint exists for editing unplanned sales.
 
 **Idempotency:** the action's `clientId` is stored as `ClientGeneratedId` on the stop product. Re-submitting the same batch returns `AlreadySynced` with the existing `serverId` — no duplicate sale record is created.
 
@@ -1147,7 +1166,7 @@ The server still dispatches these action names, but its return creation branch p
 
 ### Dependency resolution
 
-The server processes all actions in `occurredAt` order and builds in-memory maps of `clientId → serverId` as it goes:
+The server processes non-payment actions in `occurredAt` order and builds in-memory maps of `clientId → serverId`. It saves goods/invoices before processing `RecordInvoicePayment` actions in occurrence order:
 
 | Map | Populated by | Consumed by |
 |---|---|---|
@@ -1213,10 +1232,7 @@ const stopClientId = await queueAction('AddWalkInStop', {
 // Example — record a planned delivery while offline:
 await queueAction('RecordDelivery', {
   stopProductId: plannedProduct.stopProductId,  // from offline trek seed
-  basicQtyDelivered: 10,
-  paymentMethod: 'Cash',
-  amtPaid: 250.00,
-  balance: 0.00
+  basicQtyDelivered: 10
 });
 
 // Invoice-based returns are online-only; never add them to this queue.
@@ -1229,10 +1245,15 @@ await queueAction('RecordUnplannedSale', {
   productId: selectedProductId,
   basicUnitPrice,
   packagingUnitPrice,
-  basicQtyDelivered: 10,
-  paymentMethod: 'Cash',
-  amtPaid: 250.00,
-  balance: 0.00
+  basicQtyDelivered: 10
+});
+
+// Queue a collection separately after recording the goods.
+// Keep the returned clientId and the payload unchanged for every retry.
+const paymentClientId = await queueAction('RecordInvoicePayment', {
+  stopClientId,
+  amount: amountActuallyCollected,
+  paymentMethod: selectedPaymentMethod
 });
 
 // ── Sync on reconnect ────────────────────────────────────────────────

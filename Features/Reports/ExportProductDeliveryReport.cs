@@ -44,16 +44,19 @@ public static class ExportProductDeliveryReport
                 .Select(p => new
                 {
                     p.ProductId,
+                    StopProductId = p.Id,
+                    StopId = p.TrekkingTripStopId,
                     ProductName = p.Product.Name,
                     ProductUnit = p.Product.BasicUnit.Name,
                     PackagingUnitName = (string?)p.Product.PackagingUnit!.Name,
                     BasicQtyDelivered = p.BasicQtyDelivered ?? 0,
                     PackagingQtyDelivered = p.PackagingQtyDelivered ?? 0,
-                    AmtPaid = p.AmtPaid ?? 0,
-                    Balance = p.Balance ?? 0,
                     TrekId = p.TrekkingTripStop.TrekkingTripId
                 })
                 .ToListAsync(cancellationToken);
+
+            var allocations = await new Services.Invoicing.InvoiceCollectionAllocationService(db)
+                .AllocateAsync(rows.Select(r => r.StopId), cancellationToken);
 
             var items = rows
                 .GroupBy(r => r.ProductId)
@@ -64,8 +67,8 @@ public static class ExportProductDeliveryReport
                     PackagingUnit = g.First().PackagingUnitName,
                     TotalBasicQty = g.Sum(r => r.BasicQtyDelivered),
                     TotalPkgQty = g.Sum(r => r.PackagingQtyDelivered),
-                    TotalCollected = g.Sum(r => r.AmtPaid),
-                    TotalOutstanding = g.Sum(r => r.Balance),
+                    TotalCollected = g.Sum(r => allocations.GetValueOrDefault(r.StopProductId).Collected),
+                    TotalOutstanding = g.Sum(r => allocations.GetValueOrDefault(r.StopProductId).Outstanding),
                     TreksCount = g.Select(r => r.TrekId).Distinct().Count()
                 })
                 .OrderByDescending(p => p.TotalCollected)
@@ -99,7 +102,7 @@ public static class ExportProductDeliveryReport
                 (null, { } t) => $"Up to: {t:dd MMM yyyy}",
                 _ => "All dates"
             };
-            ws.Cells["A2"].Value = periodLabel;
+            ws.Cells["A2"].Value = periodLabel + " | Collections allocated proportionally from invoice payments";
             ws.Cells["A2"].Style.Font.Size = 10;
             ws.Cells["A2"].Style.Font.Color.SetColor(Color.FromArgb(71, 85, 105));
 

@@ -1,6 +1,6 @@
 # 25 — Driver Trek Financial Report
 
-Verified against `Features/Trekking/GetDriverTrekReport.cs` and `Services/Pdf/DriverReportPdfGenerator.cs` on 2026-10-01 (`aa7f3d8`). Add a **Report** tab and **Download PDF** action to the driver portal. Both routes use the driver token, need no JWT and work at any trek status, including completed/cancelled treks.
+Collection sources updated against `Features/Trekking/GetDriverTrekReport.cs` on 2026-11-08. See [Invoice First & Payments](./27-invoice-first-payments.md). Add a **Report** tab and **Download PDF** action to the driver portal. Both routes use the driver token, need no JWT and work at any trek status, including completed/cancelled treks.
 
 | Method | Route | Auth | Success |
 |---|---|---|---|
@@ -121,22 +121,22 @@ Invalid tokens return HTTP `404` with `{ "code": "404", "message": "Trek not fou
 }
 ```
 
-`salesStaffName`, stop `invoiceId`, stop `invoiceNumber`, and return `refundAmount` / `refundMethod` are nullable (invoice fields are null until a delivery has been recorded on the stop). `invoiceId` is the stop's invoice GUID — use it as `saleInvoiceId` when recording returns on the driver route. `paymentMethods` is always an array (empty when no payment has been received on the stop yet). Arrays may be empty. This endpoint has no pagination or filters.
+`salesStaffName`, stop `invoiceId`, stop `invoiceNumber`, and return `refundAmount` / `refundMethod` are nullable. Planned stop invoice fields are null while the trek is Draft and populated when it is scheduled; active walk-ins receive invoices immediately. `invoiceId` is the stop's invoice GUID — use it as `saleInvoiceId` when recording returns on the driver route. `paymentMethods` is always an array (empty when no payment has been received on the stop yet). Arrays may be empty. This endpoint has no pagination or filters.
 
 ## Meaning of the figures
 
 | Field | Current calculation |
 |---|---|
-| `totalSalesValue` | Sum of `amountDue` across stop products that have been delivered (`deliveredAt` set or `basicQtyDelivered` recorded). Planned-but-undelivered products are excluded. Matches the sum of all invoice totals on the trek. |
-| `totalCollected` | Sum of stop-product `amtPaid` |
-| `totalOutstanding` | Sum of stored stop-product `balance` |
+| `totalSalesValue` | Delivered basic/package quantities × their prices for recorded products. Planned-but-undelivered products are excluded, so this can differ from invoice totals. |
+| `totalCollected` | Sum of payment amounts on invoices originating from this trek |
+| `totalOutstanding` | Sum of invoice balances, including planned goods not yet delivered |
 | `totalApprovedRefunds` | Sum of refund amounts on approved returns captured on this trek |
 | `totalPendingRefunds` | Sum of refund amounts on **pending** returns — not yet reflected in the customer ledger or vehicle stock |
 | `totalRejectedRefunds` | Sum of refund amounts on rejected returns (no financial effect; shown for completeness) |
 | `approvedRefundCount` / `pendingRefundCount` / `rejectedRefundCount` | Counts matching the three totals above |
 | `netCashOnHand` | Cash collected + MobileMoney collected − approved **Cash** refunds. **Kept for back-compat** — prefer the explicit money-position fields below. |
 | `trekNetSales` | `totalSalesValue − totalApprovedRefunds` — the trek's business P&L (approved refunds reduce earnings; pending/rejected don't). |
-| `cashCollected` / `mobileMoneyCollected` | `totalCollected` split by payment method, from product `AmtPaid`. |
+| `cashCollected` / `mobileMoneyCollected` | `totalCollected` split by payment method, from invoice payment records. |
 | `cashRefundsPaidOut` | Sum of **approved + pending** Cash refunds. Assumption: cash is physically handed back to the customer at the stop when the driver captures the return, so pending Cash refunds have already left the pocket. Rejected refunds are excluded (treated as informational). |
 | `mobileMoneyRefundsPaidOut` | Same logic for MobileMoney. Typically 0 — MoMo reversals are usually processed by admin, not by the driver at a stop. |
 | `physicalCashInHand` | `cashCollected − cashRefundsPaidOut` — the cash the driver should physically have. |
@@ -150,11 +150,11 @@ The report exposes three distinct money views — surface them separately on the
 2. **Money Position** (what's where right now): `cashCollected`, `cashRefundsPaidOut`, `physicalCashInHand`, `mobileMoneyBalance`.
 3. **Deferred / Exposure**: `totalOutstanding` (customer debt), `totalPendingRefunds` + `pendingRefundCount` (awaiting admin approval), `totalRejectedRefunds` + `rejectedRefundCount` (informational).
 
-`netCashOnHand` is retained for backwards compatibility but has an inconsistent meaning (it mixes Cash + MoMo and subtracts only approved Cash refunds). Prefer `physicalCashInHand` + `mobileMoneyBalance`. Collections come from product records, so independent customer ledger payments are not included.
+`netCashOnHand` is retained for backwards compatibility but has an inconsistent meaning (it mixes Cash + MoMo and subtracts only approved Cash refunds). Prefer `physicalCashInHand` + `mobileMoneyBalance`. Collections come from invoice payment records, including later payments on those invoices. Independent manual customer ledger payments are not included; attribution remains to the invoice’s originating trek.
 
-`collectionsByMethod` contains only methods with positive paid entries, sorted by amount descending; do not expect zero-valued rows for every method. Stops are ordered by sequence. Each stop's `paymentMethods` is a de-duplicated, alphabetically-sorted list of methods actually used to pay on that stop (products with `amtPaid > 0`); render it as a chip row (e.g. `Cash · MobileMoney`) so mixed-payment stops read correctly. Return lists show all approval states, but totals and stock reconciliation use approved returns only.
+`collectionsByMethod` contains only methods with positive paid entries, sorted by amount descending; do not expect zero-valued rows for every method. Stops are ordered by sequence. Each stop's `paymentMethods` is a de-duplicated, alphabetically-sorted list of methods actually used to pay on that stop (invoice payment records); render it as a chip row (e.g. `Cash · MobileMoney`) so mixed-payment stops read correctly. Return lists show all approval states, but totals and stock reconciliation use approved returns only.
 
-Each stop's `amountDue`, like the trek-level `totalSalesValue`, only counts products that have been delivered — a stop with planned-but-undelivered products shows `amountDue = 0` until the first delivery is recorded, and `amountDue − amtPaid === balance` always holds.
+Each stop's `amountDue`, `amtPaid` and `balance` come from its invoice's total, paid amount and balance. Planned goods can therefore give a stop a positive amount due before delivery. Use the returned balance, including for voided invoices.
 
 Stock reconciliation covers **only products with trek stock-load rows**, using basic units only. It omits unallocated products and packaging quantities. It is a trek allocation calculation, not the live vehicle warehouse balance. Stop rows do not include sold-product line items or IDs; use the existing trek detail data if the UI needs those details. The phase notes' richer per-product stop breakdown is not in this DTO.
 
@@ -179,7 +179,7 @@ Totals in `summary.totalPendingRefunds` / `totalApprovedRefunds` / `totalRejecte
 
 ## Refresh and PDF download
 
-Fetch when opening the report and after delivery recording, stock-load edits, completion, or return decisions. Show `generatedAt` so users know the report's freshness. Cache keys must include the token, and cached offline reports should be marked stale. Do not assume final figures while returns are pending.
+Fetch when opening the report and after delivery recording, invoice payments, stock-load edits, completion, or return decisions. Show `generatedAt` so users know the report's freshness. Cache keys must include the token, and cached offline reports should be marked stale. Do not assume final figures while returns are pending.
 
 The PDF endpoint builds the same live report and names the attachment `TrekReport-{trekNumber}-{scheduledDate}.pdf`. It is separate from the trekking delivery sheet and frontend-generated invoice PDFs. The PDF layout mirrors the JSON: a three-block **Financial Summary** (Trek P&L, Money Position, Deferred & Exposure), **Collections by Payment Method**, **Stop Breakdown** (with per-stop payment-method chips), a flat **Refunds** table (one row per return with status colour-coded Approved=green, Pending=amber, Rejected=red and the recorded timestamp + rejection reason inline), and the basic-unit **Stock Reconciliation** table. Example using browser Fetch:
 

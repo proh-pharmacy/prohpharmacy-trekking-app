@@ -36,10 +36,9 @@ internal sealed class MatchProductFilesHandler(
         }
         try
         {
-            var catalogue = await catalogueReader.ReadAsync(timeout.Token);
-            var knownUnits = catalogue.SelectMany(p => new[] { p.BasicUnitName, p.PackagingUnitName })
-                .Where(u => !string.IsNullOrWhiteSpace(u)).Select(u => u!.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var knownUnits = await catalogueReader.ReadKnownUnitsAsync(timeout.Token);
+            var candidateCache = new Dictionary<string, IReadOnlyList<CatalogueProduct>>(
+                StringComparer.Ordinal);
             var response = new MatchProductFilesResponse();
             for (var index = 0; index < request.Files.Count; index++)
             {
@@ -70,7 +69,14 @@ internal sealed class MatchProductFilesHandler(
                     foreach (var row in extracted.Rows)
                     {
                         timeout.Token.ThrowIfCancellationRequested();
-                        var match = matcher.Match(row.ExtractedName, catalogue);
+                        var normalizedName = ProductNameNormalizer.Normalize(row.ExtractedName);
+                        if (!candidateCache.TryGetValue(normalizedName, out var candidates))
+                        {
+                            candidates = await catalogueReader.FindCandidatesAsync(row.ExtractedName,
+                                Math.Max(20, options.Value.MaxCandidates * 4), timeout.Token);
+                            candidateCache[normalizedName] = candidates;
+                        }
+                        var match = matcher.Match(row.ExtractedName, candidates);
                         // Photographs can include camera/desktop chrome below the
                         // table. A line with no quantity and no catalogue
                         // candidate is not actionable and is discarded; genuine

@@ -1,6 +1,6 @@
 # 15 — Reports
 
-The token-based per-trek JSON/PDF financial report is documented separately in [Driver Trek Report](./25-driver-trek-report.md). It works at any trek status and includes collections, approved refunds and basic-unit stock reconciliation. Its sales figure uses planned `amountDue`; it is not an invoice-total report.
+The token-based per-trek JSON/PDF financial report is documented separately in [Driver Trek Report](./25-driver-trek-report.md). It works at any trek status and includes collections, approved refunds and basic-unit stock reconciliation. Its sales figure uses delivered quantities and prices; collections and outstanding amounts use invoice payments and balances.
 
 ## Overview
 
@@ -177,7 +177,7 @@ Same fetch pattern as other export endpoints — send the Bearer token and read 
 
 ## GET /api/v1/reports/products
 
-Product delivery performance across completed treks, grouped by product.
+Product delivery performance across completed treks, grouped by product. Payments belong to invoices; product collections/outstanding amounts are proportional allocations based on item values, with deterministic rounding. The response exposes `collectionBasis: "ProportionalInvoiceAllocation"`. Label these as allocated amounts, not payments recorded against each product.
 
 ### Query parameters
 
@@ -197,6 +197,7 @@ Only products from **Completed** treks where `basicQtyDelivered > 0` or `packagi
 
 ```json
 {
+  "collectionBasis": "ProportionalInvoiceAllocation",
   "totalProductLines": 85,
   "totalAmountCollected": 72000.00,
   "totalOutstanding": 8500.00,

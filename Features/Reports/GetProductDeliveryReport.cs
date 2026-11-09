@@ -24,6 +24,7 @@ public static class GetProductDeliveryReport
 
     public class ProductDeliveryResponse
     {
+        public string CollectionBasis { get; set; } = "ProportionalInvoiceAllocation";
         public int TotalProductLines { get; set; }
         public decimal TotalAmountCollected { get; set; }
         public decimal TotalOutstanding { get; set; }
@@ -69,16 +70,19 @@ public static class GetProductDeliveryReport
                 .Select(p => new
                 {
                     p.ProductId,
+                    StopProductId = p.Id,
+                    StopId = p.TrekkingTripStopId,
                     ProductName = p.Product.Name,
                     ProductUnit = p.Product.BasicUnit.Name,
                     PackagingUnitName = (string?)p.Product.PackagingUnit!.Name,
                     BasicQtyDelivered = p.BasicQtyDelivered ?? 0,
                     PackagingQtyDelivered = p.PackagingQtyDelivered ?? 0,
-                    AmtPaid = p.AmtPaid ?? 0,
-                    Balance = p.Balance ?? 0,
                     TrekId = p.TrekkingTripStop.TrekkingTripId
                 })
                 .ToListAsync(cancellationToken);
+
+            var allocations = await new Services.Invoicing.InvoiceCollectionAllocationService(db)
+                .AllocateAsync(rows.Select(r => r.StopId), cancellationToken);
 
             var grouped = rows
                 .GroupBy(r => r.ProductId)
@@ -90,8 +94,8 @@ public static class GetProductDeliveryReport
                     PackagingUnitName = g.First().PackagingUnitName,
                     TotalQtyDelivered = g.Sum(r => r.BasicQtyDelivered),
                     TotalPackagingQtyDelivered = g.Sum(r => r.PackagingQtyDelivered),
-                    TotalCollected = g.Sum(r => r.AmtPaid),
-                    TotalOutstanding = g.Sum(r => r.Balance),
+                    TotalCollected = g.Sum(r => allocations.GetValueOrDefault(r.StopProductId).Collected),
+                    TotalOutstanding = g.Sum(r => allocations.GetValueOrDefault(r.StopProductId).Outstanding),
                     TreksCount = g.Select(r => r.TrekId).Distinct().Count()
                 })
                 .OrderByDescending(p => p.TotalCollected)

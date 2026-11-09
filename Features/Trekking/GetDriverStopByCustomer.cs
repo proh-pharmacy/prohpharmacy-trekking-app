@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Invoicing;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -63,6 +64,11 @@ public static class GetDriverStopByCustomer
 
     public class ProductLine
     {
+        public Guid StopProductId { get; set; }
+        public decimal BasicQuantity { get; set; }
+        public decimal PackagingQuantity { get; set; }
+        public decimal PlannedBasicQuantity { get; set; }
+        public decimal? PlannedPackagingQuantity { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string BasicUnitName { get; set; } = string.Empty;
@@ -147,10 +153,14 @@ public static class GetDriverStopByCustomer
                 .FirstOrDefaultAsync(i => i.TrekkingTripStopId == stop.Id, cancellationToken);
 
             var products = stop.Products
-                .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
                 .OrderBy(p => p.Product.Name)
                 .Select(p => new ProductLine
                 {
+                    StopProductId = p.Id,
+                    BasicQuantity = InvoiceAmounts.BasicQuantity(p),
+                    PackagingQuantity = InvoiceAmounts.PackagingQuantity(p),
+                    PlannedBasicQuantity = p.PlannedBasicQuantity,
+                    PlannedPackagingQuantity = p.PlannedPackagingQuantity,
                     ProductId             = p.ProductId,
                     ProductName           = p.Product.Name,
                     BasicUnitName         = p.Product.BasicUnit?.Name ?? string.Empty,
@@ -159,8 +169,7 @@ public static class GetDriverStopByCustomer
                     PackagingQtyDelivered = p.PackagingQtyDelivered,
                     BasicUnitPrice        = p.BasicUnitPrice,
                     PackagingUnitPrice    = p.PackagingUnitPrice,
-                    LineTotal             = (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
-                                          + (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0),
+                    LineTotal             = InvoiceAmounts.Total(p),
                     AmtPaid               = p.AmtPaid,
                     Balance               = p.Balance,
                     PaymentMethod         = p.PaymentMethod?.ToString(),
@@ -170,9 +179,9 @@ public static class GetDriverStopByCustomer
 
             var totals = new StopTotals
             {
-                AmountDue = products.Sum(p => p.LineTotal),
-                AmtPaid   = products.Sum(p => p.AmtPaid ?? 0),
-                Balance   = products.Sum(p => p.Balance ?? 0)
+                AmountDue = invoice?.TotalAmount ?? products.Sum(p => p.LineTotal),
+                AmtPaid   = invoice?.TotalPaid ?? 0,
+                Balance   = invoice?.Balance ?? products.Sum(p => p.LineTotal)
             };
 
             var response = new StopDeliveryResponse

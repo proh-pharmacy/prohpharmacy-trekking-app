@@ -70,8 +70,9 @@ public static class AddWalkInStopByDriverToken
             if (targetTrip is null)
                 return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError("Trek not found or is not in the same region."));
 
-            if (targetTrip.Status == TrekStatus.Completed || targetTrip.Status == TrekStatus.Cancelled)
-                return Result.Failure<TrekStopResponse>(Error.BadRequest($"Cannot add a stop to a {targetTrip.Status} trek."));
+            if (targetTrip.Status is not (TrekStatus.Scheduled or TrekStatus.InProgress))
+                return Result.Failure<TrekStopResponse>(Error.BadRequest(
+                    $"Walk-in stops can only be added to a Scheduled or InProgress trek. This trek is {targetTrip.Status}."));
 
             if (targetTrip.Status == TrekStatus.Scheduled)
             {
@@ -95,7 +96,8 @@ public static class AddWalkInStopByDriverToken
                         && s.CustomerAccountId == request.CustomerAccountId
                         && s.Sequence == request.Sequence, cancellationToken);
                 if (duplicate is not null)
-                    return Result.Success(GetTrek.Handler.MapStop(duplicate));
+                    return Result.Success(GetTrek.Handler.MapStop(duplicate,
+                        await _db.SaleInvoices.SingleOrDefaultAsync(i => i.TrekkingTripStopId == duplicate.Id, cancellationToken)));
             }
 
             var customer = await _db.CustomerAccounts
@@ -113,11 +115,13 @@ public static class AddWalkInStopByDriverToken
                 CustomerAccountId = request.CustomerAccountId,
                 Sequence = request.Sequence,
                 IsWalkIn = true,
+                ClientGeneratedId = request.ClientGeneratedId,
                 Notes = request.Notes?.Trim()
             };
 
             _db.TrekkingTripStops.Add(stop);
             await _db.SaveChangesAsync(cancellationToken);
+            var invoice = _db.SaleInvoices.Local.Single(i => i.TrekkingTripStopId == stop.Id);
 
             var primaryLocation = customer.Locations.FirstOrDefault();
             var primaryContact = customer.People.FirstOrDefault();
@@ -125,6 +129,12 @@ public static class AddWalkInStopByDriverToken
             return Result.Success(new TrekStopResponse
             {
                 StopId = stop.Id,
+                InvoiceId = invoice.Id,
+                InvoiceNumber = invoice.InvoiceNumber,
+                InvoiceStatus = invoice?.Status.ToString(),
+                InvoiceTotal = invoice?.TotalAmount,
+                InvoicePaid = invoice?.TotalPaid,
+                InvoiceBalance = invoice?.Balance,
                 Sequence = stop.Sequence,
                 IsWalkIn = stop.IsWalkIn,
                 CustomerAccountId = stop.CustomerAccountId,

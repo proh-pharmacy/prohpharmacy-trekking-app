@@ -23,6 +23,15 @@ public static class RecordTrekDeliveryByToken
     {
         public async Task<Result<RecordTrekDelivery.RecordResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
+            if (request.Products.Any(p => p.AmtPaid.HasValue || p.PaymentMethod.HasValue || p.Balance.HasValue))
+                return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("Record payments using the invoice payments endpoint. Delivery requests must omit amtPaid, paymentMethod and balance."));
+            if (request.Products.Any(p => p.BasicQtyDelivered < 0 || p.PackagingQtyDelivered < 0))
+                return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("Delivered quantities cannot be negative."));
+
+            if (request.Products.Any(p => !p.BasicQtyDelivered.HasValue && !p.PackagingQtyDelivered.HasValue) ||
+                request.Products.Select(p => p.StopProductId).Distinct().Count() != request.Products.Count)
+                return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("Provide delivered quantities for each distinct product. Use zero explicitly for goods not supplied."));
+
             var trip = await db.TrekkingTrips
                 .Include(t => t.Stops)
                     .ThenInclude(s => s.Products)
@@ -33,8 +42,8 @@ public static class RecordTrekDeliveryByToken
             if (trip is null)
                 return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.CreateNotFoundError("Trek not found. The link may be invalid."));
 
-            if (trip.Status == TrekStatus.Completed)
-                return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("This trek is completed and can no longer be modified."));
+            if (trip.Status is TrekStatus.Completed or TrekStatus.Cancelled)
+                return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("This trek is completed or cancelled and can no longer be modified."));
 
             if (trip.Status == TrekStatus.Scheduled)
             {
@@ -55,25 +64,11 @@ public static class RecordTrekDeliveryByToken
             var recorded = 0;
             foreach (var record in request.Products)
             {
-                if (!productMap.TryGetValue(record.StopProductId, out var product)) continue;
+                if (!productMap.TryGetValue(record.StopProductId, out var product))
+                    return Result.Failure<RecordTrekDelivery.RecordResponse>(Error.BadRequest("A product does not belong to this trek."));
 
-                product.BasicQtyDelivered = record.BasicQtyDelivered;
-                product.PackagingQtyDelivered = record.PackagingQtyDelivered;
-                product.PaymentMethod = record.PaymentMethod;
-
-                product.AmountDue = (record.BasicQtyDelivered ?? 0) * product.BasicUnitPrice
-                                  + (record.PackagingQtyDelivered ?? 0) * (product.PackagingUnitPrice ?? 0);
-
-                if (record.AmtPaid is null && (record.BasicQtyDelivered > 0 || record.PackagingQtyDelivered > 0))
-                {
-                    product.AmtPaid = product.AmountDue;
-                    product.Balance = 0;
-                }
-                else
-                {
-                    product.AmtPaid = record.AmtPaid;
-                    product.Balance = record.Balance;
-                }
+                product.BasicQtyDelivered = record.BasicQtyDelivered ?? product.BasicQtyDelivered ?? 0;
+                product.PackagingQtyDelivered = record.PackagingQtyDelivered ?? product.PackagingQtyDelivered;
 
                 product.Notes = record.Notes?.Trim();
                 product.DeliveredAt = DateTime.UtcNow;
@@ -86,13 +81,8 @@ public static class RecordTrekDeliveryByToken
 
             trip.UpdatedAt = DateTime.UtcNow;
 
-            var stopSyncMap = request.StopInvoices?
-                .ToDictionary(s => s.StopId) ?? new Dictionary<Guid, RecordTrekDelivery.StopInvoiceSync>();
-
-            var invoiceResults = await RecordTrekDelivery.BuildInvoicesAsync(
-                db, trip, affectedStops, stopSyncMap, cancellationToken);
-
             await db.SaveChangesAsync(cancellationToken);
+            var invoiceResults = await RecordTrekDelivery.GetInvoiceResultsAsync(db, affectedStops, cancellationToken);
 
             return Result.Success(new RecordTrekDelivery.RecordResponse
             {
@@ -121,7 +111,7 @@ public class RecordTrekDeliveryByTokenEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Record delivery results via driver token")
-        .WithDescription("Allows a driver to submit delivery quantities, payment, and balance per product using the shared link token. No authentication required. Rejected if trek is Completed. Automatically creates or updates a sale invoice per affected stop.")
+        .WithDescription("Records delivery quantities and updates the existing stop invoice. Omit amtPaid, paymentMethod and balance; record each payment through the invoice payments endpoint. Completed or cancelled treks cannot be modified.")
         .Produces<RecordTrekDelivery.RecordResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

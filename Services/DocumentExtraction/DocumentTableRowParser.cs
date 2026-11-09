@@ -10,6 +10,10 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         CancellationToken cancellationToken, IReadOnlySet<string>? knownUnits = null)
     {
         var slope = EstimateRowSlope(tokens);
+        var tokenHeights = tokens.Where(t => !string.IsNullOrWhiteSpace(t.Text))
+            .Select(t => Math.Max(1, t.Bottom - t.Top)).OrderBy(height => height).ToList();
+        var medianTokenHeight = tokenHeights.Count == 0 ? 28 : tokenHeights[tokenHeights.Count / 2];
+        var lineTolerance = Math.Clamp(medianTokenHeight * 0.6, 14, 50);
         var prepared = tokens.Where(t => !string.IsNullOrWhiteSpace(t.Text))
             .Select(t => (Token: t, Centre: (t.Top + t.Bottom) / 2 - slope * ((t.Left + t.Right) / 2)))
             .OrderBy(t => t.Centre).ThenBy(t => t.Token.Left).ToList();
@@ -19,15 +23,23 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
             cancellationToken.ThrowIfCancellationRequested();
             var token = item.Token;
             if (string.IsNullOrWhiteSpace(token.Text)) continue;
-            var line = lines.LastOrDefault(l => Math.Abs(l.Average(t =>
-                (t.Top + t.Bottom) / 2 - slope * ((t.Left + t.Right) / 2)) - item.Centre)
-                <= Math.Max(14, Math.Min(token.Bottom - token.Top, l[0].Bottom - l[0].Top) * 0.8));
+            var line = lines.TakeLast(4)
+                .Select(candidate => new
+                {
+                    Line = candidate,
+                    Distance = Math.Abs(candidate.Average(t =>
+                        (t.Top + t.Bottom) / 2 - slope * ((t.Left + t.Right) / 2)) - item.Centre)
+                })
+                .Where(candidate => candidate.Distance <= lineTolerance)
+                .OrderBy(candidate => candidate.Distance)
+                .Select(candidate => candidate.Line)
+                .FirstOrDefault();
             if (line is null) lines.Add([token]);
             else line.Add(token);
         }
 
         var rows = new List<ExtractedProductRow>();
-        List<(string Key, double Left)>? headers = null;
+        List<(string Key, double Left, double Right)>? headers = null;
         var headerLineIndex = lines.FindIndex(line =>
         {
             var cells = Cells(line.OrderBy(t => t.Left).ToList());
@@ -54,7 +66,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
                 if (detected.Select(c => c.Key).Distinct().Count() != detected.Count)
                     throw new DocumentExtractionException("AmbiguousColumns", "Multiple product tables or duplicate headers were detected.");
                 headers = cells.Select((c, index) =>
-                    (Key: DocumentColumnNames.Identify(c.Text) ?? $"ignored{index}", c.Left)).ToList();
+                    (Key: DocumentColumnNames.Identify(c.Text) ?? $"ignored{index}", c.Left, c.Right)).ToList();
                 continue;
             }
             if (headers is null && hasTableHeader)
@@ -79,13 +91,12 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
                 {
                     var index = headers.FindIndex(h => h.Key == key);
                     if (index < 0) return null;
-                    var quantityLeft = headers.FirstOrDefault(h => h.Key == "quantity").Left;
-                    var left = key == "quantity" && quantityLeft > 0
-                        ? quantityLeft
-                        : index == 0 ? double.NegativeInfinity : (headers[index - 1].Left + headers[index].Left) / 2;
-                    var right = key == "name" && quantityLeft > 0
-                        ? quantityLeft
-                        : index == headers.Count - 1 ? double.PositiveInfinity : (headers[index].Left + headers[index + 1].Left) / 2;
+                    var left = index == 0
+                        ? double.NegativeInfinity
+                        : (headers[index - 1].Right + headers[index].Left) / 2;
+                    var right = index == headers.Count - 1
+                        ? double.PositiveInfinity
+                        : (headers[index].Right + headers[index + 1].Left) / 2;
                     return string.Join(" ", ordered.Where(t => t.Left >= left && t.Left < right).Select(t => t.Text));
                 }
                 row.ExtractedName = Value("name") ?? "";
@@ -169,7 +180,12 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         }
         var slope = ((quantity.Top + quantity.Bottom) / 2 - (name.Top + name.Bottom) / 2) /
             (((quantity.Left + quantity.Right) / 2) - ((name.Left + name.Right) / 2));
-        return Math.Clamp(slope, -0.5, 0.5);
+        slope = Math.Clamp(slope, -0.5, 0.5);
+        // A slight photographed-table curve makes the header centres appear
+        // slanted even though body cells still overlap vertically. Applying a
+        // small global correction in that case causes drift farther down a
+        // long invoice. Reserve deskewing for a material page rotation.
+        return Math.Abs(slope) < 0.03 ? 0 : slope;
     }
 
     private static List<DocumentToken> Cells(List<DocumentToken> line)

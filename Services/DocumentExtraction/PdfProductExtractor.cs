@@ -48,15 +48,14 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
 
     private static IReadOnlyList<DocumentToken> KeepTableRegion(IReadOnlyList<DocumentToken> tokens)
     {
-        var quantityIndex = tokens.Select((t, i) => (Token: t, Index: i)).FirstOrDefault(x =>
-            DocumentColumnNames.Identify(x.Token.Text) == "quantity" &&
-            ProductNameNormalizer.Normalize(x.Token.Text) is "quantity" or "qty").Index;
-        if (quantityIndex < 0)
+        var quantityHeader = tokens.Select((token, index) => (Token: token, Index: index))
+            .FirstOrDefault(item => DocumentColumnNames.Identify(item.Token.Text) == "quantity");
+        if (quantityHeader.Token is null)
             return tokens;
+        var quantityIndex = quantityHeader.Index;
         var nameIndex = tokens.Select((t, i) => (Token: t, Index: i))
             .Where(x => x.Index < quantityIndex &&
-                DocumentColumnNames.Identify(x.Token.Text) == "name" &&
-                ProductNameNormalizer.Normalize(x.Token.Text) is "product" or "products" or "item")
+                DocumentColumnNames.Identify(x.Token.Text) == "name")
             .Select(x => x.Index).LastOrDefault(-1);
         return nameIndex < 0 ? tokens : tokens.Skip(nameIndex).ToList();
     }

@@ -25,8 +25,8 @@ public static class DeleteTrek
             if (trip is null)
                 return Result.Failure(Error.CreateNotFoundError("Trekking trip not found."));
 
-            if (trip.Status != TrekStatus.Draft && trip.Status != TrekStatus.Scheduled)
-                return Result.Failure(Error.BadRequest($"Only Draft or Scheduled treks can be deleted. This trek is {trip.Status}."));
+            if (trip.Status != TrekStatus.Draft)
+                return Result.Failure(Error.BadRequest($"Only Draft treks can be deleted. This trek is {trip.Status}."));
 
             db.TrekkingTrips.Remove(trip);
             await db.SaveChangesAsync(cancellationToken);
@@ -50,7 +50,7 @@ public class DeleteTrekEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Delete a trekking trip")
-        .WithDescription("Permanently deletes a trek and all its stops, products, and returns. Only treks in Draft or Scheduled status can be deleted. Cascades to all child records.")
+        .WithDescription("Permanently deletes a Draft trek and all its stops and products. Scheduling issues invoices, so scheduled and later treks cannot be deleted.")
         .Produces(204)
         .Produces<Error>(404)
         .Produces<Error>(422)

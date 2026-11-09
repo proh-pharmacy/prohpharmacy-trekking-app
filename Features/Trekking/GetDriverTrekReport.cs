@@ -151,7 +151,7 @@ public static class GetDriverTrekReport
             if (trip is null)
                 return Result.Failure<TrekReportData>(Error.CreateNotFoundError("Trek not found. The token may be invalid."));
 
-            var invoices = await db.SaleInvoices
+            var invoices = await db.SaleInvoices.Include(i => i.Payments)
                 .Where(i => i.TrekkingTripId == trip.Id)
                 .AsNoTracking()
                 .ToDictionaryAsync(i => i.TrekkingTripStopId, cancellationToken);
@@ -182,18 +182,19 @@ public static class GetDriverTrekReport
             var totalSales      = deliveredProducts.Sum(p =>
                 (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
               + (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0));
-            var totalCollected  = allProducts.Sum(p => p.AmtPaid ?? 0);
-            var totalOutstanding= allProducts.Sum(p => p.Balance ?? 0);
+            var payments = invoices.Values.SelectMany(i => i.Payments).ToList();
+            var totalCollected  = payments.Sum(p => p.Amount);
+            var totalOutstanding= invoices.Values.Sum(i => i.Balance);
             var totalRefunds    = approvedReturns.Sum(r => r.RefundAmount ?? 0);
             var pendingRefunds  = pendingReturns.Sum(r => r.RefundAmount ?? 0);
             var rejectedRefunds = rejectedReturns.Sum(r => r.RefundAmount ?? 0);
 
-            var cashCollected   = allProducts
+            var cashCollected   = payments
                 .Where(p => p.PaymentMethod == PaymentMethod.Cash)
-                .Sum(p => p.AmtPaid ?? 0);
-            var momoCollected   = allProducts
+                .Sum(p => p.Amount);
+            var momoCollected   = payments
                 .Where(p => p.PaymentMethod == PaymentMethod.MobileMoney)
-                .Sum(p => p.AmtPaid ?? 0);
+                .Sum(p => p.Amount);
             var cashRefunds     = approvedReturns
                 .Where(r => r.RefundMethod == PaymentMethod.Cash)
                 .Sum(r => r.RefundAmount ?? 0);
@@ -211,13 +212,12 @@ public static class GetDriverTrekReport
             var momoBalance        = momoCollected - momoRefundsPaidOut;
             var trekNetSales       = totalSales - totalRefunds;
 
-            var collectionsByMethod = allProducts
-                .Where(p => p.PaymentMethod.HasValue && p.AmtPaid > 0)
-                .GroupBy(p => p.PaymentMethod!.Value)
+            var collectionsByMethod = payments
+                .GroupBy(p => p.PaymentMethod?.ToString() ?? "Unknown (legacy)")
                 .Select(g => new CollectionByMethod
                 {
                     Method = g.Key.ToString(),
-                    Amount = g.Sum(p => p.AmtPaid ?? 0)
+                    Amount = g.Sum(p => p.Amount)
                 })
                 .OrderByDescending(c => c.Amount)
                 .ToList();
@@ -234,18 +234,11 @@ public static class GetDriverTrekReport
                     CustomerName = s.CustomerAccount?.BusinessName ?? string.Empty,
                     InvoiceId    = invoice?.Id,
                     InvoiceNumber= invoice?.InvoiceNumber,
-                    AmountDue    = s.Products
-                                    .Where(p => p.DeliveredAt.HasValue || p.BasicQtyDelivered.HasValue)
-                                    .Sum(p => (p.BasicQtyDelivered ?? 0) * p.BasicUnitPrice
-                                            + (p.PackagingQtyDelivered ?? 0) * (p.PackagingUnitPrice ?? 0)),
-                    AmtPaid      = s.Products.Sum(p => p.AmtPaid ?? 0),
-                    Balance      = s.Products.Sum(p => p.Balance ?? 0),
-                    PaymentMethods = s.Products
-                                        .Where(p => p.PaymentMethod.HasValue && (p.AmtPaid ?? 0) > 0)
-                                        .Select(p => p.PaymentMethod!.Value.ToString())
-                                        .Distinct()
-                                        .OrderBy(m => m)
-                                        .ToList(),
+                    AmountDue    = invoice?.TotalAmount ?? 0,
+                    AmtPaid      = invoice?.TotalPaid ?? 0,
+                    Balance      = invoice?.Balance ?? 0,
+                    PaymentMethods = invoice?.Payments.Select(p => p.PaymentMethod?.ToString() ?? "Unknown (legacy)")
+                        .Distinct().Order().ToList() ?? [],
                     Returns      = s.Returns.Select(r => new ReturnReport
                     {
                         ProductName     = r.Product?.Name ?? string.Empty,

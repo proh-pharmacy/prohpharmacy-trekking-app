@@ -1,18 +1,21 @@
 # 22 — Sale Invoices
 
-Verified against the implementation on 2026-10-01 (`8b5ca3d`, `aa7f3d8`). The code is authoritative where `docs/todo/phase2.md` differs.
+> Updated for the invoice-first backend on 2026-11-08. See [Invoice First & Payments](./27-invoice-first-payments.md) for the payment and receipt contracts.
+
+
+Invoice and payment contracts checked against the current backend source on 2026-11-08. This documents the implementation; staging verification is still pending.
 
 ## Lifecycle and UI
 
-The admin and driver delivery-recording endpoints create or update one invoice per affected stop. Later submissions amend that invoice's totals; they do not issue a second invoice. Invoice lines are read from the stop products, not an immutable invoice-line snapshot. Only products with `deliveredAt` or `basicQtyDelivered` set are included.
+Adding a customer stop to a Draft trek creates planning data with nullable invoice fields. Changing the trek to Scheduled issues one numbered invoice per stop with its planned products and zero paid amount. A stop added to a Scheduled or InProgress trek is invoiced immediately. Driver deliveries, extra products and price changes update that same invoice. Collecting money is a separate payment request that issues a receipt. Invoice lines are read from the stop products; they are not immutable snapshots. Planned and delivered lines are included.
 
 Numbers are allocated by the server: `INV-{SCOPE_CODE}{sequence:D5}`, for example `INV-GAR00001`. The sequence belongs to the trek's branch when present, otherwise its region; the fallback code is `GH`. Never generate an official number locally.
 
-Use an invoice list with customer, trek, status and date filters, an invoice detail/print view, and an invoice link on each recorded stop. The frontend renders invoice PDFs; there is no invoice PDF endpoint. Status values are `Issued`, `PartiallyPaid`, `Paid`, `Voided`; no void-invoice mutation currently exists.
+Use an invoice list with customer, trek, status and date filters, an invoice detail/print view, and an invoice link on each planned or walk-in stop. The frontend renders invoice PDFs; there is no invoice PDF endpoint. Status values are `Issued`, `PartiallyPaid`, `Paid`, `Voided`; no void-invoice mutation currently exists.
 
 ## Endpoints
 
-All routes below require a staff Bearer JWT, except the explicitly marked driver record route.
+All routes below require a staff Bearer JWT, except the explicitly marked driver-token routes.
 
 | Method | Route | Success |
 |---|---|---|
@@ -20,10 +23,15 @@ All routes below require a staff Bearer JWT, except the explicitly marked driver
 | GET | `/api/v1/invoices/{invoiceNumber}` | `200`, invoice response |
 | GET | `/api/v1/invoices/export` | `200`, `.xlsx` or `.pdf` stream (see [Export](#export)) |
 | GET | `/api/v1/treks/{trekId}/stops/{stopId}/invoice` | `200`, invoice response |
+| GET | `/api/v1/treks/driver/{token}/invoices/{invoiceId}` | `200`, invoice response; driver token only |
+| POST | `/api/v1/invoices/{invoiceId}/payments` | `200`, payment receipt; staff JWT |
+| POST | `/api/v1/treks/driver/{token}/invoices/{invoiceId}/payments` | `200`, payment receipt; driver token only |
+| GET | `/api/v1/payments/{paymentId}/receipt` | `200`, receipt; staff JWT |
+| GET | `/api/v1/treks/driver/{token}/payments/{paymentId}/receipt` | `200`, receipt; driver token only |
 | POST | `/api/v1/treks/{id}/record` | `200`, delivery response including invoices |
 | POST | `/api/v1/treks/driver/{token}/record` | `200`, same response; driver token only |
 
-Single-invoice lookups return HTTP `404` when absent. The stop lookup is useful when a delivery has not yet produced an invoice. Record-handler failures use HTTP `422`, including missing treks; inspect the error body's `code` and `message` as well.
+Single-invoice lookups return HTTP `404` when absent. The stop lookup opens an invoice before delivery or payment. Record-handler failures use HTTP `422`, including missing treks; inspect the error body's `code` and `message` as well.
 
 ### List filters
 
@@ -45,7 +53,7 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
 {
   "id": "<invoice-guid>",
   "invoiceNumber": "INV-GAR00001",
-  "status": "PartiallyPaid",
+  "status": "Issued",
   "issuedAt": "2026-10-01T10:30:00Z",
   "createdOffline": false,
   "trekkingTripId": "<trek-guid>",
@@ -63,10 +71,16 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
   "customerWhatsAppNumber": null,
   "customerRegionName": "Greater Accra Region",
   "totalAmount": 100,
-  "totalPaid": 60,
-  "balance": 40,
+  "totalPaid": 0,
+  "balance": 100,
+  "payments": [],
   "lineItems": [
     {
+      "stopProductId": "<stop-product-guid>",
+      "basicQuantity": 40,
+      "packagingQuantity": 0,
+      "plannedBasicQuantity": 40,
+      "plannedPackagingQuantity": null,
       "productId": "<product-guid>",
       "productName": "Paracetamol 500mg",
       "basicUnitName": "Tablet",
@@ -76,9 +90,9 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
       "basicUnitPrice": 2.5,
       "packagingUnitPrice": null,
       "lineTotal": 100,
-      "amtPaid": 60,
-      "balance": 40,
-      "paymentMethod": "Cash",
+      "amtPaid": null,
+      "balance": null,
+      "paymentMethod": null,
       "isUnplanned": false,
       "deliveredAt": "2026-10-01T10:30:00Z"
     }
@@ -86,13 +100,17 @@ Without `pageSize`, the current query builder returns a plain array. With it, th
 }
 ```
 
-`invoiceNumber` is nullable in the DTO. Both delivered quantities, `packagingUnitPrice`, `amtPaid`, `balance`, `paymentMethod` and `deliveredAt` on lines are nullable. `basicUnitName` is always present; `packagingUnitName` is `null` for products with no packaging unit. The trek block (`driverName`, `salesStaffName`, `vehicleDisplayName`, `regionName`) and customer block (`customerCode`, `customerTradingName`, `customerPhone`, `customerWhatsAppNumber`, `customerRegionName`) are populated for both detail endpoints — enough to render a full invoice preview without extra lookups. Invoice totals use actual delivered quantities × stop prices; invoice balance is total amount minus total paid. Status is `Paid` when balance ≤ 0, `PartiallyPaid` when paid > 0 and balance > 0, otherwise `Issued`. These may differ from stored per-product balances and planned `amountDue` shown elsewhere.
+`invoiceNumber` is nullable in the DTO. Both delivered quantities, `packagingUnitPrice`, `amtPaid`, `balance`, `paymentMethod` and `deliveredAt` on lines are nullable. `basicUnitName` is always present; `packagingUnitName` is `null` for products with no packaging unit. The trek block (`driverName`, `salesStaffName`, `vehicleDisplayName`, `regionName`) and customer block (`customerCode`, `customerTradingName`, `customerPhone`, `customerWhatsAppNumber`, `customerRegionName`) are populated for both detail endpoints — enough to render a full invoice preview without extra lookups. Invoice quantities use planned quantities until delivery is recorded for the line, then actual delivered quantities. Use `basicQuantity`, `packagingQuantity` and `lineTotal` for invoice display. Use invoice-level `totalAmount`, `totalPaid`, `balance` and `status`; line `amtPaid`, `balance` and `paymentMethod` are retained legacy data and do not describe new collections. `payments` contains receipt objects as documented in [guide 27](./27-invoice-first-payments.md#record-a-payment). Empty invoices remain `Issued`; positive fully paid invoices are `Paid`.
 
-Current limitation: `GetInvoiceList` uses this DTO but does not eagerly load `Stop.Products` / `Product`, unlike the two detail queries. Do not rely on list `lineItems` for printing or return selection; fetch the detail endpoint.
 
-## Delivery request and response additions
+Current limitation: `GetInvoiceList` uses this DTO but does not eagerly load `Stop.Products` / `Product`, unlike the two detail queries. It also does not load `Payments`. Do not rely on list `lineItems` or `payments` for printing, payment history or return selection; fetch the detail endpoint.
 
-Both record endpoints accept the existing `products` plus optional `stopInvoices`. IDs in `stopInvoices` refer to stops, not stop-product rows.
+## Delivery and payment submission
+
+Both record routes accept quantities and notes. Omit `amtPaid`, `paymentMethod`,
+and `balance`; any non-null value, including zero, is rejected. Omit the deprecated
+`stopInvoices` input. Planned stops receive invoice identity during scheduling; active
+walk-in stops receive it during creation.
 
 ```json
 {
@@ -100,22 +118,14 @@ Both record endpoints accept the existing `products` plus optional `stopInvoices
     {
       "stopProductId": "<stop-product-guid>",
       "basicQtyDelivered": 40,
-      "packagingQtyDelivered": null,
-      "paymentMethod": "Cash",
-      "amtPaid": 60,
-      "balance": 40,
+      "packagingQtyDelivered": 0,
       "notes": null
-    }
-  ],
-  "stopInvoices": [
-    {
-      "stopId": "<stop-guid>",
-      "clientGeneratedId": "<stable-local-invoice-guid>",
-      "recordedAt": "2026-10-01T10:30:00Z"
     }
   ]
 }
 ```
+
+The response retains its existing shape:
 
 ```json
 {
@@ -124,22 +134,21 @@ Both record endpoints accept the existing `products` plus optional `stopInvoices
   "status": "InProgress",
   "recorded": 1,
   "invoices": [
-    {
-      "stopId": "<stop-guid>",
-      "invoiceId": "<invoice-guid>",
-      "invoiceNumber": "INV-GAR00001"
-    }
+    { "stopId": "<stop-guid>", "invoiceId": "<invoice-guid>", "invoiceNumber": "INV-GAR00001" }
   ]
 }
 ```
 
-Omit `stopInvoices` for ordinary online recording. For offline-origin invoices, retain one stable UUID per stop invoice across retries. On creation, a supplied UUID sets `createdOffline: true`; `recordedAt` supplies `issuedAt`. Matching prefers that UUID, then the stop ID. Existing invoices retain their number and issue time. Send at most one metadata entry per stop and never reuse an invoice UUID for another stop. Metadata alone does not create an invoice: include delivery products for the affected stop.
+Persist the mapping and refresh the invoice. Sync and unplanned-product additions
+also refresh the invoice automatically; do not make an extra `/record` call just
+to create an invoice. Driver invoice reads use the token route above.
 
-Persist the returned stop-to-invoice mapping, then refresh trek details and invoice queries. The driver's token does not authorize the staff invoice GET routes; driver invoice browsing needs a backend route before a standalone portal can support it.
-
-The separate `/sync` action handler and direct unplanned-sale handlers do not call the invoice builder. After syncing deliveries or creating unplanned products, submit the affected product rows through `/record` with their server IDs and complete recorded values before completing the trek. Do not assume a successful sync has issued an invoice. See [offline integration](./18-offline-sync.md) and [returns](./23-invoice-returns.md).
-
-Sources: `Features/Trekking/RecordTrekDelivery.cs`, `RecordTrekDeliveryByToken.cs`, `GetInvoice.cs`, `GetInvoiceList.cs`, `GetStopInvoice.cs`, `Utilities/QueryBuilder.cs`.
+For **Collect payment**, use the separate payment POST with the invoice GUID,
+`clientGeneratedId`, `amount`, and `paymentMethod`. Render its returned receipt and
+refresh invoice totals. The exact request, receipt response, retry behavior and
+offline action are in [Invoice First & Payments](./27-invoice-first-payments.md).
+The invoice remains available to view/print before payment; print the receipt only
+after a successful payment response. The frontend renders both documents.
 
 ## Export
 
@@ -253,6 +262,11 @@ Status codes:
     },
     "products": [
       {
+        "stopProductId": "<stop-product-guid>",
+        "basicQuantity": 8,
+        "packagingQuantity": 0,
+        "plannedBasicQuantity": 8,
+        "plannedPackagingQuantity": null,
         "productId": "<product-guid>",
         "productName": "Paracetamol 500mg",
         "basicUnitName": "Tablet",
@@ -262,9 +276,9 @@ Status codes:
         "basicUnitPrice": 1.50,
         "packagingUnitPrice": 15.00,
         "lineTotal": 12.00,
-        "amtPaid": 10.00,
-        "balance": 2.00,
-        "paymentMethod": "Cash",
+        "amtPaid": null,
+        "balance": null,
+        "paymentMethod": null,
         "deliveredAt": "2026-10-02T10:30:00Z"
       }
     ],
@@ -273,7 +287,7 @@ Status codes:
 }
 ```
 
-Only **delivered** product lines are returned (`deliveredAt` or `basicQtyDelivered` set) — planned-but-undelivered rows and returns are excluded. `stop.invoice` is `null` until the first delivery has been recorded for the stop (which is also when the server allocates the invoice number). `totals` are summed from the returned lines; the frontend does not need to recompute.
+Planned and delivered product lines are returned. Each line also includes `stopProductId`, `basicQuantity`, `packagingQuantity`, `plannedBasicQuantity`, and `plannedPackagingQuantity`. Planned invoices are created when the trek is scheduled; nullable invoice fields are expected while it is Draft. `totals` comes from the invoice, not legacy per-line payments. Fetch the driver invoice detail for its `payments` history.
 
 `customer.clientGeneratedId` echoes back the UUID originally submitted via `RegisterCustomer` (null for customers created from the admin panel). Use it alongside `customerCode` as a stable local key when reconciling offline-registered customers.
 
