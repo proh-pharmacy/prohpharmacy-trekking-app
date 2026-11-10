@@ -41,6 +41,8 @@ public static class SyncOfflineActionsByDriverToken
         public string Status { get; set; } = string.Empty;
         public Guid? ServerId { get; set; }
         public Guid? PersonId { get; set; }
+        public Guid? InvoiceId { get; set; }
+        public string? ReceiptNumber { get; set; }
         public string? Reason { get; set; }
     }
 
@@ -68,6 +70,7 @@ public static class SyncOfflineActionsByDriverToken
             var attributedStaffId = trip.SalesStaffId ?? trip.DriverStaffId;
             var owningBranchId = (trip.SalesStaff ?? trip.Driver)?.BranchId ?? trip.Driver.BranchId;
 
+            await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
             var ordered = request.Actions.OrderBy(a => a.OccurredAt).ToList();
             var results = new List<ActionResult>();
 
@@ -77,9 +80,8 @@ public static class SyncOfflineActionsByDriverToken
             var stopClientMap = new Dictionary<Guid, Guid>();
             var returnClientMap = new Dictionary<Guid, Guid>();
             var regionCustomerOffset = new Dictionary<Guid, int>();
-            var invoiceAffectedStopIds = new HashSet<Guid>();
 
-            foreach (var action in ordered)
+            foreach (var action in ordered.Where(a => a.Type != "RecordInvoicePayment"))
             {
                 var result = action.Type switch
                 {
@@ -88,8 +90,8 @@ public static class SyncOfflineActionsByDriverToken
                     "AddCustomerLocation"     => await ProcessAddCustomerLocationAsync(action, trip, attributedStaffId, customerClientMap, locationClientMap, cancellationToken),
                     "UpdateCustomerLocation"  => await ProcessUpdateCustomerLocationAsync(action, trip, locationClientMap, cancellationToken),
                     "AddWalkInStop"      => await ProcessAddWalkInStopAsync(action, trip, customerClientMap, stopClientMap, cancellationToken),
-                    "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, invoiceAffectedStopIds, cancellationToken),
-                    "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, invoiceAffectedStopIds, cancellationToken),
+                    "RecordDelivery"     => await ProcessRecordDeliveryAsync(action, trip, cancellationToken),
+                    "RecordUnplannedSale"=> await ProcessUnplannedSaleAsync(action, trip, stopClientMap, cancellationToken),
                     "RecordReturn"       => await ProcessRecordReturnAsync(action, trip, attributedStaffId, stopClientMap, returnClientMap, cancellationToken),
                     "VoidReturn"         => await ProcessVoidReturnAsync(action, trip, returnClientMap, cancellationToken),
                     _ => new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Unknown action type: {action.Type}" }
@@ -97,20 +99,15 @@ public static class SyncOfflineActionsByDriverToken
                 results.Add(result);
             }
 
-            if (invoiceAffectedStopIds.Count > 0)
-            {
-                var affectedStops = await db.TrekkingTripStops
-                    .Include(s => s.Products)
-                    .Where(s => invoiceAffectedStopIds.Contains(s.Id))
-                    .ToListAsync(cancellationToken);
-
-                await RecordTrekDelivery.BuildInvoicesAsync(
-                    db, trip, affectedStops, new Dictionary<Guid, RecordTrekDelivery.StopInvoiceSync>(), cancellationToken);
-            }
-
             try
             {
                 await db.SaveChangesAsync(cancellationToken);
+                foreach (var stopResult in results.Where(r => r.Type == "AddWalkInStop" && r.ServerId.HasValue && r.Status != "Conflict"))
+                    stopResult.InvoiceId = await db.SaleInvoices.Where(i => i.TrekkingTripStopId == stopResult.ServerId)
+                        .Select(i => (Guid?)i.Id).SingleOrDefaultAsync(cancellationToken);
+                foreach (var action in ordered.Where(a => a.Type == "RecordInvoicePayment"))
+                    results.Add(await ProcessInvoicePaymentAsync(action, trip, attributedStaffId, stopClientMap, cancellationToken));
+                await transaction.CommitAsync(cancellationToken);
             }
             catch (DbUpdateException ex) when (ex.InnerException is PostgresException
                 { SqlState: PostgresErrorCodes.UniqueViolation, ConstraintName: "IX_CustomerAccounts_IdDocumentNumber" })
@@ -133,6 +130,50 @@ public static class SyncOfflineActionsByDriverToken
                     conflict.ClientId, conflict.Type, conflict.Reason);
 
             return Result.Success(new SyncResponse { Results = results });
+        }
+
+        private static bool HasPaymentFields(System.Text.Json.JsonElement payload) =>
+            new[] { "amtPaid", "paymentMethod", "balance" }.Any(key =>
+                payload.TryGetProperty(key, out var value) && value.ValueKind != System.Text.Json.JsonValueKind.Null);
+
+        private async Task<ActionResult> ProcessInvoicePaymentAsync(OfflineAction action, TrekkingTrip trip,
+            Guid staffId, Dictionary<Guid, Guid> stopClientMap, CancellationToken ct)
+        {
+            var payload = action.Payload;
+            Guid invoiceId = Guid.Empty;
+            if (payload.TryGetProperty("invoiceId", out var invoiceValue))
+                Guid.TryParse(invoiceValue.GetString(), out invoiceId);
+            if (invoiceId == Guid.Empty)
+            {
+                Guid stopId = Guid.Empty;
+                if (payload.TryGetProperty("stopId", out var stopValue)) Guid.TryParse(stopValue.GetString(), out stopId);
+                if (stopId == Guid.Empty && payload.TryGetProperty("stopClientId", out var clientValue) &&
+                    Guid.TryParse(clientValue.GetString(), out var clientId))
+                {
+                    if (!stopClientMap.TryGetValue(clientId, out stopId))
+                        stopId = await db.TrekkingTripStops.Where(s => s.ClientGeneratedId == clientId)
+                            .Select(s => s.Id).FirstOrDefaultAsync(ct);
+                }
+                invoiceId = await db.SaleInvoices.Where(i => i.TrekkingTripStopId == stopId)
+                    .Select(i => i.Id).FirstOrDefaultAsync(ct);
+            }
+            if (invoiceId == Guid.Empty || !payload.TryGetProperty("amount", out var amountValue) ||
+                !amountValue.TryGetDecimal(out var amount) || !payload.TryGetProperty("paymentMethod", out var methodValue) ||
+                !Enum.TryParse<PaymentMethod>(methodValue.GetString(), true, out var method))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict",
+                    Reason = "Provide an invoiceId (or stopId/stopClientId), amount, and paymentMethod." };
+            var duplicate = await db.InvoicePayments.AnyAsync(p => p.ClientGeneratedId == action.ClientId, ct);
+            var result = await new Services.Invoicing.InvoicePaymentService(db).RecordAsync(invoiceId,
+                new Payments.InvoicePaymentRequest
+                {
+                    ClientGeneratedId = action.ClientId, Amount = amount, PaymentMethod = method,
+                    RecordedAt = action.OccurredAt,
+                    Reference = payload.TryGetProperty("reference", out var reference) ? reference.GetString() : null
+                }, staffId, trip.RegionId, ct);
+            return result.IsFailure
+                ? new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = result.Error.Message }
+                : new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = duplicate ? "AlreadySynced" : "Created",
+                    ServerId = result.Value.PaymentId, InvoiceId = result.Value.InvoiceId, ReceiptNumber = result.Value.ReceiptNumber };
         }
 
         private async Task<ActionResult> ProcessRegisterCustomerAsync(
@@ -628,11 +669,13 @@ public static class SyncOfflineActionsByDriverToken
             Dictionary<Guid, Guid> stopClientMap,
             CancellationToken ct)
         {
-            var existing = await db.TrekkingTripStops
-                .FirstOrDefaultAsync(s => s.ClientGeneratedId == action.ClientId, ct);
+            var existing = db.TrekkingTripStops.Local.FirstOrDefault(s => s.ClientGeneratedId == action.ClientId)
+                ?? await db.TrekkingTripStops.FirstOrDefaultAsync(s => s.ClientGeneratedId == action.ClientId, ct);
 
             if (existing is not null)
             {
+                if (!await db.TrekkingTrips.AnyAsync(t => t.Id == existing.TrekkingTripId && t.RegionId == trip.RegionId, ct))
+                    return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Stop belongs to another region." };
                 stopClientMap[action.ClientId] = existing.Id;
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id };
             }
@@ -645,8 +688,8 @@ public static class SyncOfflineActionsByDriverToken
 
             var targetTrip = await db.TrekkingTrips
                 .FirstOrDefaultAsync(t => t.Id == trekId && t.RegionId == trip.RegionId, ct);
-            if (targetTrip is null || targetTrip.Status == TrekStatus.Completed || targetTrip.Status == TrekStatus.Cancelled)
-                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Target trek not found, not in region, or is completed/cancelled." };
+            if (targetTrip is null || targetTrip.Status is not (TrekStatus.Scheduled or TrekStatus.InProgress))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Target trek not found, not in region, or is not Scheduled/InProgress." };
 
             Guid customerId;
             if (payload.TryGetProperty("customerClientId", out var ccid) && Guid.TryParse(ccid.GetString(), out var cClientId))
@@ -690,11 +733,10 @@ public static class SyncOfflineActionsByDriverToken
             OfflineAction action,
             Entities.TrekkingTrip trip,
             Dictionary<Guid, Guid> stopClientMap,
-            HashSet<Guid> invoiceAffectedStopIds,
             CancellationToken ct)
         {
-            var existing = await db.TrekkingTripStopProducts
-                .FirstOrDefaultAsync(p => p.ClientGeneratedId == action.ClientId, ct);
+            var existing = db.TrekkingTripStopProducts.Local.FirstOrDefault(p => p.ClientGeneratedId == action.ClientId)
+                ?? await db.TrekkingTripStopProducts.FirstOrDefaultAsync(p => p.ClientGeneratedId == action.ClientId, ct);
             if (existing is not null)
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "AlreadySynced", ServerId = existing.Id };
 
@@ -715,6 +757,12 @@ public static class SyncOfflineActionsByDriverToken
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "stopId or stopClientId is required." };
             }
 
+            var targetStop = db.TrekkingTripStops.Local.FirstOrDefault(s => s.Id == stopId)
+                ?? await db.TrekkingTripStops.Include(s => s.TrekkingTrip).SingleOrDefaultAsync(s => s.Id == stopId, ct);
+            var targetTrip = targetStop is null ? null : await db.TrekkingTrips.FindAsync([targetStop.TrekkingTripId], ct);
+            if (targetTrip is null || targetTrip.RegionId != trip.RegionId || targetTrip.Status is TrekStatus.Cancelled or TrekStatus.Completed)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "The stop is not on an editable trek in this region." };
+
             if (!payload.TryGetProperty("productId", out var pidEl) || !Guid.TryParse(pidEl.GetString(), out var productId))
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "productId is required." };
 
@@ -723,21 +771,17 @@ public static class SyncOfflineActionsByDriverToken
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Product not found." };
 
             var basicQty = payload.TryGetProperty("basicQtyDelivered", out var bq) ? bq.GetDecimal() : 0;
-            var pkgQty = payload.TryGetProperty("packagingQtyDelivered", out var pq) ? (decimal?)pq.GetDecimal() : null;
-            var pmStr = payload.TryGetProperty("paymentMethod", out var pm) ? pm.GetString() : null;
-            Enum.TryParse<PaymentMethod>(pmStr, ignoreCase: true, out var paymentMethod);
-            var amtPaidProvided = payload.TryGetProperty("amtPaid", out var ap);
-            var amtPaid = amtPaidProvided ? (decimal?)ap.GetDecimal() : null;
-            var balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : null;
-
+            var pkgQty = payload.TryGetProperty("packagingQtyDelivered", out var pq) && pq.ValueKind != System.Text.Json.JsonValueKind.Null
+                ? (decimal?)pq.GetDecimal() : null;
+            if (HasPaymentFields(payload))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict",
+                    Reason = "Use RecordInvoicePayment for payments; omit payment fields from item and delivery actions." };
+            if (basicQty < 0 || pkgQty < 0 || (basicQty == 0 && (pkgQty ?? 0) == 0))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Quantities cannot be negative." };
             var (resolvedBasicPrice, resolvedPkgPrice) = await ResolveStopProductPriceAsync(stopId, product, trip, ct);
-
+            if (!product.PackagingUnitId.HasValue && pkgQty > 0)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "This product has no packaging unit." };
             var effectivePkgQty = product.PackagingUnitId.HasValue ? pkgQty : null;
-            if (!amtPaidProvided && (basicQty > 0 || (effectivePkgQty ?? 0) > 0))
-            {
-                amtPaid = basicQty * resolvedBasicPrice + (effectivePkgQty ?? 0) * (resolvedPkgPrice ?? 0);
-                balance = 0;
-            }
 
             var stopProduct = new TrekkingTripStopProduct
             {
@@ -749,16 +793,12 @@ public static class SyncOfflineActionsByDriverToken
                 BasicQtyDelivered = basicQty,
                 PackagingQtyDelivered = effectivePkgQty,
                 AmountDue = basicQty * resolvedBasicPrice + (effectivePkgQty ?? 0) * (resolvedPkgPrice ?? 0),
-                PaymentMethod = pmStr is not null ? paymentMethod : null,
-                AmtPaid = amtPaid,
-                Balance = balance,
                 IsUnplanned = true,
                 DeliveredAt = action.OccurredAt,
                 ClientGeneratedId = action.ClientId
             };
             db.TrekkingTripStopProducts.Add(stopProduct);
 
-            invoiceAffectedStopIds.Add(stopId);
 
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = stopProduct.Id };
         }
@@ -766,7 +806,6 @@ public static class SyncOfflineActionsByDriverToken
         private async Task<ActionResult> ProcessRecordDeliveryAsync(
             OfflineAction action,
             Entities.TrekkingTrip trip,
-            HashSet<Guid> invoiceAffectedStopIds,
             CancellationToken ct)
         {
             var payload = action.Payload;
@@ -774,7 +813,8 @@ public static class SyncOfflineActionsByDriverToken
             if (!payload.TryGetProperty("stopProductId", out var spidEl) || !Guid.TryParse(spidEl.GetString(), out var stopProductId))
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "stopProductId is required." };
 
-            var stopProduct = await db.TrekkingTripStopProducts
+            var stopProduct = db.TrekkingTripStopProducts.Local.FirstOrDefault(p => p.Id == stopProductId)
+                ?? await db.TrekkingTripStopProducts
                 .Include(p => p.TrekkingTripStop)
                     .ThenInclude(s => s.TrekkingTrip)
                 .FirstOrDefaultAsync(p => p.Id == stopProductId, ct);
@@ -789,32 +829,23 @@ public static class SyncOfflineActionsByDriverToken
                 stopProduct.TrekkingTripStop.TrekkingTrip.Status == TrekStatus.Cancelled)
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = $"Trek is {stopProduct.TrekkingTripStop.TrekkingTrip.Status}." };
 
-            var pmStr = payload.TryGetProperty("paymentMethod", out var pm) ? pm.GetString() : null;
-            Enum.TryParse<PaymentMethod>(pmStr, ignoreCase: true, out var paymentMethod);
-
-            stopProduct.BasicQtyDelivered = payload.TryGetProperty("basicQtyDelivered", out var bq) ? bq.GetDecimal() : stopProduct.BasicQtyDelivered;
-            stopProduct.PackagingQtyDelivered = payload.TryGetProperty("packagingQtyDelivered", out var pq) ? (decimal?)pq.GetDecimal() : stopProduct.PackagingQtyDelivered;
-            stopProduct.PaymentMethod = pmStr is not null ? paymentMethod : stopProduct.PaymentMethod;
-
-            stopProduct.AmountDue = (stopProduct.BasicQtyDelivered ?? 0) * stopProduct.BasicUnitPrice
-                                  + (stopProduct.PackagingQtyDelivered ?? 0) * (stopProduct.PackagingUnitPrice ?? 0);
-
-            var amtPaidProvided = payload.TryGetProperty("amtPaid", out var ap);
-            if (amtPaidProvided)
-            {
-                stopProduct.AmtPaid = (decimal?)ap.GetDecimal();
-                stopProduct.Balance = payload.TryGetProperty("balance", out var bal) ? (decimal?)bal.GetDecimal() : stopProduct.Balance;
-            }
-            else if ((stopProduct.BasicQtyDelivered ?? 0) > 0 || (stopProduct.PackagingQtyDelivered ?? 0) > 0)
-            {
-                stopProduct.AmtPaid = stopProduct.AmountDue;
-                stopProduct.Balance = 0;
-            }
+            if (HasPaymentFields(payload))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict",
+                    Reason = "Use RecordInvoicePayment for payments; omit payment fields from delivery actions." };
+            if ((!payload.TryGetProperty("basicQtyDelivered", out var basicValue) || basicValue.ValueKind == System.Text.Json.JsonValueKind.Null) &&
+                (!payload.TryGetProperty("packagingQtyDelivered", out var packageValue) || packageValue.ValueKind == System.Text.Json.JsonValueKind.Null))
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Provide delivered quantities. Use zero explicitly for goods not supplied." };
+            var basic = payload.TryGetProperty("basicQtyDelivered", out var bq) && bq.ValueKind != System.Text.Json.JsonValueKind.Null ? bq.GetDecimal() : stopProduct.BasicQtyDelivered;
+            var packaging = payload.TryGetProperty("packagingQtyDelivered", out var pq) && pq.ValueKind != System.Text.Json.JsonValueKind.Null
+                ? (decimal?)pq.GetDecimal() : stopProduct.PackagingQtyDelivered;
+            if (basic < 0 || packaging < 0)
+                return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Quantities cannot be negative." };
+            stopProduct.BasicQtyDelivered = basic;
+            stopProduct.PackagingQtyDelivered = packaging;
 
             stopProduct.Notes = payload.TryGetProperty("notes", out var n) ? n.GetString()?.Trim() ?? stopProduct.Notes : stopProduct.Notes;
             stopProduct.DeliveredAt ??= action.OccurredAt;
 
-            invoiceAffectedStopIds.Add(stopProduct.TrekkingTripStopId);
 
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created", ServerId = stopProductId };
         }

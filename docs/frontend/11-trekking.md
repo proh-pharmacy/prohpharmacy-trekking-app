@@ -1,6 +1,13 @@
 # 11 — Trekking
 
-Phase 1–5 additions: delivery recording now returns invoice mappings and accepts optional `stopInvoices` metadata; see [Sale Invoices](./22-sale-invoices.md). Add trek allocation UI using [Vehicle Warehouse](./24-vehicle-warehouse.md), return review using [Invoice Returns](./23-invoice-returns.md), and a portal [Driver Report](./25-driver-trek-report.md). Completion deducts tracked vehicle stock and notifies the creator about pending returns; repeated staff completion is not idempotent.
+> Updated for the invoice-first backend on 2026-11-08. See [Invoice First & Payments](./27-invoice-first-payments.md) for the payment and receipt contracts.
+
+Phase 1–5 additions: scheduling now establishes invoice identity for every planned stop; active walk-in creation does so immediately. Delivery recording returns invoice mappings and `stopInvoices` is deprecated; see [Sale Invoices](./22-sale-invoices.md). Add trek allocation UI using [Vehicle Warehouse](./24-vehicle-warehouse.md), return review using [Invoice Returns](./23-invoice-returns.md), and a portal [Driver Report](./25-driver-trek-report.md). Completion deducts tracked vehicle stock and notifies the creator about pending returns; repeated staff completion is not idempotent.
+
+Stop responses additionally expose `invoiceId`, `invoiceNumber`, `invoiceStatus`,
+`invoiceTotal`, `invoicePaid`, and `invoiceBalance`, including before delivery.
+Use these for stop-level payment summaries; product-level `amtPaid`, `balance`, and
+`paymentMethod` are legacy fields. See [the stop summary contract](./27-invoice-first-payments.md#read-invoices).
 
 ## Endpoints
 
@@ -17,7 +24,7 @@ Phase 1–5 additions: delivery recording now returns invoice mappings and accep
 | `PATCH` | `api/v1/treks/{trekId}/stops/{stopId}/products/{stopProductId}/price` | Override snapshotted price on a stop product | Required |
 | `POST` | `api/v1/treks/{trekId}/sync-prices` | Re-sync all stop product prices from the current catalog | Required |
 | `GET` | `api/v1/treks/{trekId}/price-diff` | Get price differences between trek and current catalog | Required |
-| `DELETE` | `api/v1/treks/{id}` | Delete a trek (Draft/Scheduled only) | Required |
+| `DELETE` | `api/v1/treks/{id}` | Delete a Draft trek | Required |
 | `POST` | `api/v1/treks/{id}/generate-link` | Generate shareable driver link | Required |
 | `POST` | `api/v1/treks/{id}/send-email` | Resend trek sheet email to staff | Required |
 | `GET` | `api/v1/treks/{id}/sheet/pdf` | Download trek sheet PDF | Required |
@@ -199,7 +206,7 @@ Returns the trek with all stops and their products fully populated.
 
 Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 
-**When transitioning to `Scheduled`:** the backend automatically generates the driver token (if one doesn't already exist) and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). No extra call is needed — the email fires as part of this status change.
+**When transitioning to `Scheduled`:** the backend requires at least one customer stop, issues one invoice per stop, creates the related ledger charges, generates the driver token (if one doesn't already exist), and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). Refetch the trek after success to obtain the invoice IDs and totals. The whole database change is transactional.
 
 ### Response `200 OK` — `TrekResponse`
 
@@ -211,13 +218,13 @@ Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 
 ## DELETE /api/v1/treks/{id}
 
-Permanently deletes a trek and all its stops, stop products, and return records. Only allowed when the trek is in `Draft` or `Scheduled` status — treks that are `InProgress`, `Completed`, or `Cancelled` cannot be deleted.
+Permanently deletes a trek and all its stops and stop products. Only allowed while the trek is `Draft`. Scheduled and later treks have issued invoice history and cannot be deleted.
 
 ### Response `204 No Content`
 
 ### Errors
 - `404` — trek not found
-- `422` — trek is not in Draft or Scheduled status
+- `422` — trek is not in Draft status
 
 ---
 
@@ -313,7 +320,9 @@ If the product has no packaging unit, `plannedPackagingQuantity` is silently ign
 
 ## PATCH /api/v1/treks/{trekId}/stops/{stopId}
 
-Updates a stop's customer, sequence, notes, or product list. All fields are optional.
+Updates a stop's customer, sequence, notes, or product list. Customer replacement is
+allowed only while the trek is Draft; scheduled and later stops already belong to
+their issued-invoice customer. All fields are optional.
 
 ### Request body
 
@@ -334,7 +343,7 @@ Updates a stop's customer, sequence, notes, or product list. All fields are opti
 
 | Field | Required | Constraints |
 |---|---|---|
-| `customerAccountId` | No | Swaps the customer and clears existing products when provided and different from the current customer |
+| `customerAccountId` | No | Changing the customer of an invoiced stop is rejected |
 | `sequence` | No | > 0 |
 | `notes` | No | Max 500 chars |
 | `products` | No | If provided, must be non-empty; at least one qty > 0 per product |
@@ -352,6 +361,9 @@ Updates a stop's customer, sequence, notes, or product list. All fields are opti
 
 ## DELETE /api/v1/treks/{trekId}/stops/{stopId}
 
+Stops can be permanently deleted only while the trek is Draft. Once scheduled, every
+stop has issued invoice history and deletion returns `422`.
+
 ### Response `204 No Content`
 
 ### Errors
@@ -361,7 +373,7 @@ Updates a stop's customer, sequence, notes, or product list. All fields are opti
 
 ## POST /api/v1/treks/{id}/record
 
-Records delivery outcomes for one or more stop products. Can be submitted multiple times — each call updates only the provided `stopProductId` entries. Trek must not be `Completed`.
+Records delivery outcomes for one or more stop products. Can be submitted multiple times — each call updates only the provided `stopProductId` entries. Trek must not be `Completed` or `Cancelled`.
 
 ### Request body
 
@@ -372,9 +384,6 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
       "stopProductId": "<stop-product-guid>",
       "basicQtyDelivered": 8,
       "packagingQtyDelivered": 1,
-      "paymentMethod": "Cash",
-      "amtPaid": 240.00,
-      "balance": 0.00,
       "notes": "Customer short 2 units"
     }
   ]
@@ -386,9 +395,6 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 | `stopProductId` | Yes | Must belong to this trek |
 | `basicQtyDelivered` | No | Decimal — units delivered (e.g. tablets) |
 | `packagingQtyDelivered` | No | Decimal — packages delivered (e.g. boxes). Only meaningful when the product has a packaging unit |
-| `paymentMethod` | No | See enum table |
-| `amtPaid` | No | Decimal. If omitted and quantities were delivered, auto-calculated from delivered qty × snapshotted price |
-| `balance` | No | Decimal. Set to `0` automatically when `amtPaid` is auto-calculated |
 | `notes` | No | Free text |
 
 ### Response `200 OK`
@@ -405,22 +411,23 @@ Records delivery outcomes for one or more stop products. Can be submitted multip
 }
 ```
 
-### How payment recording works
+### Delivery and payment are separate
 
-1. The driver enters the delivered basic and packaging quantities.
-2. `amtPaid` is **optional** — do not force the user to fill it in.
-3. If `amtPaid` is omitted, the backend auto-calculates the amount using the snapshotted prices:
-   ```
-   basicQtyDelivered × basicUnitPrice + packagingQtyDelivered × packagingUnitPrice
-   ```
-   and sets `balance` to `0`.
-4. If the customer paid only **part** of the amount, the frontend sends an explicit `amtPaid` (what was collected) and `balance` (what is still owed). The backend stores both as provided.
-5. `amountDue` (from the product listing) is the billable total — planned × price before delivery, then rewritten to delivered × price once delivery is recorded. It is display-only and should **not** be submitted during delivery recording.
+Save quantities and notes with `/record`, then refresh the invoice. At least one
+quantity is required per product; quantities must be non-negative. Supply explicit
+zeros for both quantities when cancelling supply of a planned line. Omitted lines
+remain on the invoice. Delivery never implies payment.
 
-> **Frontend guidance:** leave the amount field empty by default. Only show/require it when the driver indicates a partial or different payment. This allows the auto-calculation to handle the normal full-payment case without the driver doing manual arithmetic.
+Use the invoice payment endpoint for money collected and display the returned
+receipt. Do not send `amtPaid`, `paymentMethod` or `balance` with delivery or
+unplanned-product requests; non-null values, including zero, are rejected.
+See [the payment request and receipt contract](./27-invoice-first-payments.md#record-a-payment).
+
+`amountDue` is a calculated billable line total. Current paid/outstanding totals
+come from the invoice, not the legacy line payment fields.
 
 ### Notes
-- Recording does **not** touch the ledger. Ledger entries are only written when the trek is marked `Completed`. Re-submitting updated figures before completion is safe — the ledger will reflect the final values at completion time.
+- Invoice charges update the ledger as items change. Payment credits are created by the separate payment endpoint. Completion does not rebuild either entry.
 
 ---
 

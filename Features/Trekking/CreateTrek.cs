@@ -51,6 +51,10 @@ public static class CreateTrek
         public Guid StopId { get; set; }
         public Guid? InvoiceId { get; set; }
         public string? InvoiceNumber { get; set; }
+        public string? InvoiceStatus { get; set; }
+        public decimal? InvoiceTotal { get; set; }
+        public decimal? InvoicePaid { get; set; }
+        public decimal? InvoiceBalance { get; set; }
         public int Sequence { get; set; }
         public bool IsWalkIn { get; set; }
         public Guid CustomerAccountId { get; set; }

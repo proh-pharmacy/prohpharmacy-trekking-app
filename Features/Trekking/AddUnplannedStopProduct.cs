@@ -31,7 +31,9 @@ public static class AddUnplannedStopProduct
         public Validator()
         {
             RuleFor(x => x.ProductId).NotEmpty();
-            RuleFor(x => x.BasicQtyDelivered).GreaterThan(0);
+            RuleFor(x => x.BasicQtyDelivered).GreaterThanOrEqualTo(0);
+            RuleFor(x => x).Must(x => x.BasicQtyDelivered > 0 || x.PackagingQtyDelivered > 0)
+                .WithMessage("At least one delivered quantity must be greater than zero.");
             RuleFor(x => x.PackagingQtyDelivered).GreaterThan(0).When(x => x.PackagingQtyDelivered.HasValue);
             RuleFor(x => x.AmtPaid).GreaterThanOrEqualTo(0).When(x => x.AmtPaid.HasValue);
             RuleFor(x => x.Balance).GreaterThanOrEqualTo(0).When(x => x.Balance.HasValue);
@@ -52,6 +54,9 @@ public static class AddUnplannedStopProduct
 
         public async Task<Result<TrekStopProductResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
+            if (request.AmtPaid.HasValue || request.PaymentMethod.HasValue || request.Balance.HasValue)
+                return Result.Failure<TrekStopProductResponse>(Error.BadRequest("Add the invoice item first, then record payment using the invoice payments endpoint."));
+
             var validation = await _validator.ValidateAsync(request, cancellationToken);
             if (!validation.IsValid)
                 return Result.Failure<TrekStopProductResponse>(Error.ValidationError(validation));
@@ -62,8 +67,9 @@ public static class AddUnplannedStopProduct
             if (stop is null)
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Stop not found on this trek."));
 
-            if (stop.TrekkingTrip.Status == TrekStatus.Completed || stop.TrekkingTrip.Status == TrekStatus.Cancelled)
-                return Result.Failure<TrekStopProductResponse>(Error.BadRequest($"Cannot add products to a {stop.TrekkingTrip.Status} trek."));
+            if (stop.TrekkingTrip.Status is not (TrekStatus.Scheduled or TrekStatus.InProgress))
+                return Result.Failure<TrekStopProductResponse>(Error.BadRequest(
+                    $"Unplanned delivered products can only be added to a Scheduled or InProgress trek. This trek is {stop.TrekkingTrip.Status}."));
 
             var product = await _db.Products
                 .Include(p => p.BasicUnit)
@@ -73,6 +79,8 @@ public static class AddUnplannedStopProduct
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Product not found."));
 
             var hasPackaging = product.PackagingUnitId.HasValue;
+            if (!hasPackaging && request.PackagingQtyDelivered > 0)
+                return Result.Failure<TrekStopProductResponse>(Error.BadRequest("This product has no packaging unit."));
             var pkgDelivered = hasPackaging ? request.PackagingQtyDelivered : null;
             var pkgPrice = hasPackaging ? product.PackagingUnitPrice : null;
 
@@ -87,9 +95,6 @@ public static class AddUnplannedStopProduct
                 BasicQtyDelivered = request.BasicQtyDelivered,
                 PackagingQtyDelivered = pkgDelivered,
                 AmountDue = request.BasicQtyDelivered * product.BasicUnitPrice + (pkgDelivered ?? 0) * (pkgPrice ?? 0),
-                PaymentMethod = request.PaymentMethod,
-                AmtPaid = request.AmtPaid,
-                Balance = request.Balance,
                 IsUnplanned = true,
                 Notes = request.Notes?.Trim(),
                 DeliveredAt = DateTime.UtcNow

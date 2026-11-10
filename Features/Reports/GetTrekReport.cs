@@ -79,6 +79,12 @@ public static class GetTrekReport
 
             var trips = await query.ToListAsync(cancellationToken);
 
+            var tripIds = trips.Select(t => t.Id).ToList();
+            var invoiceTotals = await db.SaleInvoices.Where(i => tripIds.Contains(i.TrekkingTripId))
+                .GroupBy(i => i.TrekkingTripId)
+                .Select(g => new { TrekId = g.Key, Paid = g.Sum(i => i.TotalPaid), Balance = g.Sum(i => i.Balance) })
+                .ToDictionaryAsync(x => x.TrekId, cancellationToken);
+
             var items = trips.Select(t => new TrekReportItem
             {
                 Id = t.Id,
@@ -88,8 +94,8 @@ public static class GetTrekReport
                 RegionName = t.Region?.Name ?? string.Empty,
                 Status = t.Status.ToString(),
                 StopsCount = t.Stops.Count,
-                TotalCollected = t.Stops.Sum(s => s.Products.Sum(p => p.AmtPaid ?? 0)),
-                TotalOutstanding = t.Stops.Sum(s => s.Products.Sum(p => p.Balance ?? 0))
+                TotalCollected = invoiceTotals.GetValueOrDefault(t.Id)?.Paid ?? 0,
+                TotalOutstanding = invoiceTotals.GetValueOrDefault(t.Id)?.Balance ?? 0
             }).ToList();
 
             if (!string.IsNullOrWhiteSpace(request.Search))

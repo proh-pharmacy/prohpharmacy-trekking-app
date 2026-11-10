@@ -53,6 +53,7 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<TrekkingTripStopReturn> TrekkingTripStopReturns => Set<TrekkingTripStopReturn>();
         public DbSet<TrekkingTripStockSnapshot> TrekkingTripStockSnapshots => Set<TrekkingTripStockSnapshot>();
         public DbSet<SaleInvoice> SaleInvoices => Set<SaleInvoice>();
+        public DbSet<InvoicePayment> InvoicePayments => Set<InvoicePayment>();
         public DbSet<InvoiceNumberTracker> InvoiceNumberTrackers => Set<InvoiceNumberTracker>();
 
         // Staff
@@ -70,9 +71,24 @@ namespace prohpharmacy_trekking_app.Database
         public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
         public DbSet<StaffInvitation> StaffInvitations => Set<StaffInvitation>();
 
+        public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
+            => new Services.Invoicing.InvoiceSaveCoordinator(this).SaveAsync(
+                () => base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken), cancellationToken);
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
+            modelBuilder.ApplyConfiguration(new InvoicePaymentConfiguration());
+            modelBuilder.Entity<SaleInvoice>().Property<uint>("xmin").IsRowVersion();
+            modelBuilder.Entity<TrekkingTripStopProduct>().Property<uint>("xmin").IsRowVersion();
+            modelBuilder.Entity<CustomerLedgerEntry>(entity =>
+            {
+                entity.HasOne<SaleInvoice>().WithMany().HasForeignKey(e => e.SaleInvoiceId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasOne<InvoicePayment>().WithMany().HasForeignKey(e => e.InvoicePaymentId).OnDelete(DeleteBehavior.Restrict);
+                entity.HasIndex(e => e.InvoicePaymentId).IsUnique().HasFilter("\"InvoicePaymentId\" IS NOT NULL");
+                entity.HasIndex(e => e.SaleInvoiceId).IsUnique()
+                    .HasFilter("\"SaleInvoiceId\" IS NOT NULL AND \"InvoicePaymentId\" IS NULL");
+            });
 
             // ── Organisation ──────────────────────────────────────────────────────
 
@@ -335,8 +351,10 @@ namespace prohpharmacy_trekking_app.Database
 
             modelBuilder.Entity<Product>(entity =>
             {
+                modelBuilder.HasPostgresExtension("pg_trgm");
                 entity.HasKey(p => p.Id);
                 entity.Property(p => p.Name).HasMaxLength(200).IsRequired();
+                entity.HasIndex(p => p.Name).HasMethod("gin").HasOperators("gin_trgm_ops");
                 entity.Property(p => p.Description).HasMaxLength(500);
                 entity.Property(p => p.BasicUnitPrice).HasPrecision(14, 2).IsRequired();
                 entity.Property(p => p.PackagingUnitPrice).HasPrecision(14, 2);

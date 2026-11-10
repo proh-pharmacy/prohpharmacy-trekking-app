@@ -46,7 +46,7 @@ public static class GetTrekReport
             if (trip is null)
                 return Result.Failure<GetDriverTrekReport.TrekReportData>(Error.CreateNotFoundError("Trek not found."));
 
-            var invoices = await db.SaleInvoices
+            var invoices = await db.SaleInvoices.Include(i => i.Payments)
                 .Where(i => i.TrekkingTripId == trip.Id)
                 .AsNoTracking()
                 .ToDictionaryAsync(i => i.TrekkingTripStopId, cancellationToken);

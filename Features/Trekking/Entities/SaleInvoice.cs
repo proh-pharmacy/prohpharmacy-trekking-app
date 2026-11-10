@@ -20,4 +20,5 @@ public class SaleInvoice
     public DateTime? UpdatedAt { get; set; }
 
     public TrekkingTripStop Stop { get; set; } = null!;
+    public ICollection<InvoicePayment> Payments { get; set; } = [];
 }

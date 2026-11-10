@@ -5,6 +5,7 @@ using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
 using prohpharmacy_trekking_app.Extensions;
 using prohpharmacy_trekking_app.Features.Trekking.Entities;
+using prohpharmacy_trekking_app.Features.Trekking.Enums;
 using prohpharmacy_trekking_app.Shared;
 using static prohpharmacy_trekking_app.Features.Trekking.CreateTrek;
 
@@ -68,6 +69,7 @@ public static class UpdateTrekStop
                 .Include(s => s.Products)
                     .ThenInclude(p => p.Product)
                         .ThenInclude(p => p.PackagingUnit)
+                .Include(s => s.TrekkingTrip)
                 .FirstOrDefaultAsync(s => s.Id == request.StopId && s.TrekkingTripId == request.TrekId, cancellationToken);
 
             if (stop is null)
@@ -82,6 +84,10 @@ public static class UpdateTrekStop
             Customers.Entities.CustomerAccount? newCustomer = null;
             if (request.CustomerAccountId.HasValue && request.CustomerAccountId.Value != stop.CustomerAccountId)
             {
+                if (stop.TrekkingTrip.Status != TrekStatus.Draft)
+                    return Result.Failure<TrekStopResponse>(Error.BadRequest(
+                        "The customer can only be changed while the trek is in Draft. Once scheduled, the invoice belongs to the original customer."));
+
                 newCustomer = await db.CustomerAccounts
                     .Include(ca => ca.Region)
                     .Include(ca => ca.Locations.Where(l => l.IsPrimary))
@@ -152,6 +158,8 @@ public static class UpdateTrekStop
             }
 
             await db.SaveChangesAsync(cancellationToken);
+            var invoice = db.SaleInvoices.Local.SingleOrDefault(i => i.TrekkingTripStopId == stop.Id)
+                ?? await db.SaleInvoices.SingleOrDefaultAsync(i => i.TrekkingTripStopId == stop.Id, cancellationToken);
 
             var customer = newCustomer ?? stop.CustomerAccount;
             var primaryLocation = (newCustomer?.Locations ?? stop.CustomerAccount?.Locations)?.FirstOrDefault();
@@ -160,6 +168,12 @@ public static class UpdateTrekStop
             return Result.Success(new TrekStopResponse
             {
                 StopId = stop.Id,
+                InvoiceId = invoice?.Id,
+                InvoiceNumber = invoice?.InvoiceNumber,
+                InvoiceStatus = invoice?.Status.ToString(),
+                InvoiceTotal = invoice?.TotalAmount,
+                InvoicePaid = invoice?.TotalPaid,
+                InvoiceBalance = invoice?.Balance,
                 Sequence = stop.Sequence,
                 CustomerAccountId = stop.CustomerAccountId,
                 CustomerName = customer?.BusinessName ?? string.Empty,
@@ -223,7 +237,7 @@ public class UpdateTrekStopEndpoint : ICarterModule
         .WithTags("Trekking")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("Update a trek stop")
-        .WithDescription("Update the sequence, notes, customer, or product list for an existing stop. If customerAccountId is provided and differs from the current customer, the customer is swapped and all existing products are cleared. If products is provided, it replaces the entire product list and re-snapshots prices. Omit products to leave them unchanged.")
+        .WithDescription("Update the sequence, notes, customer, or product list for an existing stop. The customer can only be changed while the trek is Draft; changing it clears the old products. If products is provided, it replaces the entire product list and re-snapshots prices. Omit products to leave them unchanged.")
         .Produces<TrekStopResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

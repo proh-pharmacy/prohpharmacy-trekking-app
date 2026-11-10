@@ -20,6 +20,7 @@ public static class GetStopInvoice
         public async Task<Result<GetInvoice.InvoiceResponse>> Handle(Query request, CancellationToken cancellationToken)
         {
             var invoice = await db.SaleInvoices
+                .Include(i => i.Payments)
                 .Include(i => i.Stop)
                     .ThenInclude(s => s.Products)
                         .ThenInclude(p => p.Product).ThenInclude(p => p.BasicUnit)
