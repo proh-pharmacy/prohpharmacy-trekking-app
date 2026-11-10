@@ -22,7 +22,12 @@ public static class CompleteTrekByDriverToken
         public Guid Token { get; set; }
     }
 
-    internal sealed class Handler(AppDbContext db, NotificationDispatcher notifications, IEmailService email, IConfiguration config) : IRequestHandler<Command, Result<TrekResponse>>
+    internal sealed class Handler(
+        AppDbContext db,
+        NotificationDispatcher notifications,
+        IEmailService email,
+        IConfiguration config,
+        ILogger<Handler> logger) : IRequestHandler<Command, Result<TrekResponse>>
     {
         public async Task<Result<TrekResponse>> Handle(Command request, CancellationToken cancellationToken)
         {
@@ -62,7 +67,15 @@ public static class CompleteTrekByDriverToken
                 await db.SaveChangesAsync(cancellationToken);
                 await transaction.CommitAsync(cancellationToken);
 
-                await NotifyPendingReturnsAsync(trip, cancellationToken);
+                try
+                {
+                    await NotifyPendingReturnsAsync(trip, cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    logger.LogWarning(ex,
+                        "Trek {TrekId} was completed by the driver, but its pending-return notifications could not be prepared.", trip.Id);
+                }
 
                 return Result.Success(CreateTrek.Handler.ToResponse(
                     trip,

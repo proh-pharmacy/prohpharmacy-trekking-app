@@ -82,13 +82,26 @@ public class TrekEmailJob(AppDbContext db, IEmailService email, IConfiguration c
         };
         var pdfBytes = TrekkingSheetPdfGenerator.Generate(pdfData);
 
-        var recipients = new List<(string FullName, string Email)>
+        var recipients = new List<(string FullName, string Email)>();
+        var recipientStaffIds = new HashSet<Guid>();
+        var recipientEmails = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        if (trip.Driver is not null)
+            AddRecipient(trip.DriverStaffId, trip.Driver.FullName, trip.Driver.EmailAddress);
+
+        if (trip.SalesStaffId.HasValue && trip.SalesStaff is not null)
+            AddRecipient(trip.SalesStaffId.Value, trip.SalesStaff.FullName, trip.SalesStaff.EmailAddress);
+
+        void AddRecipient(Guid staffId, string fullName, string emailAddress)
         {
-            (trip.Driver.FullName, trip.Driver.EmailAddress)
-        };
-        if (trip.SalesStaff is not null &&
-            !trip.Driver.EmailAddress.Equals(trip.SalesStaff.EmailAddress, StringComparison.OrdinalIgnoreCase))
-            recipients.Add((trip.SalesStaff.FullName, trip.SalesStaff.EmailAddress));
+            var normalizedEmail = emailAddress.Trim();
+            if (string.IsNullOrWhiteSpace(normalizedEmail) ||
+                !recipientStaffIds.Add(staffId) ||
+                !recipientEmails.Add(normalizedEmail))
+                return;
+
+            recipients.Add((fullName, normalizedEmail));
+        }
 
         foreach (var (fullName, emailAddr) in recipients)
         {
