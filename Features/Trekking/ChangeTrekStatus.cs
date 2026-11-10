@@ -42,8 +42,9 @@ public static class ChangeTrekStatus
         private readonly NotificationDispatcher _notifications;
         private readonly IEmailService _email;
         private readonly IConfiguration _config;
+        private readonly ILogger<Handler> _logger;
 
-        public Handler(AppDbContext db, IValidator<Command> validator, IBackgroundJobClient jobs, NotificationDispatcher notifications, IEmailService email, IConfiguration config)
+        public Handler(AppDbContext db, IValidator<Command> validator, IBackgroundJobClient jobs, NotificationDispatcher notifications, IEmailService email, IConfiguration config, ILogger<Handler> logger)
         {
             _db = db;
             _validator = validator;
@@ -51,6 +52,7 @@ public static class ChangeTrekStatus
             _notifications = notifications;
             _email = email;
             _config = config;
+            _logger = logger;
         }
 
         public async Task<Result<TrekResponse>> Handle(Command request, CancellationToken cancellationToken)
@@ -106,12 +108,32 @@ public static class ChangeTrekStatus
                 await transaction.CommitAsync(cancellationToken);
 
                 if (request.Status == TrekStatus.Scheduled)
-                    _jobs.Enqueue<TrekEmailJob>(j => j.SendTrekStartEmailsAsync(trip.Id, trip.DriverToken!.Value));
+                {
+                    try
+                    {
+                        _jobs.Enqueue<TrekEmailJob>(j => j.SendTrekStartEmailsAsync(trip.Id, trip.DriverToken!.Value));
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Trek {TrekId} was scheduled, but its assignment email could not be queued.", trip.Id);
+                    }
+                }
 
                 DispatchTrekNotificationAsync(trip, request.Status);
 
                 if (request.Status == TrekStatus.Completed)
-                    await NotifyPendingReturnsAsync(trip, cancellationToken);
+                {
+                    try
+                    {
+                        await NotifyPendingReturnsAsync(trip, cancellationToken);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex,
+                            "Trek {TrekId} was completed, but its pending-return notifications could not be prepared.", trip.Id);
+                    }
+                }
 
                 return Result.Success(CreateTrek.Handler.ToResponse(
                     trip,
