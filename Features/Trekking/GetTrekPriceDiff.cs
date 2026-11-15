@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -81,32 +82,8 @@ public static class GetTrekPriceDiff
                 .AsNoTracking()
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-            var regionMarkupRules = await db.RegionalMarkupRules
-                .Where(r => r.RegionId == trip.RegionId &&
-                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var regionProductMarkups = regionMarkupRules
-                .Where(r => r.ProductId.HasValue)
-                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
-            var regionWideMarkup = regionMarkupRules
-                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-
-            var customerIds = candidateStopProducts.Select(x => x.Stop.CustomerAccountId).Distinct().ToList();
-            var allCustomerMarkupRows = await db.CustomerMarkupRules
-                .Where(r => customerIds.Contains(r.CustomerAccountId) &&
-                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            var customerMarkups = allCustomerMarkupRows
-                .GroupBy(r => r.CustomerAccountId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (
-                        Products: g.Where(r => r.ProductId.HasValue).ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage),
-                        Wildcard: g.Where(r => !r.ProductId.HasValue).Select(r => r.MarkupPercentage).Cast<decimal?>().FirstOrDefault()
-                    ));
+            var pricing = await new TrekPriceReader(db).ReadAsync(trip.VehicleId, trip.RegionId,
+                productIds, trip.Stops.Select(s => s.CustomerAccountId), cancellationToken);
 
             var diffs = new List<ProductDiff>();
 
@@ -117,18 +94,17 @@ public static class GetTrekPriceDiff
 
                 if (!catalogPrices.TryGetValue(sp.ProductId, out var cat)) continue;
 
-                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCm);
 
-                var resolvedBasic = ResolvePrice(cat.BasicUnitPrice, sp.ProductId,
-                    stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
-                var basicChanged = sp.BasicUnitPrice != resolvedBasic;
+
+                var resolvedBasic = pricing.Basic(cat, stop.CustomerAccountId);
+                var basicChanged = !sp.UsesVehicleStockPrice && !pricing.HasVehiclePrice(sp.ProductId) &&
+                    sp.BasicUnitPrice != resolvedBasic;
                 var hadPackaging = sp.PackagingUnitPrice.HasValue;
                 var nowHasPackaging = cat.PackagingUnitId.HasValue;
                 var packagingAdded = !hadPackaging && nowHasPackaging;
                 var packagingRemoved = hadPackaging && !nowHasPackaging;
                 decimal? resolvedPkg = nowHasPackaging
-                    ? ResolvePrice(cat.PackagingUnitPrice!.Value, sp.ProductId,
-                        stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup)
+                    ? pricing.Packaging(cat, stop.CustomerAccountId)
                     : null;
                 var packagingPriceChanged = hadPackaging && nowHasPackaging && sp.PackagingUnitPrice != resolvedPkg;
 
@@ -162,23 +138,7 @@ public static class GetTrekPriceDiff
             });
         }
 
-        private static decimal ApplyMarkup(decimal price, decimal pct) =>
-            Math.Round(price * (1 + pct / 100m), 2);
 
-        private static decimal ResolvePrice(
-            decimal basePrice,
-            Guid productId,
-            Dictionary<Guid, decimal> customerProductMarkups,
-            decimal? customerWideMarkup,
-            Dictionary<Guid, decimal> regionProductMarkups,
-            decimal? regionWideMarkup)
-        {
-            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
-            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
-            return basePrice;
-        }
     }
 }
 
@@ -198,6 +158,7 @@ public class GetTrekPriceDiffEndpoint : ICarterModule
         .WithSummary("Get price differences between trek stop products and current catalog")
         .WithDescription(
             "Compares each stop product's snapshotted prices against the current product catalog. " +
+            "Vehicle-stock basic prices are excluded from global price comparisons; packaging is still compared. " +
             "Returns only the products where a difference exists. " +
             "syncRequired is true when at least one difference is found. " +
             "Use this to show the user what will change before they confirm a sync.")

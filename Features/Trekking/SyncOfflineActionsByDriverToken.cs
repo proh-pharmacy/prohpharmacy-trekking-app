@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -778,7 +779,7 @@ public static class SyncOfflineActionsByDriverToken
                     Reason = "Use RecordInvoicePayment for payments; omit payment fields from item and delivery actions." };
             if (basicQty < 0 || pkgQty < 0 || (basicQty == 0 && (pkgQty ?? 0) == 0))
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "Quantities cannot be negative." };
-            var (resolvedBasicPrice, resolvedPkgPrice) = await ResolveStopProductPriceAsync(stopId, product, trip, ct);
+            var (resolvedBasicPrice, resolvedPkgPrice, usesVehicleStockPrice) = await ResolveStopProductPriceAsync(stopId, product, targetTrip, ct);
             if (!product.PackagingUnitId.HasValue && pkgQty > 0)
                 return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Conflict", Reason = "This product has no packaging unit." };
             var effectivePkgQty = product.PackagingUnitId.HasValue ? pkgQty : null;
@@ -789,6 +790,7 @@ public static class SyncOfflineActionsByDriverToken
                 ProductId = productId,
                 PlannedBasicQuantity = 0,
                 BasicUnitPrice = resolvedBasicPrice,
+                UsesVehicleStockPrice = usesVehicleStockPrice,
                 PackagingUnitPrice = resolvedPkgPrice,
                 BasicQtyDelivered = basicQty,
                 PackagingQtyDelivered = effectivePkgQty,
@@ -902,7 +904,7 @@ public static class SyncOfflineActionsByDriverToken
                 acc = gps.TryGetProperty("accuracyMetres", out var am) ? (decimal?)am.GetDecimal() : null;
             }
 
-            var (retBasicPrice, retPkgPrice) = await ResolveStopProductPriceAsync(stopId, product, trip, ct);
+            var (retBasicPrice, retPkgPrice, _) = await ResolveStopProductPriceAsync(stopId, product, trip, ct);
 
             var ret = new TrekkingTripStopReturn
             {
@@ -988,7 +990,7 @@ public static class SyncOfflineActionsByDriverToken
             return new ActionResult { ClientId = action.ClientId, Type = action.Type, Status = "Created" };
         }
 
-        private async Task<(decimal BasicUnitPrice, decimal? PackagingUnitPrice)> ResolveStopProductPriceAsync(
+        private async Task<(decimal BasicUnitPrice, decimal? PackagingUnitPrice, bool UsesVehicleStockPrice)> ResolveStopProductPriceAsync(
             Guid stopId,
             Features.Products.Entities.Product product,
             Entities.TrekkingTrip trip,
@@ -1004,41 +1006,12 @@ public static class SyncOfflineActionsByDriverToken
                     .Select(s => (Guid?)s.CustomerAccountId)
                     .FirstOrDefaultAsync(ct);
 
-            if (!customerAccountId.HasValue)
-                return (product.BasicUnitPrice, product.PackagingUnitId.HasValue ? product.PackagingUnitPrice : null);
-
-            var customerMarkups = await db.CustomerMarkupRules
-                .Where(r => r.CustomerAccountId == customerAccountId.Value &&
-                            (r.ProductId == null || r.ProductId == product.Id))
-                .AsNoTracking()
-                .ToListAsync(ct);
-
-            var regionMarkups = await db.RegionalMarkupRules
-                .Where(r => r.RegionId == trip.RegionId &&
-                            (r.ProductId == null || r.ProductId == product.Id))
-                .AsNoTracking()
-                .ToListAsync(ct);
-
-            decimal? cProductMarkup = customerMarkups.FirstOrDefault(r => r.ProductId == product.Id)?.MarkupPercentage;
-            decimal? cWideMarkup = customerMarkups.FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-            decimal? rProductMarkup = regionMarkups.FirstOrDefault(r => r.ProductId == product.Id)?.MarkupPercentage;
-            decimal? rWideMarkup = regionMarkups.FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-
-            var basic = ApplyMarkupHierarchy(product.BasicUnitPrice, cProductMarkup, cWideMarkup, rProductMarkup, rWideMarkup);
-            var packaging = product.PackagingUnitId.HasValue
-                ? ApplyMarkupHierarchy(product.PackagingUnitPrice ?? 0, cProductMarkup, cWideMarkup, rProductMarkup, rWideMarkup)
-                : (decimal?)null;
-
-            return (basic, packaging);
+            var pricing = await new TrekPriceReader(db).ReadAsync(trip.VehicleId, trip.RegionId,
+                [product.Id], customerAccountId.HasValue ? [customerAccountId.Value] : [], ct);
+            return (pricing.Basic(product, customerAccountId), pricing.Packaging(product, customerAccountId),
+                pricing.HasVehiclePrice(product.Id));
         }
 
-        private static decimal ApplyMarkupHierarchy(decimal basePrice,
-            decimal? customerProductMarkup, decimal? customerWideMarkup,
-            decimal? regionProductMarkup, decimal? regionWideMarkup)
-        {
-            decimal? pct = customerProductMarkup ?? customerWideMarkup ?? regionProductMarkup ?? regionWideMarkup;
-            return pct.HasValue ? Math.Round(basePrice * (1 + pct.Value / 100m), 2) : basePrice;
-        }
     }
 }
 

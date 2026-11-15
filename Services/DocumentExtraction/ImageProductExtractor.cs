@@ -5,10 +5,13 @@ public sealed class ImageProductExtractor(IOcrClient ocr, DocumentTableRowParser
     public bool CanExtract(string extension) => extension is ".png" or ".jpg" or ".jpeg";
 
     public async Task<DocumentExtractionResult> ExtractAsync(byte[] bytes, string extension,
-        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits, CancellationToken cancellationToken)
+        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits,
+        DocumentExtractionProgressCallback? reportProgress, CancellationToken cancellationToken)
     {
         var tokens = await ocr.ReadAsync(bytes, extension, 1, cancellationToken);
         var rows = parser.Parse(tokens, 1, cancellationToken, knownUnits);
+        if (reportProgress is not null)
+            await reportProgress(1, 1, cancellationToken);
         return new DocumentExtractionResult
         {
             Rows = rows.ToList(),

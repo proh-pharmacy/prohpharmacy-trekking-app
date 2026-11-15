@@ -42,6 +42,7 @@ public static class GetCustomerInvoicesByDriverToken
         public decimal? BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
         public decimal BasicUnitPrice { get; set; }
+        public bool UsesVehicleStockPrice { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
     }
 
@@ -114,6 +115,7 @@ public static class GetCustomerInvoicesByDriverToken
                         BasicQtyDelivered     = p.BasicQtyDelivered,
                         PackagingQtyDelivered = p.PackagingQtyDelivered,
                         BasicUnitPrice        = p.BasicUnitPrice,
+                        UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                         PackagingUnitPrice    = p.PackagingUnitPrice
                     }).ToList()
             }).ToList();

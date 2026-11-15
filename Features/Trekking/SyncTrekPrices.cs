@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -52,32 +53,8 @@ public static class SyncTrekPrices
                 .Where(p => stopProductIds.Contains(p.Id))
                 .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-            var regionMarkupRules = await db.RegionalMarkupRules
-                .Where(r => r.RegionId == trip.RegionId &&
-                            (r.ProductId == null || stopProductIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var regionProductMarkups = regionMarkupRules
-                .Where(r => r.ProductId.HasValue)
-                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
-            var regionWideMarkup = regionMarkupRules
-                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-
-            var customerIds = trip.Stops.Select(s => s.CustomerAccountId).Distinct().ToList();
-            var allCustomerMarkupRows = await db.CustomerMarkupRules
-                .Where(r => customerIds.Contains(r.CustomerAccountId) &&
-                            (r.ProductId == null || stopProductIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-
-            var customerMarkups = allCustomerMarkupRows
-                .GroupBy(r => r.CustomerAccountId)
-                .ToDictionary(
-                    g => g.Key,
-                    g => (
-                        Products: g.Where(r => r.ProductId.HasValue).ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage),
-                        Wildcard: g.Where(r => !r.ProductId.HasValue).Select(r => r.MarkupPercentage).Cast<decimal?>().FirstOrDefault()
-                    ));
+            var pricing = await new TrekPriceReader(db).ReadAsync(trip.VehicleId, trip.RegionId,
+                stopProductIds, trip.Stops.Select(s => s.CustomerAccountId), cancellationToken);
 
             var response = new SyncPricesResponse
             {
@@ -89,7 +66,7 @@ public static class SyncTrekPrices
 
             foreach (var stop in trip.Stops)
             {
-                customerMarkups.TryGetValue(stop.CustomerAccountId, out var stopCm);
+
 
                 foreach (var sp in stop.Products.Where(p => trip.Status != TrekStatus.InProgress || !p.DeliveredAt.HasValue))
                 {
@@ -98,9 +75,9 @@ public static class SyncTrekPrices
 
                     var changed = false;
 
-                    var resolvedBasic = ResolvePrice(catalog.BasicUnitPrice, sp.ProductId,
-                        stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
-                    if (sp.BasicUnitPrice != resolvedBasic)
+                    var resolvedBasic = pricing.Basic(catalog, stop.CustomerAccountId);
+                    if (!sp.UsesVehicleStockPrice && !pricing.HasVehiclePrice(sp.ProductId) &&
+                        sp.BasicUnitPrice != resolvedBasic)
                     {
                         response.Changes.Add($"{catalog.Name}: basic price {sp.BasicUnitPrice:F2} → {resolvedBasic:F2}");
                         sp.BasicUnitPrice = resolvedBasic;
@@ -121,8 +98,7 @@ public static class SyncTrekPrices
                     }
                     else if (!hadPackaging && nowHasPackaging)
                     {
-                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId,
-                            stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
+                        var resolvedPkg = pricing.Packaging(catalog, stop.CustomerAccountId);
                         response.Changes.Add($"{catalog.Name}: packaging unit added at {resolvedPkg:F2}");
                         sp.PackagingUnitPrice = resolvedPkg;
                         response.PackagingAdded++;
@@ -130,8 +106,7 @@ public static class SyncTrekPrices
                     }
                     else if (hadPackaging && nowHasPackaging)
                     {
-                        var resolvedPkg = ResolvePrice(catalog.PackagingUnitPrice!.Value, sp.ProductId,
-                            stopCm.Products ?? [], stopCm.Wildcard, regionProductMarkups, regionWideMarkup);
+                        var resolvedPkg = pricing.Packaging(catalog, stop.CustomerAccountId);
                         if (sp.PackagingUnitPrice != resolvedPkg)
                         {
                             response.Changes.Add($"{catalog.Name}: packaging price {sp.PackagingUnitPrice:F2} → {resolvedPkg:F2}");
@@ -161,23 +136,7 @@ public static class SyncTrekPrices
             return Result.Success(response);
         }
 
-        private static decimal ApplyMarkup(decimal price, decimal pct) =>
-            Math.Round(price * (1 + pct / 100m), 2);
 
-        private static decimal ResolvePrice(
-            decimal basePrice,
-            Guid productId,
-            Dictionary<Guid, decimal> customerProductMarkups,
-            decimal? customerWideMarkup,
-            Dictionary<Guid, decimal> regionProductMarkups,
-            decimal? regionWideMarkup)
-        {
-            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
-            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
-            return basePrice;
-        }
     }
 }
 
@@ -197,7 +156,7 @@ public class SyncTrekPricesEndpoint : ICarterModule
         .WithSummary("Sync product prices from catalog to trek stop products")
         .WithDescription(
             "Re-snapshots all stop product prices from the current product catalog. " +
-            "Updates BasicUnitPrice and PackagingUnitPrice on every stop product. " +
+            "Basic prices sourced from vehicle stock are excluded from global price synchronization. Packaging prices retain normal rules. " +
             "If a product's packaging unit was removed from the catalog, the stop product's packaging price, " +
             "planned packaging quantity, and delivered packaging quantity are all cleared. " +
             "If a product now has a packaging unit it previously lacked, the packaging price is added. " +

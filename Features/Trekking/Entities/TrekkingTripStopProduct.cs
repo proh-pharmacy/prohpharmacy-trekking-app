@@ -11,6 +11,7 @@ public class TrekkingTripStopProduct
     public decimal PlannedBasicQuantity { get; set; }
     public decimal? PlannedPackagingQuantity { get; set; }
     public decimal BasicUnitPrice { get; set; }
+    public bool UsesVehicleStockPrice { get; set; }
     public decimal? PackagingUnitPrice { get; set; }
     public decimal? BasicQtyDelivered { get; set; }
     public decimal? PackagingQtyDelivered { get; set; }

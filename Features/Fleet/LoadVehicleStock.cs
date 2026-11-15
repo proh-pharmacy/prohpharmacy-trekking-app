@@ -18,6 +18,7 @@ public static class LoadVehicleStock
         public Guid ProductId { get; set; }
         public decimal BasicQty { get; set; }
         public decimal PackagingQty { get; set; }
+        public decimal? BasicUnitPrice { get; set; }
     }
 
     public class Command : IRequest<Result<LoadResponse>>
@@ -37,11 +38,16 @@ public static class LoadVehicleStock
         public Validator()
         {
             RuleFor(x => x.Items).NotEmpty().WithMessage("At least one product is required.");
+            RuleFor(x => x.Items).Must(items => items.Select(i => i.ProductId).Distinct().Count() == items.Count)
+                .WithMessage("Each product must appear once; resolve duplicate quantities and prices before loading.");
             RuleForEach(x => x.Items).ChildRules(item =>
             {
                 item.RuleFor(i => i.ProductId).NotEmpty();
                 item.RuleFor(i => i.BasicQty).GreaterThan(0).WithMessage("BasicQty must be greater than 0.");
                 item.RuleFor(i => i.PackagingQty).GreaterThanOrEqualTo(0);
+                item.RuleFor(i => i.BasicUnitPrice).GreaterThanOrEqualTo(0).LessThanOrEqualTo(999999999999.99m)
+                    .Must(price => !price.HasValue || decimal.Round(price.Value, 2) == price.Value)
+                    .WithMessage("BasicUnitPrice must be zero to clear the vehicle price or a positive amount with at most two decimal places.");
             });
         }
     }
@@ -76,6 +82,7 @@ public static class LoadVehicleStock
 
             foreach (var item in request.Items)
             {
+                var basicUnitPrice = item.BasicUnitPrice is > 0 ? item.BasicUnitPrice : null;
                 var stock = existing.FirstOrDefault(s => s.ProductId == item.ProductId);
 
                 if (stock is null)
@@ -86,6 +93,7 @@ public static class LoadVehicleStock
                         ProductId = item.ProductId,
                         BasicQuantityOnHand = item.BasicQty,
                         PackagingQuantityOnHand = item.PackagingQty,
+                        BasicUnitPrice = basicUnitPrice,
                         CreatedAt = now
                     };
                     db.VehicleProductStocks.Add(stock);
@@ -94,6 +102,8 @@ public static class LoadVehicleStock
                 {
                     stock.BasicQuantityOnHand += item.BasicQty;
                     stock.PackagingQuantityOnHand += item.PackagingQty;
+                    // Missing price means this upload uses normal pricing, not a stale prior rate.
+                    stock.BasicUnitPrice = basicUnitPrice;
                     stock.UpdatedAt = now;
                 }
 
@@ -150,7 +160,7 @@ public class LoadVehicleStockEndpoint : ICarterModule
         .WithTags("Fleet")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Fleet)
         .WithSummary("Bulk add products to a vehicle's warehouse stock")
-        .WithDescription("Accepts an array of { productId, basicQty, packagingQty }. Creates or increments the stock record and writes a ledger entry per product.")
+        .WithDescription("Accepts an array of { productId, basicQty, packagingQty, basicUnitPrice? }. Optional basicUnitPrice is a final basic-unit selling price; omitted/null clears any prior vehicle price. Creates or increments the stock record and writes a ledger entry per product.")
         .Produces<LoadVehicleStock.LoadResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)

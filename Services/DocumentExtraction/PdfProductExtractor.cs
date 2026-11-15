@@ -11,30 +11,59 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
     public bool CanExtract(string extension) => extension == ".pdf";
 
     public async Task<DocumentExtractionResult> ExtractAsync(byte[] bytes, string extension,
-        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits, CancellationToken cancellationToken)
+        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits,
+        DocumentExtractionProgressCallback? reportProgress, CancellationToken cancellationToken)
     {
         using var document = PdfDocument.Open(bytes);
         if (document.NumberOfPages > options.Value.MaxPages)
             throw new DocumentExtractionException("PageLimit", "The PDF exceeds the page limit.");
         var result = new DocumentExtractionResult();
-        foreach (var page in document.GetPages())
+        var pages = document.GetPages().ToList();
+        if (reportProgress is not null)
+            await reportProgress(0, document.NumberOfPages, cancellationToken);
+        var tokensByPage = new Dictionary<int, IReadOnlyList<DocumentToken>>();
+        var ocrPages = new List<int>();
+        foreach (var page in pages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var words = page.GetWords(NearestNeighbourWordExtractor.Instance).ToList();
+            if (words.Count == 0 || page.NumberOfImages > 0)
+                ocrPages.Add(page.Number);
+            else
+                tokensByPage[page.Number] = words.Select(w => new DocumentToken(w.Text,
+                    w.BoundingBox.Left, page.Height - w.BoundingBox.Top,
+                    w.BoundingBox.Right, page.Height - w.BoundingBox.Bottom)).ToList();
+        }
+        if (ocrPages.Count > 0)
+        {
+            var ocrResults = await ocr.ReadPagesAsync(bytes, ocrPages, cancellationToken);
+            foreach (var ocrResult in ocrResults)
+            {
+                if (ocrResult.Error is null)
+                    tokensByPage[ocrResult.Page] = ocrResult.Tokens;
+                else
+                    result.Errors.Add(new("OcrPageFailed", ocrResult.Error, ocrResult.Page));
+            }
+        }
+
+        foreach (var page in pages)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var words = page.GetWords(NearestNeighbourWordExtractor.Instance).ToList();
-                IReadOnlyList<DocumentToken> tokens;
-                if (words.Count == 0 || page.NumberOfImages > 0)
-                    tokens = await ocr.ReadAsync(bytes, extension, page.Number, cancellationToken);
+                if (!tokensByPage.TryGetValue(page.Number, out var tokens))
+                {
+                    if (!result.Errors.Any(error => error.Page == page.Number))
+                        result.Errors.Add(new("OcrPageFailed", "The document page could not be processed.", page.Number));
+                }
                 else
-                    tokens = words.Select(w => new DocumentToken(w.Text,
-                        w.BoundingBox.Left, page.Height - w.BoundingBox.Top,
-                        w.BoundingBox.Right, page.Height - w.BoundingBox.Bottom)).ToList();
-                tokens = KeepTableRegion(tokens);
-                var rows = parser.Parse(tokens, page.Number, cancellationToken, knownUnits);
-                if (rows.Count == 0)
-                    result.Errors.Add(new("NoRows", "No product rows were found on this page.", page.Number));
-                result.Rows.AddRange(rows);
+                {
+                    tokens = KeepTableRegion(tokens);
+                    var rows = parser.Parse(tokens, page.Number, cancellationToken, knownUnits);
+                    if (rows.Count == 0)
+                        result.Errors.Add(new("NoRows", "No product rows were found on this page.", page.Number));
+                    result.Rows.AddRange(rows);
+                }
             }
             catch (DocumentExtractionException ex)
             {
@@ -42,6 +71,8 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
             }
             if (result.Rows.Count > options.Value.MaxRowsPerFile)
                 throw new DocumentExtractionException("RowLimit", "The PDF exceeds the extracted-row limit.");
+            if (reportProgress is not null)
+                await reportProgress(page.Number, document.NumberOfPages, cancellationToken);
         }
         return result;
     }

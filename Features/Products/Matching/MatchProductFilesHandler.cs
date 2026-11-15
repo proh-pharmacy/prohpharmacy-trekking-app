@@ -16,6 +16,7 @@ internal sealed class MatchProductFilesHandler(
     DocumentFileValidator fileValidator,
     IEnumerable<IProductDocumentExtractor> extractors,
     DocumentProcessingGate gate,
+    DocumentMatchJobProgressReporter progressReporter,
     IOptions<DocumentMatchingOptions> options,
     ILogger<MatchProductFilesHandler> logger)
     : IRequestHandler<MatchProductFilesCommand, Result<MatchProductFilesResponse>>
@@ -28,7 +29,9 @@ internal sealed class MatchProductFilesHandler(
             return Result.Failure<MatchProductFilesResponse>(Error.ValidationError(validation));
 
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.ProcessingTimeoutSeconds));
+        timeout.CancelAfter(TimeSpan.FromSeconds(request.JobId.HasValue
+            ? options.Value.QueuedProcessingTimeoutSeconds
+            : options.Value.ProcessingTimeoutSeconds));
         try { await gate.EnterAsync(timeout.Token); }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
@@ -43,6 +46,8 @@ internal sealed class MatchProductFilesHandler(
             for (var index = 0; index < request.Files.Count; index++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
+                if (request.JobId is { } jobId)
+                    await progressReporter.FileStartedAsync(jobId, index, timeout.Token);
                 var file = request.Files[index];
                 var result = new ProductMatchingFileResult
                 {
@@ -63,8 +68,13 @@ internal sealed class MatchProductFilesHandler(
                     await file.CopyToAsync(stream, timeout.Token);
                     var bytes = stream.ToArray();
                     fileValidator.Validate(bytes, extension);
+                    DocumentExtractionProgressCallback? reportProgress = request.JobId is { } progressJobId
+                        ? (completedPages, totalPages, token) => progressReporter.PageCompletedAsync(
+                            progressJobId, index, completedPages, totalPages, token)
+                        : null;
                     var extracted = await extractor.ExtractAsync(bytes, extension,
-                        request.ExcelMappings.SingleOrDefault(m => m.FileIndex == index), knownUnits, timeout.Token);
+                        request.ExcelMappings.SingleOrDefault(m => m.FileIndex == index), knownUnits,
+                        reportProgress, timeout.Token);
                     result.Errors.AddRange(extracted.Errors);
                     foreach (var row in extracted.Rows)
                     {
@@ -105,6 +115,8 @@ internal sealed class MatchProductFilesHandler(
                 }
                 if (result.Errors.Count > 0)
                     result.Status = result.Rows.Count == 0 ? "Failed" : "Partial";
+                if (request.JobId is { } completedJobId)
+                    await progressReporter.FileCompletedAsync(completedJobId, index, timeout.Token);
             }
             var rows = response.Files.SelectMany(f => f.Rows).ToList();
             response.Summary = new ProductMatchingSummary

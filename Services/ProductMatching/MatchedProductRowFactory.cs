@@ -49,6 +49,7 @@ public sealed class MatchedProductRowFactory
         return new MatchedProductRow
         {
             Page = source.Page, Worksheet = source.Worksheet, Row = source.Row,
+            PriceText = source.PriceText, BasicUnitPrice = source.BasicUnitPrice,
             ExtractedName = source.ExtractedName, QuantityText = source.QuantityText,
             BasicQtyText = source.BasicQtyText, PackagingQtyText = source.PackagingQtyText,
             UnitText = source.UnitText, Quantity = source.Quantity, BasicQty = basic, PackagingQty = packaging,

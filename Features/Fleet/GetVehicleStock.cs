@@ -23,6 +23,7 @@ public static class GetVehicleStock
         public Guid BasicUnitId { get; set; }
         public string BasicUnitName { get; set; } = string.Empty;
         public decimal BasicUnitPrice { get; set; }
+        public decimal? VehicleBasicUnitPrice { get; set; }
         public Guid? PackagingUnitId { get; set; }
         public string? PackagingUnitName { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
@@ -68,7 +69,8 @@ public static class GetVehicleStock
         Description = stock.Product.Description,
         BasicUnitId = stock.Product.BasicUnitId,
         BasicUnitName = stock.Product.BasicUnit.Name,
-        BasicUnitPrice = stock.Product.BasicUnitPrice,
+        BasicUnitPrice = stock.BasicUnitPrice ?? stock.Product.BasicUnitPrice,
+        VehicleBasicUnitPrice = stock.BasicUnitPrice,
         PackagingUnitId = stock.Product.PackagingUnitId,
         PackagingUnitName = stock.Product.PackagingUnit?.Name,
         PackagingUnitPrice = stock.Product.PackagingUnitPrice,

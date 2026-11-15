@@ -1,5 +1,7 @@
 # 20 — Pricing Markups
 
+> For trek sales, an optional vehicle-stock basic-unit price takes precedence over every markup rule. Global price checks/sync skip protected basic prices. Packaging retains its existing hierarchy. See [vehicle-stock pricing](28-vehicle-stock-pricing.md).
+
 ## Overview
 
 Markup rules let you adjust product prices up or down from the base catalog price. Rules are configured at two levels — **region** and **customer** — and are resolved automatically by the backend whenever prices are calculated. The frontend never needs to compute prices itself.

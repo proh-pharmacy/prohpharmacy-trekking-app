@@ -2,8 +2,13 @@ namespace prohpharmacy_trekking_app.Services.DocumentExtraction;
 
 public static class DocumentColumnNames
 {
-    public static string? Identify(string text) =>
-        string.Concat(text.ToLowerInvariant().Where(char.IsLetterOrDigit)) switch
+    public static string? Identify(string text)
+    {
+        // A percentage column must never be interpreted as an absolute price.
+        if (text.Contains('%')) return null;
+        var key = string.Concat(text.ToLowerInvariant().Where(char.IsLetterOrDigit));
+        if (key.EndsWith("ghs", StringComparison.Ordinal)) key = key[..^3];
+        return key switch
         {
             "product" or "products" or "productname" or "productnames" or
             "productdescription" or "productitem" or "item" or "items" or
@@ -16,7 +21,12 @@ public static class DocumentColumnNames
             "unit" or "units" or "uom" or "unitofmeasure" or "measure" => "unit",
             "basicqty" or "basicquantity" or "basicunits" => "basic",
             "packagingqty" or "packagingquantity" or "packqty" or "packagingunits" => "packaging",
-            "rate" or "price" or "unitprice" or "cost" or "unitcost" => "price",
+            "rate" or "price" or "unitprice" or "basicunitprice" or "basicprice" or
+            "sellingprice" or "saleprice" or "salesprice" or "unitrate" or
+            "unitsellingprice" or "sellingunitprice" or "priceperunit" or
+            "priceunit" or "basicunitrate" => "price",
+            "cost" or "unitcost" => "cost",
             _ => null
         };
+    }
 }

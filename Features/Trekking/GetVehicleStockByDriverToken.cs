@@ -39,7 +39,15 @@ public static class GetVehicleStockByDriverToken
                 .OrderByDescending(s => s.CreatedAt)
                 .ToListAsync(cancellationToken);
 
-            return Result.Success(stock.Select(GetVehicleStock.ToStockItem).ToList());
+            var pricing = await new Services.Pricing.TrekPriceReader(db).ReadAsync(trip.VehicleId, trip.RegionId,
+                stock.Select(s => s.ProductId), [], cancellationToken);
+            return Result.Success(stock.Select(s =>
+            {
+                var item = GetVehicleStock.ToStockItem(s);
+                item.BasicUnitPrice = pricing.Basic(s.Product);
+                item.PackagingUnitPrice = pricing.Packaging(s.Product);
+                return item;
+            }).ToList());
         }
     }
 }

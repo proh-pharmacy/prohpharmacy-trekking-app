@@ -6,6 +6,8 @@ public sealed class ExtractedProductRow
     public string? Worksheet { get; set; }
     public int Row { get; set; }
     public string ExtractedName { get; set; } = "";
+    public string? PriceText { get; set; }
+    public decimal? BasicUnitPrice { get; set; }
     public string? QuantityText { get; set; }
     public string? BasicQtyText { get; set; }
     public string? PackagingQtyText { get; set; }

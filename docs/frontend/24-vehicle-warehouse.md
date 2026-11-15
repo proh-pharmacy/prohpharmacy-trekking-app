@@ -1,5 +1,7 @@
 # 24 — Vehicle Warehouse and Trek Stock Loads
 
+> Stock loads now accept optional `basicUnitPrice`; current stock reads expose `vehicleBasicUnitPrice`. Omitted/null price on a submitted stock-load item clears the previous rate. See [vehicle-stock pricing](28-vehicle-stock-pricing.md).
+
 Verified against the implementation on 2026-10-01. Vehicle stock persists between treks. A trek stock load is a separate allocation record: saving or removing it does not change warehouse quantities. Delivery recording also leaves warehouse quantities unchanged; completion performs deductions.
 
 Add a **Stock** tab on vehicle details with current balances, bulk load/removal forms and stock history. Add a **Stock loads** tab to trek details for allocations and quantity warnings. All endpoints in this guide require a staff Bearer JWT; there are no driver-token stock-management equivalents.

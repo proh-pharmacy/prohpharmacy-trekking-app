@@ -76,6 +76,7 @@ public static class GetDriverStopByCustomer
         public decimal BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
         public decimal BasicUnitPrice { get; set; }
+        public bool UsesVehicleStockPrice { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
         public decimal LineTotal { get; set; }
         public decimal? AmtPaid { get; set; }
@@ -168,6 +169,7 @@ public static class GetDriverStopByCustomer
                     BasicQtyDelivered     = p.BasicQtyDelivered ?? 0,
                     PackagingQtyDelivered = p.PackagingQtyDelivered,
                     BasicUnitPrice        = p.BasicUnitPrice,
+                    UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                     PackagingUnitPrice    = p.PackagingUnitPrice,
                     LineTotal             = InvoiceAmounts.Total(p),
                     AmtPaid               = p.AmtPaid,

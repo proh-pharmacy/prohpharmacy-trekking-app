@@ -86,6 +86,7 @@ public static class CreateTrek
         public string? BasicUnitName { get; set; }
         public string? PackagingUnitName { get; set; }
         public decimal BasicUnitPrice { get; set; }
+        public bool UsesVehicleStockPrice { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
         public decimal PlannedBasicQuantity { get; set; }
         public decimal? PlannedPackagingQuantity { get; set; }

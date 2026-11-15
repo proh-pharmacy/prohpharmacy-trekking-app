@@ -1,5 +1,7 @@
 # Invoice first, then payment and receipt
 
+> Invoice lines now preserve vehicle-stock basic pricing where supplied, exposing `usesVehicleStockPrice`. Upload stock before scheduling; issued invoice prices remain snapshots. See [vehicle-stock pricing](28-vehicle-stock-pricing.md).
+
 This guide supersedes the payment instructions in the older delivery, sale-invoice,
 and offline-sync guides. Deploy the frontend changes together with this backend
 change: the delivery endpoints no longer accept payment amounts or methods.

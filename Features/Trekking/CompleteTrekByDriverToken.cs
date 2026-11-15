@@ -162,7 +162,7 @@ public static class CompleteTrekByDriverToken
                     ProductName = product.Name,
                     BasicUnitName = product.BasicUnit?.Name,
                     PackagingUnitName = product.PackagingUnit?.Name,
-                    BasicUnitPrice = product.BasicUnitPrice,
+                    BasicUnitPrice = stock?.BasicUnitPrice ?? product.BasicUnitPrice,
                     PackagingUnitPrice = product.PackagingUnitPrice,
                     BasicQtyAtStart = basicStart,
                     PackagingQtyAtStart = packagingStart,

@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -119,6 +120,8 @@ public static class UpdateTrekStop
                     return Result.Failure<TrekStopResponse>(Error.CreateNotFoundError($"Product {missingId} not found."));
 
                 productDict = products.ToDictionary(p => p.Id);
+                var pricing = await new TrekPriceReader(db).ReadAsync(stop.TrekkingTrip.VehicleId,
+                    stop.TrekkingTrip.RegionId, productIds, [stop.CustomerAccountId], cancellationToken);
 
                 if (newCustomer is null)
                     db.TrekkingTripStopProducts.RemoveRange(stop.Products.ToList());
@@ -129,8 +132,8 @@ public static class UpdateTrekStop
                     var hasPackaging = product?.PackagingUnitId.HasValue ?? false;
                     var basicQty = input.PlannedBasicQuantity ?? 0;
                     var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
-                    var basicPrice = product?.BasicUnitPrice ?? 0;
-                    var packagingPrice = hasPackaging ? product?.PackagingUnitPrice : null;
+                    var basicPrice = pricing.Basic(product!, stop.CustomerAccountId);
+                    var packagingPrice = pricing.Packaging(product!, stop.CustomerAccountId);
                     return new TrekkingTripStopProduct
                     {
                         TrekkingTripStopId = stop.Id,
@@ -138,6 +141,7 @@ public static class UpdateTrekStop
                         PlannedBasicQuantity = basicQty,
                         PlannedPackagingQuantity = packagingQty,
                         BasicUnitPrice = basicPrice,
+                        UsesVehicleStockPrice = pricing.HasVehiclePrice(input.ProductId),
                         PackagingUnitPrice = packagingPrice,
                         AmountDue = basicQty * basicPrice + (packagingQty ?? 0) * (packagingPrice ?? 0)
                     };
@@ -198,6 +202,7 @@ public static class UpdateTrekStop
                         BasicUnitName = prod?.BasicUnit?.Name,
                         PackagingUnitName = prod?.PackagingUnit?.Name,
                         BasicUnitPrice = p.BasicUnitPrice,
+                        UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                         PackagingUnitPrice = p.PackagingUnitPrice,
                         PlannedBasicQuantity = p.PlannedBasicQuantity,
                         PlannedPackagingQuantity = p.PlannedPackagingQuantity,
