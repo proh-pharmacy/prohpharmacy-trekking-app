@@ -23,6 +23,23 @@ public sealed class InvoiceLifecycleService(AppDbContext db)
 
         if (invoice is null)
         {
+            // Scheduling may follow a stock upload made after draft stops were added.
+            // Capture the vehicle rate only when issuing the invoice, never on reads
+            // or when resynchronizing an already issued invoice.
+            var productIds = stop.Products.Select(p => p.ProductId).Distinct().ToList();
+            var products = await db.Products.AsNoTracking().Where(p => productIds.Contains(p.Id))
+                .ToDictionaryAsync(p => p.Id, ct);
+            var pricing = await new Pricing.TrekPriceReader(db).ReadAsync(trip.VehicleId, trip.RegionId,
+                productIds, [stop.CustomerAccountId], ct);
+            foreach (var line in stop.Products.Where(p => db.Entry(p).State is not (EntityState.Deleted or EntityState.Detached)))
+            {
+                if ((pricing.HasVehiclePrice(line.ProductId) || line.UsesVehicleStockPrice) &&
+                    products.TryGetValue(line.ProductId, out var product))
+                {
+                    line.BasicUnitPrice = pricing.Basic(product, stop.CustomerAccountId);
+                    line.UsesVehicleStockPrice = pricing.HasVehiclePrice(line.ProductId);
+                }
+            }
             invoice = new SaleInvoice
             {
                 Stop = stop,

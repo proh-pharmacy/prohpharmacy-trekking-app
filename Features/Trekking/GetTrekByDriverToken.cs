@@ -68,6 +68,7 @@ public static class GetTrekByDriverToken
         public string? BasicUnitName { get; set; }
         public string? PackagingUnitName { get; set; }
         public decimal BasicUnitPrice { get; set; }
+        public bool UsesVehicleStockPrice { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
         public decimal PlannedBasicQuantity { get; set; }
         public decimal? PlannedPackagingQuantity { get; set; }
@@ -203,6 +204,7 @@ public static class GetTrekByDriverToken
                             BasicUnitName = p.Product?.BasicUnit?.Name,
                             PackagingUnitName = p.Product?.PackagingUnit?.Name,
                             BasicUnitPrice = p.BasicUnitPrice,
+                            UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                             PackagingUnitPrice = p.PackagingUnitPrice,
                             PlannedBasicQuantity = p.PlannedBasicQuantity,
                             PlannedPackagingQuantity = p.PlannedPackagingQuantity,

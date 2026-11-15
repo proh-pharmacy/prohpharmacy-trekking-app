@@ -60,6 +60,7 @@ public static class GetInvoice
         public decimal? BasicQtyDelivered { get; set; }
         public decimal? PackagingQtyDelivered { get; set; }
         public decimal BasicUnitPrice { get; set; }
+        public bool UsesVehicleStockPrice { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
         public decimal LineTotal { get; set; }
         public decimal? AmtPaid { get; set; }
@@ -149,6 +150,7 @@ public static class GetInvoice
                         BasicQtyDelivered = p.BasicQtyDelivered,
                         PackagingQtyDelivered = p.PackagingQtyDelivered,
                         BasicUnitPrice = p.BasicUnitPrice,
+                        UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                         PackagingUnitPrice = p.PackagingUnitPrice,
                         LineTotal = InvoiceAmounts.Total(p),
                         AmtPaid = p.AmtPaid,

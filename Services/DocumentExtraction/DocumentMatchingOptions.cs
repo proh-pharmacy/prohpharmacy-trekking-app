@@ -10,10 +10,13 @@ public sealed class DocumentMatchingOptions
     public int MaxRowsPerFile { get; set; } = 1000;
     public int MaxTextLength { get; set; } = 1000;
     public int ProcessingTimeoutSeconds { get; set; } = 180;
+    public int QueuedProcessingTimeoutSeconds { get; set; } = 1800;
     public int MaxConcurrentRequests { get; set; } = 2;
     public int MinimumSimilarity { get; set; } = 75;
     public int AmbiguityMargin { get; set; } = 5;
     public int MaxCandidates { get; set; } = 5;
     public string OcrBaseUrl { get; set; } = "";
-    public int OcrTimeoutSeconds { get; set; } = 60;
+    public int OcrTimeoutSeconds { get; set; } = 120;
+    public string JobStoragePath { get; set; } = "Data/document-matching-jobs";
+    public int JobRetentionHours { get; set; } = 24;
 }

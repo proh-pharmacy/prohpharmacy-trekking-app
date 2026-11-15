@@ -101,6 +101,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
                 }
                 row.ExtractedName = Value("name") ?? "";
                 row.QuantityText = Value("quantity");
+                row.PriceText = Value("price");
                 row.UnitText = Value("unit");
                 row.BasicQtyText = Value("basic");
                 row.PackagingQtyText = Value("packaging");
@@ -118,6 +119,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
             if (row.OcrConfidence < 0.85)
                 row.Warnings.Add("OCR confidence is low; compare this row with the original document.");
             QuantityParser.Populate(row);
+            DocumentPriceParser.Populate(row);
             rows.Add(row);
             if (rows.Count > options.Value.MaxRowsPerFile)
                 throw new DocumentExtractionException("RowLimit", "The document exceeds the extracted-row limit.");

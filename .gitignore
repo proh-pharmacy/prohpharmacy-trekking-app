@@ -81,3 +81,6 @@ secrets.json
 
 # Publish output
 publish/
+
+# Queued document matching uploads
+Data/document-matching-jobs/

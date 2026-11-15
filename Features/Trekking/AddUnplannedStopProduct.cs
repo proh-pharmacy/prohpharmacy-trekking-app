@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -78,11 +79,14 @@ public static class AddUnplannedStopProduct
             if (product is null)
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Product not found."));
 
+            var pricing = await new TrekPriceReader(_db).ReadAsync(stop.TrekkingTrip.VehicleId, stop.TrekkingTrip.RegionId,
+                [product.Id], [stop.CustomerAccountId], cancellationToken);
+            var basicPrice = pricing.Basic(product, stop.CustomerAccountId);
             var hasPackaging = product.PackagingUnitId.HasValue;
             if (!hasPackaging && request.PackagingQtyDelivered > 0)
                 return Result.Failure<TrekStopProductResponse>(Error.BadRequest("This product has no packaging unit."));
             var pkgDelivered = hasPackaging ? request.PackagingQtyDelivered : null;
-            var pkgPrice = hasPackaging ? product.PackagingUnitPrice : null;
+            var pkgPrice = pricing.Packaging(product, stop.CustomerAccountId);
 
             var stopProduct = new TrekkingTripStopProduct
             {
@@ -90,11 +94,12 @@ public static class AddUnplannedStopProduct
                 ProductId = request.ProductId,
                 PlannedBasicQuantity = 0,
                 PlannedPackagingQuantity = null,
-                BasicUnitPrice = product.BasicUnitPrice,
+                BasicUnitPrice = basicPrice,
+                UsesVehicleStockPrice = pricing.HasVehiclePrice(product.Id),
                 PackagingUnitPrice = pkgPrice,
                 BasicQtyDelivered = request.BasicQtyDelivered,
                 PackagingQtyDelivered = pkgDelivered,
-                AmountDue = request.BasicQtyDelivered * product.BasicUnitPrice + (pkgDelivered ?? 0) * (pkgPrice ?? 0),
+                AmountDue = request.BasicQtyDelivered * basicPrice + (pkgDelivered ?? 0) * (pkgPrice ?? 0),
                 IsUnplanned = true,
                 Notes = request.Notes?.Trim(),
                 DeliveredAt = DateTime.UtcNow
@@ -111,6 +116,7 @@ public static class AddUnplannedStopProduct
                 BasicUnitName = product.BasicUnit?.Name,
                 PackagingUnitName = product.PackagingUnit?.Name,
                 BasicUnitPrice = stopProduct.BasicUnitPrice,
+                UsesVehicleStockPrice = stopProduct.UsesVehicleStockPrice,
                 PackagingUnitPrice = stopProduct.PackagingUnitPrice,
                 PlannedBasicQuantity = stopProduct.PlannedBasicQuantity,
                 PlannedPackagingQuantity = stopProduct.PlannedPackagingQuantity,

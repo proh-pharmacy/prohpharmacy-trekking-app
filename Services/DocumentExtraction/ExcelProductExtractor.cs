@@ -7,8 +7,9 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
 {
     public bool CanExtract(string extension) => extension == ".xlsx";
 
-    public Task<DocumentExtractionResult> ExtractAsync(byte[] bytes, string extension,
-        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits, CancellationToken cancellationToken)
+    public async Task<DocumentExtractionResult> ExtractAsync(byte[] bytes, string extension,
+        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits,
+        DocumentExtractionProgressCallback? reportProgress, CancellationToken cancellationToken)
     {
         mapping ??= new ExcelColumnMapping();
         using var stream = new MemoryStream(bytes, false);
@@ -21,8 +22,9 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
             throw new DocumentExtractionException("PageLimit", "The workbook exceeds the worksheet limit.");
 
         var result = new DocumentExtractionResult();
-        foreach (var sheet in sheets)
+        for (var sheetIndex = 0; sheetIndex < sheets.Count; sheetIndex++)
         {
+            var sheet = sheets[sheetIndex];
             cancellationToken.ThrowIfCancellationRequested();
             if (sheet.Dimension is null) continue;
             if (sheet.Dimension.End.Row - mapping.HeaderRow > options.Value.MaxRowsPerFile ||
@@ -41,18 +43,22 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
                 var row = new ExtractedProductRow
                 {
                     Worksheet = sheet.Name, Row = rowNumber, ExtractedName = name,
+                    PriceText = Cell("price"),
                     QuantityText = Cell("quantity"), UnitText = Cell("unit"),
                     BasicQtyText = Cell("basic"), PackagingQtyText = Cell("packaging")
                 };
                 QuantityParser.Populate(row);
+                DocumentPriceParser.Populate(row);
                 result.Rows.Add(row);
                 if (result.Rows.Count > options.Value.MaxRowsPerFile)
                     throw new DocumentExtractionException("RowLimit", "The workbook exceeds the extracted-row limit.");
             }
+            if (reportProgress is not null)
+                await reportProgress(sheetIndex + 1, sheets.Count, cancellationToken);
         }
         if (result.Rows.Count == 0)
             result.Errors.Add(new("NoRows", "No product rows were found."));
-        return Task.FromResult(result);
+        return result;
     }
 
     private static Dictionary<string, int> ResolveColumns(ExcelWorksheet sheet, ExcelColumnMapping mapping,
@@ -62,11 +68,11 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
         {
             ["name"] = mapping.ProductNameColumn, ["quantity"] = mapping.QuantityColumn,
             ["unit"] = mapping.UnitColumn, ["basic"] = mapping.BasicQtyColumn,
-            ["packaging"] = mapping.PackagingQtyColumn
+            ["packaging"] = mapping.PackagingQtyColumn, ["price"] = mapping.PriceColumn
         };
         headerRow = mapping.HeaderRow;
         if (mapping.ProductNameColumn is null && mapping.QuantityColumn is null &&
-            mapping.UnitColumn is null && mapping.BasicQtyColumn is null && mapping.PackagingQtyColumn is null)
+            mapping.UnitColumn is null && mapping.BasicQtyColumn is null && mapping.PackagingQtyColumn is null && mapping.PriceColumn is null)
         {
             var detected = Enumerable.Range(1, Math.Min(sheet.Dimension.End.Row, 100))
                 .Select(row => new

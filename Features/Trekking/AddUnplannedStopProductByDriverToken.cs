@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -101,12 +102,15 @@ public static class AddUnplannedStopProductByDriverToken
             if (product is null)
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Product not found."));
 
+            var pricing = await new TrekPriceReader(_db).ReadAsync(trip.VehicleId, trip.RegionId,
+                [product.Id], [stop.CustomerAccountId], cancellationToken);
+            var basicPrice = pricing.Basic(product, stop.CustomerAccountId);
             var hasPackaging = product.PackagingUnitId.HasValue;
             if (!hasPackaging && request.PackagingQtyDelivered > 0)
                 return Result.Failure<TrekStopProductResponse>(Error.BadRequest("This product has no packaging unit."));
             var pkgDelivered = hasPackaging ? request.PackagingQtyDelivered : null;
-            var pkgPrice = hasPackaging ? product.PackagingUnitPrice : null;
-            var amountDue = request.BasicQtyDelivered * product.BasicUnitPrice
+            var pkgPrice = pricing.Packaging(product, stop.CustomerAccountId);
+            var amountDue = request.BasicQtyDelivered * basicPrice
                 + (pkgDelivered ?? 0) * (pkgPrice ?? 0);
 
             var stopProduct = new TrekkingTripStopProduct
@@ -115,7 +119,8 @@ public static class AddUnplannedStopProductByDriverToken
                 ProductId = request.ProductId,
                 PlannedBasicQuantity = 0,
                 PlannedPackagingQuantity = null,
-                BasicUnitPrice = product.BasicUnitPrice,
+                BasicUnitPrice = basicPrice,
+                UsesVehicleStockPrice = pricing.HasVehiclePrice(product.Id),
                 PackagingUnitPrice = pkgPrice,
                 BasicQtyDelivered = request.BasicQtyDelivered,
                 PackagingQtyDelivered = pkgDelivered,
@@ -140,6 +145,7 @@ public static class AddUnplannedStopProductByDriverToken
             BasicUnitName = (prod ?? p.Product)?.BasicUnit?.Name,
             PackagingUnitName = (prod ?? p.Product)?.PackagingUnit?.Name,
             BasicUnitPrice = p.BasicUnitPrice,
+            UsesVehicleStockPrice = p.UsesVehicleStockPrice,
             PackagingUnitPrice = p.PackagingUnitPrice,
             PlannedBasicQuantity = p.PlannedBasicQuantity,
             PlannedPackagingQuantity = p.PlannedPackagingQuantity,

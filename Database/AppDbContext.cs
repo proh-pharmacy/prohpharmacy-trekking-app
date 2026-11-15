@@ -6,6 +6,7 @@ using prohpharmacy_trekking_app.Features.Identity.Entities;
 using prohpharmacy_trekking_app.Features.Notifications.Entities;
 using prohpharmacy_trekking_app.Features.Organisation.Entities;
 using prohpharmacy_trekking_app.Features.Products.Entities;
+using prohpharmacy_trekking_app.Features.Products.Matching.Entities;
 using prohpharmacy_trekking_app.Features.Units.Entities;
 using prohpharmacy_trekking_app.Features.Staff.Entities;
 using prohpharmacy_trekking_app.Features.Trekking.Entities;
@@ -41,6 +42,7 @@ namespace prohpharmacy_trekking_app.Database
         // Products
         public DbSet<Product> Products => Set<Product>();
         public DbSet<Unit> Units => Set<Unit>();
+        public DbSet<DocumentMatchJob> DocumentMatchJobs => Set<DocumentMatchJob>();
 
         // Ledger
         public DbSet<CustomerLedgerEntry> CustomerLedgerEntries => Set<CustomerLedgerEntry>();
@@ -225,6 +227,8 @@ namespace prohpharmacy_trekking_app.Database
                 entity.Property(s => s.BasicQuantityOnHand).HasPrecision(10, 3).IsRequired();
                 entity.Property(s => s.PackagingQuantityOnHand).HasPrecision(10, 3).IsRequired();
                 entity.Property(s => s.LowStockThreshold).HasPrecision(10, 3);
+                entity.Property(s => s.BasicUnitPrice).HasPrecision(14, 2);
+                entity.ToTable(t => t.HasCheckConstraint("CK_VehicleProductStocks_BasicUnitPrice", "\"BasicUnitPrice\" IS NULL OR \"BasicUnitPrice\" > 0"));
                 entity.HasOne(s => s.Vehicle)
                     .WithMany()
                     .HasForeignKey(s => s.VehicleId)
@@ -366,6 +370,18 @@ namespace prohpharmacy_trekking_app.Database
                     .WithMany()
                     .HasForeignKey(p => p.PackagingUnitId)
                     .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            modelBuilder.Entity<DocumentMatchJob>(entity =>
+            {
+                entity.HasKey(j => j.Id);
+                entity.Property(j => j.Status).HasConversion<string>().HasMaxLength(30).IsRequired();
+                entity.Property(j => j.InputManifestJson).HasColumnType("jsonb").IsRequired();
+                entity.Property(j => j.ExcelMappingsJson).HasColumnType("jsonb").IsRequired();
+                entity.Property(j => j.ResultJson).HasColumnType("jsonb");
+                entity.Property(j => j.ErrorMessage).HasMaxLength(500);
+                entity.HasIndex(j => new { j.Status, j.CreatedAt });
+                entity.HasIndex(j => j.ExpiresAt);
             });
 
             modelBuilder.Entity<Unit>(entity =>

@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Options;
+using prohpharmacy_trekking_app.Features.Products.Matching;
 using prohpharmacy_trekking_app.Services.DocumentExtraction;
 using prohpharmacy_trekking_app.Services.ProductMatching;
 
@@ -13,7 +14,9 @@ public static class DocumentMatchingServiceExtensions
                 o.MaxTotalBytes >= o.MaxFileBytes && o.MaxTotalBytes < DocumentMatchingOptions.RequestBodyLimit &&
                 o.MaxPages is > 0 and <= 100 && o.MaxRowsPerFile is > 0 and <= 10000 &&
                 o.MaxTextLength is > 0 and <= 10000 && o.MaxConcurrentRequests is > 0 and <= 16 &&
-                o.ProcessingTimeoutSeconds > 0 && o.OcrTimeoutSeconds > 0 &&
+                o.ProcessingTimeoutSeconds > 0 && o.QueuedProcessingTimeoutSeconds >= o.ProcessingTimeoutSeconds &&
+                o.OcrTimeoutSeconds > 0 && o.JobRetentionHours is > 0 and <= 168 &&
+                !string.IsNullOrWhiteSpace(o.JobStoragePath) &&
                 o.MinimumSimilarity is >= 0 and <= 100 && o.AmbiguityMargin is >= 0 and <= 100 &&
                 o.MaxCandidates is > 0 and <= 20, "Invalid document matching limits.")
             .Validate(o => string.IsNullOrWhiteSpace(o.OcrBaseUrl) ||
@@ -22,12 +25,14 @@ public static class DocumentMatchingServiceExtensions
             .ValidateOnStart();
         services.AddSingleton<DocumentProcessingGate>();
         services.AddSingleton<DocumentFileValidator>();
+        services.AddSingleton<DocumentMatchFileStorage>();
         services.AddSingleton<DocumentTableRowParser>();
         services.AddSingleton<ProductIdentityGuard>();
         services.AddSingleton<IProductNameMatcher, ProductNameMatcher>();
         services.AddSingleton<MatchedProductRowFactory>();
         services.AddSingleton<ProductAggregationService>();
         services.AddScoped<IProductCatalogueReader, ProductCatalogueReader>();
+        services.AddScoped<DocumentMatchJobProgressReporter>();
         services.AddTransient<IProductDocumentExtractor, ExcelProductExtractor>();
         services.AddTransient<IProductDocumentExtractor, PdfProductExtractor>();
         services.AddTransient<IProductDocumentExtractor, ImageProductExtractor>();
@@ -37,7 +42,7 @@ public static class DocumentMatchingServiceExtensions
             if (!string.IsNullOrWhiteSpace(options.OcrBaseUrl))
                 client.BaseAddress = new Uri(options.OcrBaseUrl.TrimEnd('/') + "/");
             client.Timeout = Timeout.InfiniteTimeSpan;
-            client.MaxResponseContentBufferSize = 4 * 1024 * 1024;
+            client.MaxResponseContentBufferSize = 16 * 1024 * 1024;
         });
         return services;
     }

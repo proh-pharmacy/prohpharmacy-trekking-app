@@ -32,6 +32,7 @@ public static class GetProductList
         public Guid BasicUnitId { get; set; }
         public string BasicUnitName { get; set; } = string.Empty;
         public decimal BasicUnitPrice { get; set; }
+        public decimal? VehicleBasicUnitPrice { get; set; }
         public Guid? PackagingUnitId { get; set; }
         public string? PackagingUnitName { get; set; }
         public decimal? PackagingUnitPrice { get; set; }
@@ -117,7 +118,8 @@ public static class GetProductList
                         Description = p.Description,
                         BasicUnitId = p.BasicUnitId,
                         BasicUnitName = p.BasicUnit.Name,
-                        BasicUnitPrice = p.BasicUnitPrice,
+                        BasicUnitPrice = stock?.BasicUnitPrice ?? p.BasicUnitPrice,
+                        VehicleBasicUnitPrice = stock?.BasicUnitPrice,
                         PackagingUnitId = p.PackagingUnitId,
                         PackagingUnitName = p.PackagingUnit?.Name,
                         PackagingUnitPrice = p.PackagingUnitPrice,

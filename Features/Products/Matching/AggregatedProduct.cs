@@ -4,6 +4,8 @@ public sealed class AggregatedProduct
 {
     public Guid ProductId { get; set; }
     public string ProductName { get; set; } = "";
+    public decimal? BasicUnitPrice { get; set; }
+    public List<string> Warnings { get; set; } = [];
     public decimal? BasicQty { get; set; }
     public decimal? PackagingQty { get; set; }
     public bool RequiresReview { get; set; } = true;

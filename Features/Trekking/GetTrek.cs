@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -98,47 +99,21 @@ public static class GetTrek
                     .AsNoTracking()
                     .ToDictionaryAsync(p => p.Id, cancellationToken);
 
-                var regionMarkupRules = await _db.RegionalMarkupRules
-                    .Where(r => r.RegionId == trip.RegionId &&
-                                (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken);
-                var regionProductMarkups = regionMarkupRules
-                    .Where(r => r.ProductId.HasValue)
-                    .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
-                var regionWideMarkup = regionMarkupRules
-                    .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-
-                var customerIds = trip.Stops.Select(s => s.CustomerAccountId).Distinct().ToList();
-                var allCustomerMarkupRows = await _db.CustomerMarkupRules
-                    .Where(r => customerIds.Contains(r.CustomerAccountId) &&
-                                (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                    .AsNoTracking()
-                    .ToListAsync(cancellationToken);
-
-                var customerMarkups = allCustomerMarkupRows
-                    .GroupBy(r => r.CustomerAccountId)
-                    .ToDictionary(
-                        g => g.Key,
-                        g => (
-                            Products: g.Where(r => r.ProductId.HasValue).ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage),
-                            Wildcard: g.Where(r => !r.ProductId.HasValue).Select(r => r.MarkupPercentage).Cast<decimal?>().FirstOrDefault()
-                        ));
+                var pricing = await new TrekPriceReader(_db).ReadAsync(trip.VehicleId, trip.RegionId,
+                    productIds, trip.Stops.Select(s => s.CustomerAccountId), cancellationToken);
 
                 syncRequired = candidateProducts.Any(x =>
                 {
                     if (!catalogPrices.TryGetValue(x.Product.ProductId, out var cat)) return false;
-                    customerMarkups.TryGetValue(x.Stop.CustomerAccountId, out var cm);
-                    var resolvedBasic = ResolvePrice(cat.BasicUnitPrice, x.Product.ProductId,
-                        cm.Products ?? [], cm.Wildcard, regionProductMarkups, regionWideMarkup);
-                    if (x.Product.BasicUnitPrice != resolvedBasic) return true;
+                    var resolvedBasic = pricing.Basic(cat, x.Stop.CustomerAccountId);
+                    if (!x.Product.UsesVehicleStockPrice && !pricing.HasVehiclePrice(x.Product.ProductId) &&
+                        x.Product.BasicUnitPrice != resolvedBasic) return true;
                     var hadPackaging = x.Product.PackagingUnitPrice.HasValue;
                     var nowHasPackaging = cat.PackagingUnitId.HasValue;
                     if (hadPackaging != nowHasPackaging) return true;
                     if (hadPackaging && nowHasPackaging)
                     {
-                        var resolvedPkg = ResolvePrice(cat.PackagingUnitPrice!.Value, x.Product.ProductId,
-                            cm.Products ?? [], cm.Wildcard, regionProductMarkups, regionWideMarkup);
+                        var resolvedPkg = pricing.Packaging(cat, x.Stop.CustomerAccountId);
                         if (x.Product.PackagingUnitPrice != resolvedPkg) return true;
                     }
                     return false;
@@ -156,24 +131,6 @@ public static class GetTrek
 
             response.SyncRequired = syncRequired;
             return Result.Success(response);
-        }
-
-        private static decimal ApplyMarkup(decimal price, decimal pct) =>
-            Math.Round(price * (1 + pct / 100m), 2);
-
-        private static decimal ResolvePrice(
-            decimal basePrice,
-            Guid productId,
-            Dictionary<Guid, decimal> customerProductMarkups,
-            decimal? customerWideMarkup,
-            Dictionary<Guid, decimal> regionProductMarkups,
-            decimal? regionWideMarkup)
-        {
-            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
-            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
-            return basePrice;
         }
 
         internal static TrekStopResponse MapStop(Entities.TrekkingTripStop stop, Entities.SaleInvoice? invoice = null)
@@ -216,6 +173,7 @@ public static class GetTrek
                     BasicUnitName = p.Product?.BasicUnit?.Name,
                     PackagingUnitName = p.Product?.PackagingUnit?.Name,
                     BasicUnitPrice = p.BasicUnitPrice,
+                    UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                     PackagingUnitPrice = p.PackagingUnitPrice,
                     PlannedBasicQuantity = p.PlannedBasicQuantity,
                     PlannedPackagingQuantity = p.PlannedPackagingQuantity,

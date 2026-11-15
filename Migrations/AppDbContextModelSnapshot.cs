@@ -488,6 +488,10 @@ namespace prohpharmacy_trekking_app.Migrations
                         .HasPrecision(10, 3)
                         .HasColumnType("numeric(10,3)");
 
+                    b.Property<decimal?>("BasicUnitPrice")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("numeric(14,2)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone");
 
@@ -515,7 +519,10 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.HasIndex("VehicleId", "ProductId")
                         .IsUnique();
 
-                    b.ToTable("VehicleProductStocks");
+                    b.ToTable("VehicleProductStocks", t =>
+                        {
+                            t.HasCheckConstraint("CK_VehicleProductStocks_BasicUnitPrice", "\"BasicUnitPrice\" IS NULL OR \"BasicUnitPrice\" > 0");
+                        });
                 });
 
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Fleet.Entities.VehicleStaffAssignment", b =>
@@ -1207,6 +1214,71 @@ namespace prohpharmacy_trekking_app.Migrations
                     b.ToTable("Products");
                 });
 
+            modelBuilder.Entity("prohpharmacy_trekking_app.Features.Products.Matching.Entities.DocumentMatchJob", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int?>("CurrentFileIndex")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CurrentFilePages")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("CurrentPage")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ErrorMessage")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
+                    b.Property<string>("ExcelMappingsJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InputManifestJson")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<int>("ProcessedFiles")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ResultJson")
+                        .HasColumnType("jsonb");
+
+                    b.Property<DateTime?>("StartedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("character varying(30)");
+
+                    b.Property<int>("TotalFiles")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt");
+
+                    b.HasIndex("Status", "CreatedAt");
+
+                    b.ToTable("DocumentMatchJobs");
+                });
+
             modelBuilder.Entity("prohpharmacy_trekking_app.Features.Staff.Entities.StaffMember", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1743,6 +1815,9 @@ namespace prohpharmacy_trekking_app.Migrations
 
                     b.Property<Guid>("TrekkingTripStopId")
                         .HasColumnType("uuid");
+
+                    b.Property<bool>("UsesVehicleStockPrice")
+                        .HasColumnType("boolean");
 
                     b.Property<uint>("xmin")
                         .IsConcurrencyToken()

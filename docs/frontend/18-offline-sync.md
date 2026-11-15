@@ -1,5 +1,7 @@
 # 18 — Trek Driver Control Panel & Offline Sync
 
+> Offline products now include vehicle-stock basic pricing. The complete pricing bundle is returned even with `since`; replace cached stop overrides on refresh. See [vehicle-stock pricing](28-vehicle-stock-pricing.md).
+
 > Updated for the invoice-first backend on 2026-11-08. See [Invoice First & Payments](./27-invoice-first-payments.md) for the payment and receipt contracts.
 
 

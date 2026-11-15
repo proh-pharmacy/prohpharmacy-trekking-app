@@ -9,6 +9,8 @@ public class VehicleProductStock
     public Guid ProductId { get; set; }
     public decimal BasicQuantityOnHand { get; set; }
     public decimal PackagingQuantityOnHand { get; set; }
+    // Optional final selling price per basic unit from the vehicle supply document.
+    public decimal? BasicUnitPrice { get; set; }
     public decimal? LowStockThreshold { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? UpdatedAt { get; set; }

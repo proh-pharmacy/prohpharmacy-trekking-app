@@ -20,6 +20,7 @@ public sealed class MatchProductFilesValidator : AbstractValidator<MatchProductF
             mapping.RuleFor(m => m.HeaderRow).InclusiveBetween(1, 100);
             mapping.RuleFor(m => m.Worksheet).MaximumLength(100);
             mapping.RuleFor(m => m.ProductNameColumn).MaximumLength(100);
+            mapping.RuleFor(m => m.PriceColumn).MaximumLength(100);
             mapping.RuleFor(m => m.QuantityColumn).MaximumLength(100);
             mapping.RuleFor(m => m.UnitColumn).MaximumLength(100);
             mapping.RuleFor(m => m.BasicQtyColumn).MaximumLength(100);

@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Services.Pricing;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -95,27 +96,8 @@ public static class AddTrekStop
 
             var productDict = products.ToDictionary(p => p.Id);
 
-            var regionMarkupRules = await _db.RegionalMarkupRules
-                .Where(r => r.RegionId == trip.RegionId &&
-                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var regionProductMarkups = regionMarkupRules
-                .Where(r => r.ProductId.HasValue)
-                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
-            var regionWideMarkup = regionMarkupRules
-                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
-
-            var customerMarkupRules = await _db.CustomerMarkupRules
-                .Where(r => r.CustomerAccountId == request.CustomerAccountId &&
-                            (r.ProductId == null || productIds.Contains(r.ProductId.Value)))
-                .AsNoTracking()
-                .ToListAsync(cancellationToken);
-            var customerProductMarkups = customerMarkupRules
-                .Where(r => r.ProductId.HasValue)
-                .ToDictionary(r => r.ProductId!.Value, r => r.MarkupPercentage);
-            var customerWideMarkup = customerMarkupRules
-                .FirstOrDefault(r => !r.ProductId.HasValue)?.MarkupPercentage;
+            var pricing = await new TrekPriceReader(_db).ReadAsync(trip.VehicleId, trip.RegionId,
+                productIds, [request.CustomerAccountId], cancellationToken);
 
             var stopProducts = new List<TrekkingTripStopProduct>();
             foreach (var input in request.Products)
@@ -124,16 +106,15 @@ public static class AddTrekStop
                 var hasPackaging = product.PackagingUnitId.HasValue;
                 var basicQty = input.PlannedBasicQuantity ?? 0;
                 var packagingQty = hasPackaging ? input.PlannedPackagingQuantity : null;
-                var basicPrice = ResolvePrice(product.BasicUnitPrice, product.Id, customerProductMarkups, customerWideMarkup, regionProductMarkups, regionWideMarkup);
-                var packagingPrice = hasPackaging
-                    ? ResolvePrice(product.PackagingUnitPrice!.Value, product.Id, customerProductMarkups, customerWideMarkup, regionProductMarkups, regionWideMarkup)
-                    : (decimal?)null;
+                var basicPrice = pricing.Basic(product, request.CustomerAccountId);
+                var packagingPrice = pricing.Packaging(product, request.CustomerAccountId);
                 stopProducts.Add(new TrekkingTripStopProduct
                 {
                     ProductId = input.ProductId,
                     PlannedBasicQuantity = basicQty,
                     PlannedPackagingQuantity = packagingQty,
                     BasicUnitPrice = basicPrice,
+                    UsesVehicleStockPrice = pricing.HasVehiclePrice(product.Id),
                     PackagingUnitPrice = packagingPrice,
                     AmountDue = basicQty * basicPrice + (packagingQty ?? 0) * (packagingPrice ?? 0)
                 });
@@ -191,6 +172,7 @@ public static class AddTrekStop
                         BasicUnitName = prod?.BasicUnit?.Name,
                         PackagingUnitName = prod?.PackagingUnit?.Name,
                         BasicUnitPrice = p.BasicUnitPrice,
+                        UsesVehicleStockPrice = p.UsesVehicleStockPrice,
                         PackagingUnitPrice = p.PackagingUnitPrice,
                         PlannedBasicQuantity = p.PlannedBasicQuantity,
                         PlannedPackagingQuantity = p.PlannedPackagingQuantity,
@@ -210,23 +192,7 @@ public static class AddTrekStop
             return Result.Success(response);
         }
 
-        private static decimal ApplyMarkup(decimal price, decimal pct) =>
-            Math.Round(price * (1 + pct / 100m), 2);
 
-        private static decimal ResolvePrice(
-            decimal basePrice,
-            Guid productId,
-            Dictionary<Guid, decimal> customerProductMarkups,
-            decimal? customerWideMarkup,
-            Dictionary<Guid, decimal> regionProductMarkups,
-            decimal? regionWideMarkup)
-        {
-            if (customerProductMarkups.TryGetValue(productId, out var cm)) return ApplyMarkup(basePrice, cm);
-            if (customerWideMarkup.HasValue) return ApplyMarkup(basePrice, customerWideMarkup.Value);
-            if (regionProductMarkups.TryGetValue(productId, out var rm)) return ApplyMarkup(basePrice, rm);
-            if (regionWideMarkup.HasValue) return ApplyMarkup(basePrice, regionWideMarkup.Value);
-            return basePrice;
-        }
     }
 }
 

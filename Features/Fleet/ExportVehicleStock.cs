@@ -76,7 +76,7 @@ public static class ExportVehicleStock
                         ? s.Product.PackagingUnit.Name
                         : null,
                     PackagingQuantityOnHand = s.PackagingQuantityOnHand,
-                    BasicUnitPrice = s.Product.BasicUnitPrice,
+                    BasicUnitPrice = (s.BasicUnitPrice ?? s.Product.BasicUnitPrice),
                     PackagingUnitPrice = s.Product.PackagingUnitPrice,
                     LowStockThreshold = s.LowStockThreshold,
                     UpdatedAt = s.UpdatedAt

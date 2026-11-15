@@ -96,8 +96,16 @@ builder.Services.AddHangfire(cfg => cfg
     {
         SchemaName = "hangfire"
     }));
-builder.Services.AddHangfireServer();
+builder.Services.AddHangfireServer(options => options.Queues = ["default"]);
+builder.Services.AddHangfireServer(options =>
+{
+    options.ServerName = $"{Environment.MachineName}:document-matching";
+    options.Queues = ["document-matching"];
+    options.WorkerCount = 1;
+});
 builder.Services.AddScoped<TrekEmailJob>();
+builder.Services.AddScoped<DocumentMatchProcessingJob>();
+builder.Services.AddScoped<DocumentMatchCleanupJob>();
 
 // ─── Push Notifications ───────────────────────────────────────────────────────
 builder.Services.AddPushServices(builder.Configuration);
@@ -182,6 +190,8 @@ app.UseAuthorization();
 
 // ─── Hangfire Dashboard ───────────────────────────────────────────────────────
 app.UseHangfireDashboard("/hangfire", new DashboardOptions { Authorization = [] });
+RecurringJob.AddOrUpdate<DocumentMatchCleanupJob>("document-match-cleanup",
+    job => job.RemoveExpiredAsync(CancellationToken.None), Cron.Hourly);
 
 // ─── Endpoints ────────────────────────────────────────────────────────────────
 app.MapCarter();

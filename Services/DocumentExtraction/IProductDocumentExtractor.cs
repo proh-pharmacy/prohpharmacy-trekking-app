@@ -4,5 +4,6 @@ public interface IProductDocumentExtractor
 {
     bool CanExtract(string extension);
     Task<DocumentExtractionResult> ExtractAsync(byte[] bytes, string extension,
-        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits, CancellationToken cancellationToken);
+        ExcelColumnMapping? mapping, IReadOnlySet<string>? knownUnits,
+        DocumentExtractionProgressCallback? reportProgress, CancellationToken cancellationToken);
 }

@@ -1,8 +1,10 @@
 # 26 — Product Document Matching
 
+> Matched rows and aggregates now include an optional `basicUnitPrice` extracted from Rate / Price / Unit Price columns. Excel supports `priceColumn`. See [vehicle-stock pricing](28-vehicle-stock-pricing.md) for review and stock-load payloads.
+
 ## Scope
 
-`POST /api/v1/products/match-files` is a standalone, authenticated extraction and catalogue-matching endpoint. It accepts Excel workbooks, PDFs and photos and returns reviewable rows. It does not create products, load vehicle stock, allocate trek stock, or update any database records. No vehicle ID or trek ID is accepted.
+`POST /api/v1/products/match-files` is a standalone queued extraction and catalogue-matching endpoint. It accepts Excel workbooks, PDFs and photos and returns a polling job. It does not create products, load vehicle stock, allocate trek stock, or update business records. No vehicle ID or trek ID is accepted.
 
 Only active catalogue products are candidates. Every row has `requiresReview: true`, including exact matches: name matching does not prove that the source quantity or unit is correct.
 
@@ -21,6 +23,7 @@ form.append("excelMappings", JSON.stringify([
     worksheet: "Stock",
     headerRow: 1,
     productNameColumn: "Description",
+    priceColumn: "Unit Price",
     quantityColumn: "Qty",
     unitColumn: "Unit"
   }
@@ -28,10 +31,10 @@ form.append("excelMappings", JSON.stringify([
 
 const response = await fetch("/api/v1/products/match-files", {
   method: "POST",
-  headers: { Authorization: `Bearer ${accessToken}` },
   body: form
 });
-const result = await response.json();
+if (!response.ok) throw new Error("Unable to queue the uploaded documents.");
+const job = await response.json();
 ```
 
 Do not manually set the Content-Type header; the browser supplies the multipart boundary. Supply mappings only for uploaded Excel files. Filenames may repeat; use `fileIndex` as the file identity.
@@ -45,14 +48,91 @@ When a field has no explicit mapping, these headers are recognized after removin
 | Field | Recognized headers |
 |---|---|
 | Product | Product, Products, Product Name, Product Description, Item, Item Name, Description, Item Description |
+| Basic-unit price | Rate, Price, Unit Price, Basic Price, Basic Unit Price, Selling Price, Sale Price, Sales Price, Unit Rate, Unit Selling Price, Selling Unit Price, Price Per Unit |
 | Quantity | Qty, Quantity, Quantities, Qty Loaded, Qty Units |
 | Unit | Unit, Units, UOM, Unit of Measure |
 | Basic quantity | Basic Qty, Basic Quantity, Basic Units |
 | Packaging quantity | Packaging Qty, Packaging Quantity, Packaging Units, Pack Qty |
 
-## Response
+## Queue and polling
 
-HTTP 200 contains the batch result, even when individual files fail. Always inspect each file's status and errors.
+The upload returns HTTP 202 after the files have been stored and queued:
+
+```json
+{
+  "jobId": "<job-guid>",
+  "status": "Queued",
+  "pollUrl": "/api/v1/products/match-files/jobs/<job-guid>",
+  "resultUrl": "/api/v1/products/match-files/jobs/<job-guid>/result",
+  "retryAfterSeconds": 2
+}
+```
+
+The POST response is only a queue acknowledgement; it is not the matching result. Save `jobId` in component state and poll the supplied `pollUrl` every `retryAfterSeconds` seconds. Do not upload the files again while the job is `Queued` or `Processing`.
+
+Poll `GET /api/v1/products/match-files/jobs/{jobId}`. Stop polling at `Completed`, `PartiallyCompleted`, or `Failed`. Status responses use `Cache-Control: no-store`, so the frontend should not cache them.
+
+```json
+{
+  "jobId": "<job-guid>",
+  "status": "Processing",
+  "totalFiles": 2,
+  "processedFiles": 1,
+  "currentFileIndex": 1,
+  "currentPage": 3,
+  "currentFilePages": 10,
+  "progressPercentage": 65,
+  "message": "Processing file 2 of 2, page 3 of 10.",
+  "errorMessage": null,
+  "resultUrl": null,
+  "createdAt": "2026-11-13T15:30:00Z",
+  "startedAt": "2026-11-13T15:30:01Z",
+  "completedAt": null
+}
+```
+
+When `resultUrl` is present, request it to obtain the matching response. `Failed` can still have a `resultUrl` when extraction completed but every submitted file failed; fetch that result so the user can see the individual file errors. If a failed job has no `resultUrl`, display `errorMessage` and allow a new upload.
+
+A result requested before it is ready returns HTTP 409 with the current job status. HTTP 404 means the job ID is unknown or its retained record has expired. Jobs and results expire after 24 hours by default.
+
+Suggested browser flow:
+
+```js
+async function waitForMatchJob(accepted, signal) {
+  const delayMs = Math.max(1, accepted.retryAfterSeconds ?? 2) * 1000;
+
+  while (true) {
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+    if (signal?.aborted) throw signal.reason;
+
+    const response = await fetch(accepted.pollUrl, {
+      signal,
+      cache: "no-store"
+    });
+    if (!response.ok) throw new Error("Unable to check document progress.");
+
+    const status = await response.json();
+    updateProgress(status.progressPercentage, status.message);
+
+    if (["Completed", "PartiallyCompleted", "Failed"].includes(status.status)) {
+      if (!status.resultUrl) throw new Error(status.errorMessage ?? status.message);
+
+      const resultResponse = await fetch(status.resultUrl, {
+        signal,
+        cache: "no-store"
+      });
+      if (!resultResponse.ok) throw new Error("Unable to retrieve the matching result.");
+      return resultResponse.json();
+    }
+  }
+}
+```
+
+Cancelling this browser polling loop only stops the browser request. It does not cancel the server-side job.
+
+## Result
+
+`GET /api/v1/products/match-files/jobs/{jobId}/result` returns HTTP 200 with the existing batch shape, even when individual files fail. Always inspect each file's status and errors.
 
 ```json
 {
@@ -78,6 +158,8 @@ HTTP 200 contains the batch result, even when individual files fail. Always insp
           "worksheet": "Stock",
           "row": 2,
           "extractedName": "Paracetamol 500mg",
+          "priceText": "10.34",
+          "basicUnitPrice": 10.34,
           "quantityText": "10",
           "basicQtyText": null,
           "packagingQtyText": null,
@@ -114,6 +196,8 @@ HTTP 200 contains the batch result, even when individual files fail. Always insp
     {
       "productId": "<product-guid>",
       "productName": "Paracetamol 500mg",
+      "basicUnitPrice": 10.34,
+      "warnings": [],
       "basicQty": null,
       "packagingQty": 10,
       "requiresReview": true,
@@ -134,6 +218,8 @@ Match statuses:
 
 Similarity scores range from 0 to 100 and are not probabilities. OCR confidence ranges from 0 to 1 and is separate; `null` means OCR was not used. Numeric/strength and recognized dosage-form conflicts exclude candidates. This is conservative text matching, not a medicine-equivalence engine.
 
+`priceText` preserves the source value. `basicUnitPrice` is nullable and contains only a valid positive basic-unit selling price. Missing, unreadable, negative, percentage, ambiguous, or zero prices resolve to `null`; inspect row warnings. The frontend must let the user review this value before loading vehicle stock.
+
 ## Quantity handling
 
 - Preserve and display original quantity/unit strings.
@@ -147,7 +233,7 @@ Similarity scores range from 0 to 100 and are not probabilities. OCR confidence 
 
 ## PDF and photo behavior
 
-Text-only PDF pages use PdfPig. Pages containing images, including logos, use OCR for the whole page so mixed image/text content is not duplicated or silently omitted. Photos use OCR directly. Configure the local OCR service for these paths; see [OCR deployment](../../../proh-document-ocr/README.md).
+Text-only PDF pages use PdfPig. Scanned pages are sent to OCR together in one PDF request, avoiding repeated PDF uploads and page decoding. Pages containing images, including logos, use OCR for the whole page so mixed image/text content is not duplicated or silently omitted. Photos use OCR directly. Configure the local OCR service for these paths; see [OCR deployment](../../../proh-document-ocr/README.md).
 
 Rows are reconstructed from word/text-box positions and supported column headers. Photo rows can also be recovered when OCR omits a header by using catalogue units and quantity positions. Complex merged cells, multi-line descriptions and unfamiliar layouts need review.
 
@@ -167,20 +253,27 @@ Default limits:
 | Extracted rows | 1,000 per file |
 | Excel columns | 256 |
 | Product/line text | 1,000 characters |
-| Batch processing deadline | 180 seconds, including processing queue |
-| OCR HTTP deadline | 60 seconds per page/image |
-| Concurrent processing requests | 2 per API process |
+| Queued processing deadline | 1,800 seconds |
+| OCR HTTP deadline | 120 seconds per OCR request |
+| Concurrent document jobs | 1 |
 | Candidate count | 5 |
 | Minimum fuzzy score / tie margin | 75 / 5 |
 
 Settings are under `DocumentMatching`. Coordinate API limits with OCR service settings. Parsing deadlines are cooperative for in-process Excel/PDF parsing; native OCR inference runs in a terminable worker process. Server/reverse-proxy upload limits may reject a request before the application.
 
-- HTTP 401: missing/invalid staff authentication.
-- HTTP 422: invalid request, malformed mappings, empty batch, file-count/total-size violation, or processing queue/deadline failure before file results can be returned.
+- HTTP 202: files stored and queued successfully.
+- HTTP 409: the requested result is not ready; the body contains current job status.
+- HTTP 404: job not found or no longer retained.
+- HTTP 422: invalid request, malformed mappings, empty batch, or file-count/total-size violation.
 - HTTP 413: transport/request-size limit exceeded; server-generated responses may use a different body.
+- HTTP 500: the validated upload could not be stored or queued; the user may retry.
 - Per-file errors include `UnsupportedFormat`, `InvalidFile`, `FileSize`, `InvalidWorkbook`, `ColumnNotFound`, `AmbiguousColumns`, `WorksheetNotFound`, `PageLimit`, `RowLimit`, `TextLimit`, `NoRows`, `ExtractionFailed`, and `ProcessingTimeout`. OCR failures are explicit: `OcrUnavailable` means the service is not configured or cannot be reached, `OcrServiceUnavailable` means the OCR service returned HTTP 503, `OcrServiceTimeout` means it returned a timeout, `OcrServiceRejected` means it rejected the document, and `OcrServiceError` means another OCR HTTP error. Error codes are for diagnostics; messages are user-facing and do not expose HTTP status codes or internal OCR details. Internal service details are logged by the API.
 
-Cancelled HTTP requests propagate cancellation. A processing timeout can return rows already processed as a partial file; remaining files receive timeout errors.
+Cancelling the initial upload stops job creation. Closing the browser after HTTP 202 does not cancel the queued work. A processing timeout can preserve rows already processed as a partial result.
+
+The backend needs persistent storage mounted at `DocumentMatching:JobStoragePath` so queued uploads survive container restarts. PostgreSQL stores job state and final JSON results; Hangfire runs the `document-matching` queue with one worker.
+
+Apply migration `20261113153000_AddDocumentMatchJobs` before using the queued endpoints. Deploy the updated OCR service with the backend because scanned PDFs now use its `/extract-document` operation.
 
 ## Frontend follow-up
 

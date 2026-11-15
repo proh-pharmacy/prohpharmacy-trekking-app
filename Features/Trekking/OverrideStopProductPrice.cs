@@ -50,6 +50,13 @@ public static class OverrideStopProductPrice
             if (product is null)
                 return Result.Failure<TrekStopProductResponse>(Error.CreateNotFoundError("Stop product not found."));
 
+            var hasVehiclePrice = product.UsesVehicleStockPrice || await db.VehicleProductStocks
+                .AnyAsync(s => s.VehicleId == trip.VehicleId && s.ProductId == product.ProductId &&
+                    s.BasicUnitPrice.HasValue, cancellationToken);
+            if (hasVehiclePrice && request.BasicUnitPrice != product.BasicUnitPrice)
+                return Result.Failure<TrekStopProductResponse>(Error.BadRequest(
+                    "This item's basic price comes from vehicle stock and cannot be overridden here."));
+
             product.BasicUnitPrice = request.BasicUnitPrice;
             product.PackagingUnitPrice = request.PackagingUnitPrice;
             var basicQty = product.BasicQtyDelivered ?? product.PlannedBasicQuantity;
@@ -68,6 +75,7 @@ public static class OverrideStopProductPrice
                 BasicUnitName = product.Product?.BasicUnit?.Name,
                 PackagingUnitName = product.Product?.PackagingUnit?.Name,
                 BasicUnitPrice = product.BasicUnitPrice,
+                UsesVehicleStockPrice = product.UsesVehicleStockPrice,
                 PackagingUnitPrice = product.PackagingUnitPrice,
                 PlannedBasicQuantity = product.PlannedBasicQuantity,
                 PlannedPackagingQuantity = product.PlannedPackagingQuantity,
@@ -106,7 +114,7 @@ public class OverrideStopProductPriceEndpoint : ICarterModule
         .WithDescription(
             "Corrects the snapshotted BasicUnitPrice and/or PackagingUnitPrice on a specific stop product. " +
             "AmountDue is recalculated from planned quantities × new prices. " +
-            "Not allowed once the trek is Completed.")
+            "Vehicle-stock basic prices cannot be overridden here. Not allowed once the trek is Completed.")
         .Produces<TrekStopProductResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
