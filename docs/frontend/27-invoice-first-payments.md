@@ -102,6 +102,32 @@ Use invoice-level `totalAmount`, `totalPaid`, and `balance` for payment totals.
 Line-level `amtPaid`, `balance`, and `paymentMethod` are legacy fields: they do not
 represent new payments and must not be summed by the frontend.
 
+### Newest-added products first
+
+Stop-product and invoice-line responses now include nullable `addedAt` (UTC ISO 8601).
+It records when the product was added to that stop. Online additions use server time;
+offline `RecordUnplannedSale` additions preserve the action's `occurredAt` after sync.
+Delivery updates, payments and price edits do not change it. Replacing a stop's
+product list for the same customer preserves timestamps for retained products;
+newly introduced products receive a new timestamp. Changing the customer starts
+new product entries.
+
+Sort dated rows by `addedAt` descending, with null timestamps after dated rows.
+Preserve the current relative order for equal timestamps and for null timestamps.
+Historical rows have `addedAt: null`; the migration does not invent dates for them.
+Do not substitute `deliveredAt`, invoice `issuedAt`, or catalogue creation time.
+The API's existing array order is unchanged; apply this sort in the frontend.
+
+The field is available in admin trek/stop products, driver trek products,
+driver stop-by-customer products, invoice detail `lineItems`, driver customer
+invoice history `lineItems`, and add/update/price-override product responses.
+No new request field or endpoint is required. For unsynced offline rows, use the
+queued action's original `occurredAt` as local `addedAt`; retain it through sync
+and reconcile using `serverId`/`stopProductId` after refreshing the stop or trek.
+The batch sync acknowledgement itself still returns IDs/status, not product rows.
+
+Apply the `AddStopProductAddedAt` database migration before deploying this API update.
+
 Admin trek, driver trek, and offline trek responses expose these fields per stop:
 
 ```json

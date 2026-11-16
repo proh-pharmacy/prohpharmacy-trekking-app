@@ -99,6 +99,7 @@ public static class CreateTrek
         public bool IsUnplanned { get; set; }
         public string? Notes { get; set; }
         public DateTime? DeliveredAt { get; set; }
+        public DateTime? AddedAt { get; set; }
     }
 
     public class TrekStopReturnResponse

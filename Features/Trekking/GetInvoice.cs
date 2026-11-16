@@ -68,6 +68,7 @@ public static class GetInvoice
         public string? PaymentMethod { get; set; }
         public bool IsUnplanned { get; set; }
         public DateTime? DeliveredAt { get; set; }
+        public DateTime? AddedAt { get; set; }
     }
 
     internal sealed class Handler(AppDbContext db) : IRequestHandler<Query, Result<InvoiceResponse>>
@@ -157,6 +158,7 @@ public static class GetInvoice
                         Balance = p.Balance,
                         PaymentMethod = p.PaymentMethod?.ToString(),
                         IsUnplanned = p.IsUnplanned,
+                        AddedAt = p.AddedAt,
                         DeliveredAt = p.DeliveredAt
                     }).ToList()
             };

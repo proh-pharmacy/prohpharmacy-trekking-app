@@ -123,6 +123,13 @@ public static class UpdateTrekStop
                 var pricing = await new TrekPriceReader(db).ReadAsync(stop.TrekkingTrip.VehicleId,
                     stop.TrekkingTrip.RegionId, productIds, [stop.CustomerAccountId], cancellationToken);
 
+                // Replacing the submitted list must not make retained products appear newly added.
+                var previousAddedAt = newCustomer is null
+                    ? stop.Products.GroupBy(p => p.ProductId).ToDictionary(g => g.Key,
+                        g => new Queue<DateTime?>(g.Select(p => p.AddedAt)))
+                    : new Dictionary<Guid, Queue<DateTime?>>();
+                var addedAt = DateTime.UtcNow;
+
                 if (newCustomer is null)
                     db.TrekkingTripStopProducts.RemoveRange(stop.Products.ToList());
 
@@ -138,6 +145,8 @@ public static class UpdateTrekStop
                     {
                         TrekkingTripStopId = stop.Id,
                         ProductId = input.ProductId,
+                        AddedAt = previousAddedAt.TryGetValue(input.ProductId, out var previousTimes) &&
+                            previousTimes.TryDequeue(out var previousTime) ? previousTime : addedAt,
                         PlannedBasicQuantity = basicQty,
                         PlannedPackagingQuantity = packagingQty,
                         BasicUnitPrice = basicPrice,
@@ -214,6 +223,7 @@ public static class UpdateTrekStop
                         Balance = p.Balance,
                         IsUnplanned = p.IsUnplanned,
                         Notes = p.Notes,
+                        AddedAt = p.AddedAt,
                         DeliveredAt = p.DeliveredAt
                     };
                 }).ToList()

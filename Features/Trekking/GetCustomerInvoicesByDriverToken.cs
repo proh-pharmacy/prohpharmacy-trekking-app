@@ -35,6 +35,7 @@ public static class GetCustomerInvoicesByDriverToken
 
     public class LineItemResponse
     {
+        public DateTime? AddedAt { get; set; }
         public Guid ProductId { get; set; }
         public string ProductName { get; set; } = string.Empty;
         public string? BasicUnitName { get; set; }
@@ -108,6 +109,7 @@ public static class GetCustomerInvoicesByDriverToken
                     .Where(p => p.BasicQtyDelivered.HasValue || p.PackagingQtyDelivered.HasValue)
                     .Select(p => new LineItemResponse
                     {
+                        AddedAt               = p.AddedAt,
                         ProductId             = p.ProductId,
                         ProductName           = p.Product?.Name ?? string.Empty,
                         BasicUnitName         = p.Product?.BasicUnit?.Name,

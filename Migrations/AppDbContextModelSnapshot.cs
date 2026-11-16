@@ -1757,6 +1757,9 @@ namespace prohpharmacy_trekking_app.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
 
+                    b.Property<DateTime?>("AddedAt")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<decimal?>("AmountDue")
                         .HasPrecision(14, 2)
                         .HasColumnType("numeric(14,2)");

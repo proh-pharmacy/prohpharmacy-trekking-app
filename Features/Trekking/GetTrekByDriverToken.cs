@@ -81,6 +81,7 @@ public static class GetTrekByDriverToken
         public bool IsUnplanned { get; set; }
         public string? Notes { get; set; }
         public DateTime? DeliveredAt { get; set; }
+        public DateTime? AddedAt { get; set; }
     }
 
     public class DriverReturnResponse
@@ -216,6 +217,7 @@ public static class GetTrekByDriverToken
                             Balance = p.Balance,
                             IsUnplanned = p.IsUnplanned,
                             Notes = p.Notes,
+                            AddedAt = p.AddedAt,
                             DeliveredAt = p.DeliveredAt
                         }).ToList(),
                         Returns = s.Returns.Select(r => new DriverReturnResponse

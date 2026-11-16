@@ -797,6 +797,7 @@ public static class SyncOfflineActionsByDriverToken
                 AmountDue = basicQty * resolvedBasicPrice + (effectivePkgQty ?? 0) * (resolvedPkgPrice ?? 0),
                 IsUnplanned = true,
                 DeliveredAt = action.OccurredAt,
+                AddedAt = action.OccurredAt,
                 ClientGeneratedId = action.ClientId
             };
             db.TrekkingTripStopProducts.Add(stopProduct);

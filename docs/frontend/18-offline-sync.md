@@ -888,6 +888,14 @@ function getGps() {
 
 ## Offline Batch Sync
 
+Stop products now expose nullable `addedAt` for newest-first display. For a pending
+`RecordUnplannedSale`, use its original `occurredAt` locally. The backend saves that
+same value as `addedAt`, and refreshed trek/stop/invoice responses return it after
+sync. Retrying an already-synced action leaves the stored addition time unchanged.
+Existing historical rows may have null timestamps. See
+[product ordering](27-invoice-first-payments.md#newest-added-products-first) for
+sorting and null handling. Delivery updates do not change `addedAt`.
+
 ### POST /api/v1/treks/driver/{token}/sync
 
 When connectivity returns, push supported queued actions in one request. Non-payment actions are processed in `occurredAt` order and saved first; payment actions follow in their own `occurredAt` order. Retry behavior is action-specific: some creation actions return `AlreadySynced`, while update actions reapply values. Exclude `RecordReturn` and `VoidReturn` from the new workflow. Stop creation and item changes update invoices in the same sync request. Do not enqueue payment fields on goods actions.

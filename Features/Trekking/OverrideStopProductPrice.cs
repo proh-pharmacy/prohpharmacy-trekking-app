@@ -87,6 +87,7 @@ public static class OverrideStopProductPrice
                 Balance = product.Balance,
                 IsUnplanned = product.IsUnplanned,
                 Notes = product.Notes,
+                AddedAt = product.AddedAt,
                 DeliveredAt = product.DeliveredAt
             });
         }

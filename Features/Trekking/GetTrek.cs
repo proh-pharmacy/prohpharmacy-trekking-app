@@ -185,6 +185,7 @@ public static class GetTrek
                     Balance = p.Balance,
                     IsUnplanned = p.IsUnplanned,
                     Notes = p.Notes,
+                    AddedAt = p.AddedAt,
                     DeliveredAt = p.DeliveredAt
                 }).ToList(),
                 Returns = stop.Returns.Select(r => new TrekStopReturnResponse
