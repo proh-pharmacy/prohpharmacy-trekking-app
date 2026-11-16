@@ -83,6 +83,7 @@ public static class GetDriverStopByCustomer
         public decimal? Balance { get; set; }
         public string? PaymentMethod { get; set; }
         public DateTime? DeliveredAt { get; set; }
+        public DateTime? AddedAt { get; set; }
     }
 
     public class StopTotals
@@ -175,6 +176,7 @@ public static class GetDriverStopByCustomer
                     AmtPaid               = p.AmtPaid,
                     Balance               = p.Balance,
                     PaymentMethod         = p.PaymentMethod?.ToString(),
+                    AddedAt               = p.AddedAt,
                     DeliveredAt           = p.DeliveredAt
                 })
                 .ToList();

@@ -8,6 +8,8 @@ public class TrekkingTripStopProduct
     public Guid Id { get; set; } = Guid.NewGuid();
     public Guid TrekkingTripStopId { get; set; }
     public Guid ProductId { get; set; }
+    // Nullable for historical rows whose original addition time was not recorded.
+    public DateTime? AddedAt { get; set; } = DateTime.UtcNow;
     public decimal PlannedBasicQuantity { get; set; }
     public decimal? PlannedPackagingQuantity { get; set; }
     public decimal BasicUnitPrice { get; set; }

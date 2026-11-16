@@ -156,6 +156,7 @@ public static class AddUnplannedStopProductByDriverToken
             Balance = p.Balance,
             IsUnplanned = p.IsUnplanned,
             Notes = p.Notes,
+            AddedAt = p.AddedAt,
             DeliveredAt = p.DeliveredAt
         };
     }

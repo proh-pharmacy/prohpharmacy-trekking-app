@@ -127,6 +127,7 @@ public static class AddUnplannedStopProduct
                 Balance = stopProduct.Balance,
                 IsUnplanned = true,
                 Notes = stopProduct.Notes,
+                AddedAt = stopProduct.AddedAt,
                 DeliveredAt = stopProduct.DeliveredAt
             });
         }
