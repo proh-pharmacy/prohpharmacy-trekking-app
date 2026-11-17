@@ -14,32 +14,34 @@ public sealed class MatchedProductRowFactory
         var canMapSelectedCandidate = match.SuggestedProductId.HasValue && match.Candidates.Count > 0;
         if ((match.Status == "Exact" || canMapSelectedCandidate) && source.QuantityObservations.Count > 0)
         {
-            var observations = source.QuantityObservations;
-            if (!string.IsNullOrWhiteSpace(source.UnitText) && observations.All(o => o.Unit is null) && source.Quantity.HasValue)
-                observations = [new DocumentExtraction.QuantityObservation(source.Quantity.Value, source.UnitText)];
             var selected = match.Candidates.FirstOrDefault(c => c.ProductId == match.SuggestedProductId) ?? match.Candidates[0];
-            var mapped = ProductUnitMatcher.Map(observations, selected);
-            basic ??= mapped.Basic; packaging ??= mapped.Packaging; warnings.AddRange(mapped.Warnings);
             basicUnit = selected.BasicUnitName;
             packagingUnit = selected.PackagingUnitName;
-        }
-        if (source.Quantity.HasValue && source.BasicQtyText is null && source.PackagingQtyText is null)
-        {
-            if (match.Status == "Exact" && !string.IsNullOrWhiteSpace(source.UnitText))
+            if (source.GenericQuantityIsBasic && source.Quantity.HasValue)
             {
-                var product = match.Candidates.Single();
-                var unit = ProductNameNormalizer.Normalize(source.UnitText);
-                var isBasic = unit == ProductNameNormalizer.Normalize(product.BasicUnitName);
-                var isPackaging = product.PackagingUnitName is not null &&
-                    unit == ProductNameNormalizer.Normalize(product.PackagingUnitName);
-                if (isBasic != isPackaging)
-                {
-                    if (isBasic) basic = source.Quantity;
-                    else packaging = source.Quantity;
-                }
-                else warnings.Add("The quantity unit does not map uniquely to the product's units.");
+                // FORM describes the external POS sale form. It does not turn
+                // this import's QTY column into a packaging quantity.
+                basic ??= source.Quantity;
             }
-            else warnings.Add("Confirm the product and map the quantity to its basic or packaging unit.");
+            else
+            {
+                var observations = source.QuantityObservations;
+                if (!string.IsNullOrWhiteSpace(source.UnitText) && observations.All(o => o.Unit is null) && source.Quantity.HasValue)
+                    observations = [new DocumentExtraction.QuantityObservation(source.Quantity.Value, source.UnitText)];
+                var mapped = ProductUnitMatcher.Map(observations, selected);
+                basic ??= mapped.Basic; packaging ??= mapped.Packaging; warnings.AddRange(mapped.Warnings);
+            }
+        }
+        // The shared unit mapper above handles exact and selected suggestions,
+        // including aliases and numeric-only basic quantities. Do not remap
+        // them using literal unit-name equality and produce contradictory warnings.
+        if (source.Quantity.HasValue && source.BasicQtyText is null && source.PackagingQtyText is null &&
+            match.Status != "Exact" && !canMapSelectedCandidate)
+        {
+            // The generic quantity remains usable even before an unmatched or
+            // ambiguous row is assigned to a catalogue product in the review UI.
+            basic ??= source.Quantity;
+            warnings.Add("Confirm the product and map the quantity to its basic or packaging unit.");
         }
         if (match.Status == "Exact" && packaging.HasValue && match.Candidates[0].PackagingUnitId is null)
         {

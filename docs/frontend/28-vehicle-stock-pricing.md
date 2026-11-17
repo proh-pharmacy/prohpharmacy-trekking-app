@@ -20,7 +20,11 @@ All existing response fields remain. The example above shows only the relevant f
 
 Images, scanned PDFs, text PDFs and Excel share header recognition. Supported headings include `Rate`, `Price`, `Unit Price`, `Basic Price`, `Basic Unit Price`, `Selling Price`, `Sale Price`, `Sales Price`, `Unit Rate`, `Unit Selling Price`, `Selling Unit Price`, and `Price Per Unit`. Casing, spaces and punctuation are ignored; a trailing `GHS` is supported. Cost, line total, amount and percentage columns are not automatically treated as selling prices. Rates are never inferred from quantities or packaging units.
 
-Excel mappings optionally accept `priceColumn`, for example `"priceColumn": "Agreed Price"`, alongside the existing mappings. Use it for an unfamiliar heading or to disambiguate multiple price columns.
+When both `Rate` (or another recognized price heading) and `Amount`/`Total` are present, only the price column supplies `basicUnitPrice`. Amount and total columns remain separate and are never offered as alternative unit prices. If several recognized price columns exist, select the first one to the right of the product description; if none follows it, select the nearest recognized price column to its left. Position alone does not turn a quantity, cost, or unrecognized column into a price. This rule is shared by Excel, PDFs, and images.
+
+For invoices with `QTY | DESCRIPTION | RATE | FORM | DISC(%) | DISC | TOTAL`, every `QTY` value is a basic quantity. `FORM` is preserved as reference text (`unitText`) but does not map a value into `packagingQty`, even when it says Pack or Box. `RATE` remains the basic-unit price by the application's existing convention; no price conversion or discount deduction is inferred. This is separate from an explicitly named Packaging Qty column, which still populates `packagingQty`.
+
+Excel mappings optionally accept `priceColumn`, for example `"priceColumn": "Agreed Price"`, alongside the existing mappings. An explicit mapping takes precedence over automatic selection; use it for an unfamiliar heading or to choose a different price column.
 
 A missing or zero price is `null`. Unreadable, negative, percentage or ambiguous price text stays available in `priceText`, while `basicUnitPrice` is `null` with a warning. Review before submission. Supported amounts use a decimal point, optional thousands separators and optional GHS currency prefix, with at most two decimal places. Zero means that no vehicle-specific price was supplied.
 

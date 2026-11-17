@@ -8,7 +8,9 @@ public static class ProductUnitMatcher
     {
         ["tab"] = "tablet", ["tabs"] = "tablet", ["tablet"] = "tablet", ["tablets"] = "tablet",
         ["strip"] = "strip", ["strips"] = "strip", ["box"] = "box", ["boxes"] = "box",
-        ["bottle"] = "bottle", ["bottles"] = "bottle", ["piece"] = "piece", ["pieces"] = "piece", ["pcs"] = "piece"
+        ["bottle"] = "bottle", ["bottles"] = "bottle", ["btl"] = "bottle", ["btls"] = "bottle",
+        ["piece"] = "piece", ["pieces"] = "piece", ["pcs"] = "piece",
+        ["pack"] = "pack", ["packs"] = "pack", ["unit"] = "unit", ["units"] = "unit"
     };
 
     public static bool Is(string? observed, string? catalogue)
@@ -27,7 +29,7 @@ public static class ProductUnitMatcher
         {
             var isBasic = Is(observation.Unit, product.BasicUnitName);
             var isPackaging = Is(observation.Unit, product.PackagingUnitName);
-            if (isBasic == isPackaging)
+            if (!isBasic && !isPackaging)
             {
                 if (string.IsNullOrWhiteSpace(observation.Unit))
                 {
@@ -36,7 +38,15 @@ public static class ProductUnitMatcher
                     basic = (basic ?? 0) + observation.Quantity;
                     continue;
                 }
-                warnings.Add($"The quantity unit '{observation.Unit}' does not map uniquely to the matched product units.");
+                // Some source unit labels do not exist in the catalogue.
+                // Preserve the label for review but do not discard its quantity.
+                basic = (basic ?? 0) + observation.Quantity;
+                warnings.Add($"The quantity form '{observation.Unit}' does not match the catalogue units; it was treated as basic quantity.");
+                continue;
+            }
+            if (isBasic && isPackaging)
+            {
+                warnings.Add($"The quantity unit '{observation.Unit}' maps to both product units; confirm the quantity.");
                 continue;
             }
             if (isBasic) basic = (basic ?? 0) + observation.Quantity;

@@ -2,6 +2,8 @@
 
 > Matched rows and aggregates now include an optional `basicUnitPrice` extracted from Rate / Price / Unit Price columns. Excel supports `priceColumn`. See [vehicle-stock pricing](28-vehicle-stock-pricing.md) for review and stock-load payloads.
 
+Automatic price selection excludes Amount/Total columns. When multiple recognized price headers exist, it uses the first price column after the product description (or the nearest one before it if none follows). Explicit Excel `priceColumn` mappings override this choice. The endpoint and response fields are unchanged.
+
 ## Scope
 
 `POST /api/v1/products/match-files` is a standalone queued extraction and catalogue-matching endpoint. It accepts Excel workbooks, PDFs and photos and returns a polling job. It does not create products, load vehicle stock, allocate trek stock, or update business records. No vehicle ID or trek ID is accepted.
@@ -50,7 +52,7 @@ When a field has no explicit mapping, these headers are recognized after removin
 | Product | Product, Products, Product Name, Product Description, Item, Item Name, Description, Item Description |
 | Basic-unit price | Rate, Price, Unit Price, Basic Price, Basic Unit Price, Selling Price, Sale Price, Sales Price, Unit Rate, Unit Selling Price, Selling Unit Price, Price Per Unit |
 | Quantity | Qty, Quantity, Quantities, Qty Loaded, Qty Units |
-| Unit | Unit, Units, UOM, Unit of Measure |
+| Unit | Unit, Units, UOM, Unit of Measure, Form |
 | Basic quantity | Basic Qty, Basic Quantity, Basic Units |
 | Packaging quantity | Packaging Qty, Packaging Quantity, Packaging Units, Pack Qty |
 
@@ -225,7 +227,7 @@ Similarity scores range from 0 to 100 and are not probabilities. OCR confidence 
 - Preserve and display original quantity/unit strings.
 - Parsed quantities use non-negative numbers with a decimal point. Comma-separated, negative or nonnumeric values remain unresolved with warnings.
 - Explicit basic/packaging columns populate their corresponding quantities.
-- Generic quantity is mapped automatically only for a unique exact product match and a uniquely matching catalogue unit name. Common plural/unit abbreviations are recognized (for example `Box`/`Boxes`, `Tablet`/`Tab`). Unit conversions are not guessed.
+- Generic quantity is mapped for an exact match or a selected suggested product using its catalogue units. Common plural/unit abbreviations are recognized (for example `Box`/`Boxes`, `Tablet`/`Tab`, `Bottle`/`Btl`, `Pack`/`Packs`). A missing or dash-only unit uses the product's basic unit. A `FORM` column is reference-only, so its quantity always becomes `basicQty`. Other unrecognized unit labels retain the number as `basicQty` with a review warning instead of discarding it. Unmatched and ambiguous product rows also retain their numeric quantity as `basicQty` so the reviewer can assign a product without re-entering it. Unit conversions are not guessed.
 - A quantity string containing multiple values, such as `32 Strips · 32 Box`, is returned as `quantityObservations` and each value is mapped to the catalogue's basic or packaging unit when possible.
 - Unresolved values remain `null`, never silently zero.
 - If a product has no packaging unit, a packaging quantity is flagged and left unresolved.
@@ -233,7 +235,9 @@ Similarity scores range from 0 to 100 and are not probabilities. OCR confidence 
 
 ## PDF and photo behavior
 
-Text-only PDF pages use PdfPig. Scanned pages are sent to OCR together in one PDF request, avoiding repeated PDF uploads and page decoding. Pages containing images, including logos, use OCR for the whole page so mixed image/text content is not duplicated or silently omitted. Photos use OCR directly. Configure the local OCR service for these paths; see [OCR deployment](../../../proh-document-ocr/README.md).
+Text-only PDF pages use PdfPig. A PDF page with a readable product/quantity header also uses native text when all embedded images are above the table (for example a company logo). Scanned pages and mixed pages with images reaching the table region still use whole-page OCR so image-based product data is not silently omitted. OCR pages are sent together in one PDF request, avoiding repeated PDF uploads and page decoding. Photos use OCR directly. Configure the local OCR service for these paths; see [OCR deployment](../../../proh-document-ocr/README.md).
+
+Invoice layouts such as `QTY | DESCRIPTION | RATE | FORM | DISC(%) | DISC | TOTAL` are supported. Quantity may precede the description. Every value in this layout's `QTY` column is returned as `basicQty`; `FORM` is preserved in `unitText` only as reference and never changes it to `packagingQty`. `RATE` supplies the optional basic-unit price under the existing pricing convention. Discount and total columns are ignored. Repeated headers are recognized per page. Item-count summaries, totals, and browser URL/page footers end the product table rather than becoming products.
 
 Rows are reconstructed from word/text-box positions and supported column headers. Photo rows can also be recovered when OCR omits a header by using catalogue units and quantity positions. Complex merged cells, multi-line descriptions and unfamiliar layouts need review.
 

@@ -1,6 +1,5 @@
 using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
-using prohpharmacy_trekking_app.Services.ProductMatching;
 
 namespace prohpharmacy_trekking_app.Services.DocumentExtraction;
 
@@ -13,7 +12,9 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var tokenHeights = tokens.Where(t => !string.IsNullOrWhiteSpace(t.Text))
             .Select(t => Math.Max(1, t.Bottom - t.Top)).OrderBy(height => height).ToList();
         var medianTokenHeight = tokenHeights.Count == 0 ? 28 : tokenHeights[tokenHeights.Count / 2];
-        var lineTolerance = Math.Clamp(medianTokenHeight * 0.6, 14, 50);
+        // PDF coordinates are points, while OCR coordinates are pixels. A fixed
+        // 14-unit minimum can merge neighbouring lines in compact native PDFs.
+        var lineTolerance = Math.Clamp(medianTokenHeight * 0.6, 2, 50);
         var prepared = tokens.Where(t => !string.IsNullOrWhiteSpace(t.Text))
             .Select(t => (Token: t, Centre: (t.Top + t.Bottom) / 2 - slope * ((t.Left + t.Right) / 2)))
             .OrderBy(t => t.Centre).ThenBy(t => t.Token.Left).ToList();
@@ -40,6 +41,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
 
         var rows = new List<ExtractedProductRow>();
         List<(string Key, double Left, double Right)>? headers = null;
+        var genericQuantityIsBasic = false;
         var headerLineIndex = lines.FindIndex(line =>
         {
             var cells = Cells(line.OrderBy(t => t.Left).ToList());
@@ -63,17 +65,28 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
             if (detected.Any(c => c.Key == "name") &&
                 (detected.Count(c => c.Key is "name" or "quantity" or "unit" or "basic" or "packaging") >= 2))
             {
-                if (detected.Select(c => c.Key).Distinct().Count() != detected.Count)
+                if (detected.Where(c => c.Key is not ("price" or "amount" or "cost"))
+                    .GroupBy(c => c.Key).Any(group => group.Count() > 1))
                     throw new DocumentExtractionException("AmbiguousColumns", "Multiple product tables or duplicate headers were detected.");
+                var keys = cells.Select(c => DocumentColumnNames.Identify(c.Text)).ToList();
+                var priceColumn = DocumentPriceColumnSelector.Select(keys, keys.IndexOf("name"));
+                genericQuantityIsBasic = cells.Any(c => DocumentColumnNames.Identify(c.Text) == "unit" &&
+                    string.Concat(c.Text.ToLowerInvariant().Where(char.IsLetterOrDigit)) == "form");
                 headers = cells.Select((c, index) =>
-                    (Key: DocumentColumnNames.Identify(c.Text) ?? $"ignored{index}", c.Left, c.Right)).ToList();
+                    (Key: keys[index] == "price" && index != priceColumn
+                        ? $"ignored{index}" : keys[index] ?? $"ignored{index}", c.Left, c.Right)).ToList();
                 continue;
             }
             if (headers is null && hasTableHeader)
                 continue;
-            if (headers is not null && IsDocumentFooter(ordered))
+            if (headers is not null && DocumentFooterDetector.IsFooter(ordered))
                 break;
-            var row = new ExtractedProductRow { Page = page, Row = rowNumber };
+            var row = new ExtractedProductRow
+            {
+                Page = page,
+                Row = rowNumber,
+                GenericQuantityIsBasic = genericQuantityIsBasic
+            };
             if (headers is null)
             {
                 // Some OCR table pipelines return body cells but omit the
@@ -89,15 +102,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
             {
                 string? Value(string key)
                 {
-                    var index = headers.FindIndex(h => h.Key == key);
-                    if (index < 0) return null;
-                    var left = index == 0
-                        ? double.NegativeInfinity
-                        : (headers[index - 1].Right + headers[index].Left) / 2;
-                    var right = index == headers.Count - 1
-                        ? double.PositiveInfinity
-                        : (headers[index].Right + headers[index + 1].Left) / 2;
-                    return string.Join(" ", ordered.Where(t => t.Left >= left && t.Left < right).Select(t => t.Text));
+                    return DocumentColumnValueReader.Read(key, headers, ordered, medianTokenHeight);
                 }
                 row.ExtractedName = Value("name") ?? "";
                 row.QuantityText = Value("quantity");
@@ -152,7 +157,8 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var anchors = tokens.Where(t => DocumentColumnNames.Identify(t.Text) is "name" or "quantity").ToList();
         var name = anchors.FirstOrDefault(t => DocumentColumnNames.Identify(t.Text) == "name");
         var quantity = anchors.FirstOrDefault(t => DocumentColumnNames.Identify(t.Text) == "quantity");
-        if (name is null || quantity is null || Math.Abs(quantity.Left - name.Left) < 100)
+        if (name is null || quantity is null || Math.Abs(quantity.Left - name.Left) <
+            Math.Max(name.Bottom - name.Top, quantity.Bottom - quantity.Top) * 2)
         {
             // When table OCR omits the header, estimate the camera perspective
             // from body cells in the left and right columns. Matching each left
@@ -195,7 +201,14 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var cells = new List<DocumentToken>();
         foreach (var token in line)
         {
-            if (cells.Count > 0 && token.Left - cells[^1].Right < Math.Max(10, (token.Bottom - token.Top) * 1.2))
+            // Preserve adjacent recognized headers (e.g. Rate | Amount), while
+            // still joining multi-word headings such as Unit Price and Total Amount.
+            var separateHeaders = cells.Count > 0 &&
+                DocumentColumnNames.Identify(cells[^1].Text) is not null &&
+                DocumentColumnNames.Identify(token.Text) is not null &&
+                DocumentColumnNames.Identify(cells[^1].Text + " " + token.Text) is null;
+            if (cells.Count > 0 && !separateHeaders &&
+                token.Left - cells[^1].Right < Math.Max(10, (token.Bottom - token.Top) * 1.2))
             {
                 var previous = cells[^1];
                 cells[^1] = previous with { Text = previous.Text + " " + token.Text, Right = token.Right };
@@ -209,7 +222,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         IReadOnlySet<string>? knownUnits)
     {
         var fullText = string.Join(" ", ordered.Select(t => t.Text)).Trim();
-        var hardcodedUnits = new[] { "strip", "strips", "box", "boxes", "tablet", "tablets", "tab", "tabs", "bottle", "bottles", "piece", "pieces", "pack", "packs", "unit", "units", "vial", "vials", "ampoule", "ampoules" };
+        var hardcodedUnits = new[] { "strip", "strips", "box", "boxes", "tablet", "tablets", "tab", "tabs", "bottle", "bottles", "btl", "btls", "piece", "pieces", "pack", "packs", "unit", "units", "vial", "vials", "ampoule", "ampoules" };
         var units = hardcodedUnits.Concat(knownUnits ?? Enumerable.Empty<string>()).Where(u => !string.IsNullOrWhiteSpace(u))
             .Select(u => Regex.Escape(u.Trim())).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
         var unitPattern = string.Join("|", units.OrderByDescending(u => u.Length));
@@ -226,7 +239,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var quantityUnits = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             "strip", "strips", "box", "boxes", "tablet", "tablets", "tab",
-            "tabs", "bottle", "bottles", "piece", "pieces", "pack", "packs",
+            "tabs", "bottle", "bottles", "btl", "btls", "piece", "pieces", "pack", "packs",
             "unit", "units", "vial", "vials", "ampoule", "ampoules"
         };
         if (knownUnits is not null)
@@ -259,7 +272,7 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var unit = Regex.Replace(value.Trim(), @"[·.]", "", RegexOptions.CultureInvariant).Trim();
         if (unit.Length == 0 || unit.Any(char.IsDigit)) return false;
         var builtIn = new[] { "strip", "strips", "box", "boxes", "tablet", "tablets", "tab", "tabs",
-            "bottle", "bottles", "piece", "pieces", "pack", "packs", "unit", "units", "vial", "vials",
+            "bottle", "bottles", "btl", "btls", "piece", "pieces", "pack", "packs", "unit", "units", "vial", "vials",
             "ampoule", "ampoules" };
         return builtIn.Contains(unit, StringComparer.OrdinalIgnoreCase) ||
                (knownUnits?.Contains(unit) ?? false);
@@ -271,16 +284,6 @@ public sealed class DocumentTableRowParser(IOptions<DocumentMatchingOptions> opt
         var number = Regex.Match(quantityText ?? "", @"\d+(?:\.\d+)?", RegexOptions.CultureInvariant,
             TimeSpan.FromMilliseconds(100));
         return number.Success ? $"{number.Value} {unit}" : unit;
-    }
-
-    private static bool IsDocumentFooter(List<DocumentToken> line)
-    {
-        var text = ProductNameNormalizer.Normalize(string.Join(" ", line.Select(t => t.Text)));
-        return text.StartsWith("subtotal", StringComparison.Ordinal) ||
-            text.StartsWith("tax discount", StringComparison.Ordinal) ||
-            text.StartsWith("total", StringComparison.Ordinal) ||
-            text.StartsWith("notes", StringComparison.Ordinal) ||
-            text.StartsWith("unit prices", StringComparison.Ordinal);
     }
 
     private static string RemoveLeadingRowIndex(string value)
