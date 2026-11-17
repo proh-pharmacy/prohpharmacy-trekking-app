@@ -18,7 +18,7 @@ public static class DocumentColumnNames
             "stockonhand" or "quantityonhand" or "currentstock" or "quantityunit" or
             "ordered" or "qtyordered" or "quantityordered" or "orderedqty" or
             "orderedquantity" or "orderqty" or "orderquantity" => "quantity",
-            "unit" or "units" or "uom" or "unitofmeasure" or "measure" => "unit",
+            "unit" or "units" or "uom" or "unitofmeasure" or "measure" or "form" => "unit",
             "basicqty" or "basicquantity" or "basicunits" => "basic",
             "packagingqty" or "packagingquantity" or "packqty" or "packagingunits" => "packaging",
             "rate" or "price" or "unitprice" or "basicunitprice" or "basicprice" or
@@ -26,6 +26,8 @@ public static class DocumentColumnNames
             "unitsellingprice" or "sellingunitprice" or "priceperunit" or
             "priceunit" or "basicunitrate" => "price",
             "cost" or "unitcost" => "cost",
+            "amount" or "total" or "linetotal" or "lineamount" or "totalamount" or
+            "netamount" or "grossamount" or "extendedprice" or "totalprice" => "amount",
             _ => null
         };
     }

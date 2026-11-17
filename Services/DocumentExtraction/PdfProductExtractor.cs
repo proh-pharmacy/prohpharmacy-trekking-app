@@ -1,7 +1,6 @@
 using Microsoft.Extensions.Options;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
-using prohpharmacy_trekking_app.Services.ProductMatching;
 
 namespace prohpharmacy_trekking_app.Services.DocumentExtraction;
 
@@ -27,12 +26,19 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
         {
             cancellationToken.ThrowIfCancellationRequested();
             var words = page.GetWords(NearestNeighbourWordExtractor.Instance).ToList();
-            if (words.Count == 0 || page.NumberOfImages > 0)
+            var tokens = words.Select(w => new DocumentToken(w.Text,
+                w.BoundingBox.Left, page.Height - w.BoundingBox.Top,
+                w.BoundingBox.Right, page.Height - w.BoundingBox.Bottom)).ToList();
+            var headerTop = DocumentTableRegion.FindHeaderTop(tokens);
+            // A logo above a readable table does not require OCR. Keep whole-page
+            // OCR when images may contain table data so mixed content is not lost.
+            var needsImageRecognition = page.NumberOfImages > 0 &&
+                (!headerTop.HasValue || page.GetImages().Any(image =>
+                    page.Height - image.BoundingBox.Bottom >= headerTop.Value));
+            if (words.Count == 0 || needsImageRecognition)
                 ocrPages.Add(page.Number);
             else
-                tokensByPage[page.Number] = words.Select(w => new DocumentToken(w.Text,
-                    w.BoundingBox.Left, page.Height - w.BoundingBox.Top,
-                    w.BoundingBox.Right, page.Height - w.BoundingBox.Bottom)).ToList();
+                tokensByPage[page.Number] = tokens;
         }
         if (ocrPages.Count > 0)
         {
@@ -58,7 +64,7 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
                 }
                 else
                 {
-                    tokens = KeepTableRegion(tokens);
+                    tokens = DocumentTableRegion.TrimToHeader(tokens);
                     var rows = parser.Parse(tokens, page.Number, cancellationToken, knownUnits);
                     if (rows.Count == 0)
                         result.Errors.Add(new("NoRows", "No product rows were found on this page.", page.Number));
@@ -75,19 +81,5 @@ public sealed class PdfProductExtractor(IOcrClient ocr, DocumentTableRowParser p
                 await reportProgress(page.Number, document.NumberOfPages, cancellationToken);
         }
         return result;
-    }
-
-    private static IReadOnlyList<DocumentToken> KeepTableRegion(IReadOnlyList<DocumentToken> tokens)
-    {
-        var quantityHeader = tokens.Select((token, index) => (Token: token, Index: index))
-            .FirstOrDefault(item => DocumentColumnNames.Identify(item.Token.Text) == "quantity");
-        if (quantityHeader.Token is null)
-            return tokens;
-        var quantityIndex = quantityHeader.Index;
-        var nameIndex = tokens.Select((t, i) => (Token: t, Index: i))
-            .Where(x => x.Index < quantityIndex &&
-                DocumentColumnNames.Identify(x.Token.Text) == "name")
-            .Select(x => x.Index).LastOrDefault(-1);
-        return nameIndex < 0 ? tokens : tokens.Skip(nameIndex).ToList();
     }
 }

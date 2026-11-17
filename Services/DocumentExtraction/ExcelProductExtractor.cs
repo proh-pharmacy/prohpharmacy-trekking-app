@@ -31,6 +31,9 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
                 sheet.Dimension.End.Column > 256)
                 throw new DocumentExtractionException("RowLimit", "The worksheet exceeds the row or column limit.");
             var columns = ResolveColumns(sheet, mapping, out var headerRow);
+            var genericQuantityIsBasic = columns.TryGetValue("unit", out var unitColumn) &&
+                string.Concat(sheet.Cells[headerRow, unitColumn].Text.ToLowerInvariant()
+                    .Where(char.IsLetterOrDigit)) == "form";
             for (var rowNumber = headerRow + 1; rowNumber <= sheet.Dimension.End.Row; rowNumber++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -45,7 +48,8 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
                     Worksheet = sheet.Name, Row = rowNumber, ExtractedName = name,
                     PriceText = Cell("price"),
                     QuantityText = Cell("quantity"), UnitText = Cell("unit"),
-                    BasicQtyText = Cell("basic"), PackagingQtyText = Cell("packaging")
+                    BasicQtyText = Cell("basic"), PackagingQtyText = Cell("packaging"),
+                    GenericQuantityIsBasic = genericQuantityIsBasic
                 };
                 QuantityParser.Populate(row);
                 DocumentPriceParser.Populate(row);
@@ -99,11 +103,15 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
         }
 
         var columns = new Dictionary<string, int>();
+        var selectedHeaderRow = headerRow;
+        var headerKeys = Enumerable.Range(1, sheet.Dimension.End.Column)
+            .Select(c => DocumentColumnNames.Identify(sheet.Cells[selectedHeaderRow, c].Text.Trim())).ToList();
         for (var c = 1; c <= sheet.Dimension.End.Column; c++)
         {
             var text = sheet.Cells[headerRow, c].Text.Trim();
             foreach (var pair in explicitNames)
             {
+                if (pair.Key == "price" && pair.Value is null) continue;
                 var matches = pair.Value is not null
                     ? text.Equals(pair.Value.Trim(), StringComparison.OrdinalIgnoreCase)
                     : DocumentColumnNames.Identify(text) == pair.Key;
@@ -112,6 +120,11 @@ public sealed class ExcelProductExtractor(IOptions<DocumentMatchingOptions> opti
                     throw new DocumentExtractionException("AmbiguousColumns",
                         $"Worksheet '{sheet.Name}' has multiple matching {pair.Key} columns; provide explicit mappings.");
             }
+        }
+        if (mapping.PriceColumn is null && columns.TryGetValue("name", out var productColumn))
+        {
+            var priceColumn = DocumentPriceColumnSelector.Select(headerKeys, productColumn - 1);
+            if (priceColumn.HasValue) columns["price"] = priceColumn.Value + 1;
         }
         if (!columns.ContainsKey("name") ||
             explicitNames.Any(p => p.Value is not null && !columns.ContainsKey(p.Key)))

@@ -23,6 +23,10 @@ public static class QuantityParser
 
     public static void Populate(ExtractedProductRow row)
     {
+        // Invoice unit cells may use a dash for an unspecified unit.
+        if (string.IsNullOrWhiteSpace(row.UnitText) ||
+            row.UnitText.Trim().All(c => c is '-' or '\u2013' or '\u2014'))
+            row.UnitText = null;
         row.QuantityObservations = ParseObservations(row.QuantityText);
         row.Quantity = Parse(row.QuantityText, "Quantity", row.Warnings);
         if (row.Quantity is null && row.QuantityObservations.Count > 0)
