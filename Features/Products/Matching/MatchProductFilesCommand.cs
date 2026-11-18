@@ -9,4 +9,5 @@ public sealed class MatchProductFilesCommand : IRequest<Result<MatchProductFiles
     public List<IFormFile> Files { get; set; } = [];
     public List<ExcelColumnMapping> ExcelMappings { get; set; } = [];
     public Guid? JobId { get; set; }
+    public bool CreateUnmatchedProducts { get; set; }
 }

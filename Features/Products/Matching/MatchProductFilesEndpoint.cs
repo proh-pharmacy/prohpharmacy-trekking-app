@@ -66,9 +66,14 @@ public sealed class MatchProductFilesEndpoint : ICarterModule
                     return Results.UnprocessableEntity(Error.BadRequest("'excelMappings' must be a JSON array of column mappings."));
                 }
             }
+            var createUnmatchedProducts = false;
+            if (form.TryGetValue("createUnmatchedProducts", out var createValue) &&
+                !bool.TryParse(createValue.ToString(), out createUnmatchedProducts))
+                return Results.UnprocessableEntity(Error.BadRequest("'createUnmatchedProducts' must be true or false."));
             var command = new MatchProductFilesCommand
             {
-                Files = form.Files.GetFiles("files").ToList(), ExcelMappings = mappings
+                Files = form.Files.GetFiles("files").ToList(), ExcelMappings = mappings,
+                CreateUnmatchedProducts = createUnmatchedProducts
             };
             var validation = await validator.ValidateAsync(command, cancellationToken);
             if (!validation.IsValid)
@@ -87,7 +92,7 @@ public sealed class MatchProductFilesEndpoint : ICarterModule
                 db.DocumentMatchJobs.Add(job);
                 await db.SaveChangesAsync(cancellationToken);
                 backgroundJobs.Enqueue<DocumentMatchProcessingJob>(
-                    queued => queued.ProcessAsync(job.Id, CancellationToken.None));
+                    queued => queued.ProcessWithOptionsAsync(job.Id, createUnmatchedProducts, CancellationToken.None));
             }
             catch (Exception)
             {
@@ -123,7 +128,7 @@ public sealed class MatchProductFilesEndpoint : ICarterModule
         .WithTags("Products")
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.General)
         .WithSummary("Queue product extraction and matching from Excel, PDF or photos")
-        .WithDescription("Multipart fields: files (multiple), excelMappings (optional JSON array keyed by zero-based fileIndex). Returns a job that the frontend polls. No vehicle or trek ID.")
+        .WithDescription("Multipart fields: files (multiple), excelMappings (optional JSON array keyed by zero-based fileIndex), createUnmatchedProducts (optional boolean, defaults to false). Returns a job that the frontend polls. No vehicle or trek ID.")
         .WithOpenApi(operation =>
         {
             operation.RequestBody = new OpenApiRequestBody
@@ -139,7 +144,8 @@ public sealed class MatchProductFilesEndpoint : ICarterModule
                             Properties = new Dictionary<string, OpenApiSchema>
                             {
                                 ["files"] = new() { Type = "array", Items = new() { Type = "string", Format = "binary" } },
-                                ["excelMappings"] = new() { Type = "string", Description = "JSON array of Excel column mappings keyed by fileIndex." }
+                                ["excelMappings"] = new() { Type = "string", Description = "JSON array of Excel column mappings keyed by fileIndex." },
+                                ["createUnmatchedProducts"] = new() { Type = "boolean", Description = "Opt in to creating unmatched products with no catalogue candidates. Defaults to false." }
                             }
                         }
                     }

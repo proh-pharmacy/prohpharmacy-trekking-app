@@ -7,7 +7,7 @@ public sealed class ProductAggregationService
 {
     public List<AggregatedProduct> Aggregate(IEnumerable<MatchedProductRow> rows)
     {
-        return rows.Where(r => r.MatchStatus == "Exact" && r.SuggestedProductId.HasValue)
+        return rows.Where(r => (r.MatchStatus is "Exact" or "AutoCreated") && r.SuggestedProductId.HasValue)
             .GroupBy(r => r.SuggestedProductId!.Value).Select(group =>
             {
                 var first = group.First();

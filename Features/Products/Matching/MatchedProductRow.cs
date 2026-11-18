@@ -23,6 +23,7 @@ public sealed class MatchedProductRow
     public string? PackagingUnitText { get; set; }
     public double? OcrConfidence { get; set; }
     public string MatchStatus { get; set; } = "Unmatched";
+    public bool AutoCreated { get; set; }
     public Guid? SuggestedProductId { get; set; }
     public IReadOnlyList<ProductMatchCandidate> Candidates { get; set; } = [];
     public bool RequiresReview { get; set; } = true;

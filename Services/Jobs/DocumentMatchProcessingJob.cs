@@ -20,7 +20,12 @@ public sealed class DocumentMatchProcessingJob(
 
     [Queue("document-matching")]
     [AutomaticRetry(Attempts = 1, DelaysInSeconds = new[] { 10 }, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
-    public async Task ProcessAsync(Guid jobId, CancellationToken cancellationToken)
+    public Task ProcessAsync(Guid jobId, CancellationToken cancellationToken) =>
+        ProcessWithOptionsAsync(jobId, false, cancellationToken);
+
+    [Queue("document-matching")]
+    [AutomaticRetry(Attempts = 1, DelaysInSeconds = new[] { 10 }, OnAttemptsExceeded = AttemptsExceededAction.Delete)]
+    public async Task ProcessWithOptionsAsync(Guid jobId, bool createUnmatchedProducts, CancellationToken cancellationToken)
     {
         var job = await db.DocumentMatchJobs.SingleOrDefaultAsync(j => j.Id == jobId, cancellationToken);
         if (job is null || job.Status is DocumentMatchJobStatus.Completed or
@@ -58,7 +63,8 @@ public sealed class DocumentMatchProcessingJob(
             {
                 Files = files,
                 ExcelMappings = mappings,
-                JobId = jobId
+                JobId = jobId,
+                CreateUnmatchedProducts = createUnmatchedProducts
             }, cancellationToken);
 
             if (result.IsFailure)
