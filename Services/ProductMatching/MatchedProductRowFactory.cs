@@ -12,6 +12,12 @@ public sealed class MatchedProductRowFactory
         var packaging = source.PackagingQty;
         string? basicUnit = null, packagingUnit = null;
         var canMapSelectedCandidate = match.SuggestedProductId.HasValue && match.Candidates.Count > 0;
+        if (canMapSelectedCandidate)
+        {
+            var selected = match.Candidates.First(c => c.ProductId == match.SuggestedProductId);
+            basicUnit = selected.BasicUnitName;
+            packagingUnit = selected.PackagingUnitName;
+        }
         if ((match.Status == "Exact" || canMapSelectedCandidate) && source.QuantityObservations.Count > 0)
         {
             var selected = match.Candidates.FirstOrDefault(c => c.ProductId == match.SuggestedProductId) ?? match.Candidates[0];
@@ -43,7 +49,7 @@ public sealed class MatchedProductRowFactory
             basic ??= source.Quantity;
             warnings.Add("Confirm the product and map the quantity to its basic or packaging unit.");
         }
-        if (match.Status == "Exact" && packaging.HasValue && match.Candidates[0].PackagingUnitId is null)
+        if (canMapSelectedCandidate && packaging.HasValue && match.Candidates[0].PackagingUnitId is null)
         {
             packaging = null;
             warnings.Add("The matched product has no packaging unit; resolve the packaging quantity.");
@@ -57,6 +63,7 @@ public sealed class MatchedProductRowFactory
             UnitText = source.UnitText, Quantity = source.Quantity, BasicQty = basic, PackagingQty = packaging,
             QuantityObservations = source.QuantityObservations, BasicUnitText = basicUnit, PackagingUnitText = packagingUnit,
             OcrConfidence = source.OcrConfidence, MatchStatus = match.Status,
+            AutoCreated = match.Status == "AutoCreated",
             SuggestedProductId = match.SuggestedProductId, Candidates = match.Candidates,
             RequiresReview = true, Warnings = warnings.Distinct().ToList()
         };

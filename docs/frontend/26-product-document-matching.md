@@ -6,7 +6,7 @@ Automatic price selection excludes Amount/Total columns. When multiple recognize
 
 ## Scope
 
-`POST /api/v1/products/match-files` is a standalone queued extraction and catalogue-matching endpoint. It accepts Excel workbooks, PDFs and photos and returns a polling job. It does not create products, load vehicle stock, allocate trek stock, or update business records. No vehicle ID or trek ID is accepted.
+`POST /api/v1/products/match-files` is a standalone queued extraction and catalogue-matching endpoint. It accepts Excel workbooks, PDFs and photos and returns a polling job. It can optionally create unmatched catalogue products. It does not load vehicle stock or allocate trek stock. No vehicle ID or trek ID is accepted. The endpoint remains unauthenticated.
 
 Only active catalogue products are candidates. Every row has `requiresReview: true`, including exact matches: name matching does not prove that the source quantity or unit is correct.
 
@@ -16,9 +16,20 @@ Content type: `multipart/form-data`. Repeat the `files` field for multiple files
 
 Optional `excelMappings` is a JSON array, keyed by the zero-based upload `fileIndex`. Each mapping applies to one workbook; omit `worksheet` to read all worksheets. One mapping per file is supported.
 
+Optional `createUnmatchedProducts` is a boolean form field (`"true"` or `"false"`), defaulting to false. Add an opt-in toggle before upload and append its value to the form. The choice is persisted in the queued job arguments and retained on retry. Invalid boolean values return 422.
+
+When enabled, only `Unmatched` rows with no catalogue candidates are eligible for creation. Weak candidates below the display threshold also prevent creation; inspect warnings on rows that remain unmatched. Similar inactive products prevent creation too. Empty, invalid, header/footer-like names and OCR names below 0.85 confidence require manual review. Native PDF/Excel rows without OCR confidence remain eligible.
+
+The backend rechecks normalized names before insertion and serializes the final duplicate check with catalogue writes. Repeated newly created names within a processing attempt reuse the same ID and remain `AutoCreated`. A retry or later upload reuses an already persisted product as an existing match. Creation happens during processing, so closing the modal does not undo it.
+
+The basic unit is resolved against existing active units, including known aliases. If no unique unit matches, the backend uses an existing Piece/Unit, or creates one shared Unit (reactivating an inactive Unit if necessary). Packaging units are not created. Uploaded quantity and price stay on the review row; uploaded prices are not applied to global catalogue pricing. Newly created products use the catalogue's zero default price until a global price is configured, while the positive uploaded price remains available for vehicle stock loading.
+
+New rows return `matchStatus: "AutoCreated"`, `autoCreated: true`, `suggestedProductId`, and a candidate containing the new product and unit IDs. Its `similarityScore` is 0 because it was created rather than matched to an existing product; display a "Newly created" badge instead of a match percentage. All other rows return `autoCreated: false`. `summary.autoCreated` counts created rows (including repeated references), not unique inserted products. Existing summary counters exclude these rows.
+
 ```js
 const form = new FormData();
 files.forEach(file => form.append("files", file));
+form.append("createUnmatchedProducts", String(createUnmatchedProducts)); // toggle value; default false
 form.append("excelMappings", JSON.stringify([
   {
     fileIndex: 0,
@@ -217,8 +228,11 @@ Match statuses:
 - `Suggested`: one leading compatible fuzzy candidate; review required.
 - `Ambiguous`: duplicate names, near-tied candidates, or missing strength/form/pack details. No suggested product ID.
 - `Unmatched`: no acceptable candidate. No suggested product ID.
+- `AutoCreated`: created during this processing attempt; the new product ID and basic unit are returned. Review remains required.
 
 Similarity scores range from 0 to 100 and are not probabilities. OCR confidence ranges from 0 to 1 and is separate; `null` means OCR was not used. Numeric/strength and recognized dosage-form conflicts exclude candidates. This is conservative text matching, not a medicine-equivalence engine.
+
+Each file's `rows` are returned in the default review order: automatically created rows first, then unmatched rows, followed by the remaining rows from the lowest best-candidate similarity score to the highest. Rows with the same priority and score retain their extraction order. The original `page`, `worksheet`, and `row` values remain unchanged, so the frontend can still show the source location or apply another sort. When combining multiple files into one table, apply the same sort across all files.
 
 `priceText` preserves the source value. `basicUnitPrice` is nullable and contains only a valid positive basic-unit selling price. Missing, unreadable, negative, percentage, ambiguous, or zero prices resolve to `null`; inspect row warnings. The frontend must let the user review this value before loading vehicle stock.
 
@@ -231,7 +245,7 @@ Similarity scores range from 0 to 100 and are not probabilities. OCR confidence 
 - A quantity string containing multiple values, such as `32 Strips · 32 Box`, is returned as `quantityObservations` and each value is mapped to the catalogue's basic or packaging unit when possible.
 - Unresolved values remain `null`, never silently zero.
 - If a product has no packaging unit, a packaging quantity is flagged and left unresolved.
-- `aggregatedProducts` contains only exact, uniquely matched products. It sums basic and packaging quantities independently across files and includes source row references. Suggested, ambiguous and unmatched rows remain available under `files[].rows` for manual selection.
+- `aggregatedProducts` contains exact matches and automatically created products. It sums basic and packaging quantities independently across files and includes source row references. Suggested, ambiguous and unmatched rows remain available under `files[].rows` for manual selection. Use each source row's `autoCreated` flag to display creation badges.
 
 ## PDF and photo behavior
 

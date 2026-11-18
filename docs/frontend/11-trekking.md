@@ -206,7 +206,7 @@ Returns the trek with all stops and their products fully populated.
 
 Valid status values: `Draft` `Scheduled` `InProgress` `Completed` `Cancelled`
 
-**When transitioning to `Scheduled`:** the backend requires at least one customer stop, issues one invoice per stop, creates the related ledger charges, generates the driver token (if one doesn't already exist), and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). Refetch the trek after success to obtain the invoice IDs and totals. The whole database change is transactional.
+**When transitioning to `Scheduled`:** customer stops are optional. An empty trek can be scheduled so the driver can add unplanned/walk-in customers in the field. The backend issues one invoice and ledger charge for each stop that already exists, generates the driver token (if one doesn't already exist), and sends the trek sheet email + driver link to the assigned Driver and SalesStaff (if present). With no stops, scheduling still succeeds and returns an empty `stops` array. Refetch the trek after success to obtain the token and any invoice IDs. The whole database change is transactional.
 
 ### Response `200 OK` — `TrekResponse`
 

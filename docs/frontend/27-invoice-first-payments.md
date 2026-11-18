@@ -11,8 +11,10 @@ change: the delivery endpoints no longer accept payment amounts or methods.
 1. While the trek is `Draft`, add, remove or change customer stops freely. Planned
    stop invoice fields are `null`; do not show invoice/payment actions yet.
 2. When the trek changes from `Draft` to `Scheduled`, the backend issues one invoice
-   for every stop in the same transaction. Refetch the trek, store each `invoiceId`
-   and `invoiceNumber`, and label `Issued` as **Awaiting payment**.
+   for every existing stop in the same transaction. A trek with no stops can also be
+   scheduled; it has no invoice until the driver adds a walk-in stop. Refetch the trek,
+   store each available `invoiceId` and `invoiceNumber`, and label `Issued` as
+   **Awaiting payment**.
 3. A walk-in stop added to a `Scheduled` or `InProgress` trek receives its invoice
    immediately because the trek has already crossed the issuance boundary.
 4. On the driver stop screen, display planned/invoiced quantities separately from

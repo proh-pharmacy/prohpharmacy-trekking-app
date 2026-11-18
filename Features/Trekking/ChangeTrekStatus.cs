@@ -87,10 +87,6 @@ public static class ChangeTrekStatus
                     return Result.Failure<TrekResponse>(Error.BadRequest(
                         "A trek cannot return to Draft after invoices have been issued."));
 
-                if (request.Status == TrekStatus.Scheduled && trip.Stops.Count == 0)
-                    return Result.Failure<TrekResponse>(Error.BadRequest(
-                        "Add at least one customer stop before scheduling the trek."));
-
                 trip.Status = request.Status;
                 trip.UpdatedAt = DateTime.UtcNow;
 

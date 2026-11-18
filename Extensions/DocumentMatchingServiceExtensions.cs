@@ -30,6 +30,8 @@ public static class DocumentMatchingServiceExtensions
         services.AddSingleton<ProductIdentityGuard>();
         services.AddSingleton<IProductNameMatcher, ProductNameMatcher>();
         services.AddSingleton<MatchedProductRowFactory>();
+        services.AddSingleton<ProductMatchReviewOrderer>();
+        services.AddScoped<UnmatchedProductCreator>();
         services.AddSingleton<ProductAggregationService>();
         services.AddScoped<IProductCatalogueReader, ProductCatalogueReader>();
         services.AddScoped<DocumentMatchJobProgressReporter>();

@@ -348,7 +348,7 @@ Changes the trek status. Invoice rules prevent reopening a voided invoice and ca
 { "status": "InProgress" }
 ```
 
-**When transitioning to `Scheduled`:** the backend requires at least one customer stop, issues every stop invoice and ledger charge transactionally, generates the driver token (if not already set), and emails the trek sheet PDF + driver link to the assigned Driver and SalesStaff (if present). Refetch the trek after success to obtain invoice IDs and totals.
+**When transitioning to `Scheduled`:** customer stops are optional. This supports treks whose customers and sales will be discovered by the driver in the field. The backend issues invoices and ledger charges for any existing stops, generates the driver token (if not already set), and emails the trek sheet PDF + driver link to the assigned Driver and SalesStaff (if present). An empty trek schedules successfully with an empty `stops` array; the driver can then add walk-in stops through the existing driver route. Refetch the trek after success to obtain the driver token and any invoice IDs.
 
 ### Response `200 OK` — full `TrekResponse`
 

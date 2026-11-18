@@ -10,4 +10,5 @@ public sealed class ProductMatchingSummary
     public int Suggested { get; set; }
     public int Ambiguous { get; set; }
     public int Unmatched { get; set; }
+    public int AutoCreated { get; set; }
 }

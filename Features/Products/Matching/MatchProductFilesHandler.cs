@@ -12,6 +12,8 @@ internal sealed class MatchProductFilesHandler(
     IProductCatalogueReader catalogueReader,
     IProductNameMatcher matcher,
     MatchedProductRowFactory rowFactory,
+    ProductMatchReviewOrderer reviewOrderer,
+    UnmatchedProductCreator productCreator,
     ProductAggregationService aggregationService,
     DocumentFileValidator fileValidator,
     IEnumerable<IProductDocumentExtractor> extractors,
@@ -86,15 +88,22 @@ internal sealed class MatchProductFilesHandler(
                                 Math.Max(20, options.Value.MaxCandidates * 4), timeout.Token);
                             candidateCache[normalizedName] = candidates;
                         }
-                        var match = matcher.Match(row.ExtractedName, candidates);
+                        var match = request.CreateUnmatchedProducts
+                            ? productCreator.FindCreated(row.ExtractedName) ?? matcher.Match(row.ExtractedName, candidates)
+                            : matcher.Match(row.ExtractedName, candidates);
                         // Photographs can include camera/desktop chrome below the
                         // table. A line with no quantity and no catalogue
                         // candidate is not actionable and is discarded; genuine
                         // unmatched product text still has candidates or a
                         // quantity and remains available for review.
-                        if (match.Candidates.Count == 0 &&
+                        if (!request.CreateUnmatchedProducts && match.Candidates.Count == 0 &&
                             (string.IsNullOrWhiteSpace(row.QuantityText) || row.ExtractedName.Trim().Length < 2))
                             continue;
+                        if (request.CreateUnmatchedProducts)
+                        {
+                            match = await productCreator.ResolveAsync(row, match, candidates.Count > 0, timeout.Token);
+                            if (match.Status == "AutoCreated") candidateCache.Remove(normalizedName);
+                        }
                         result.Rows.Add(rowFactory.Create(row, match));
                     }
                     result.Status = result.Errors.Count == 0 ? "Processed" : result.Rows.Count == 0 ? "Failed" : "Partial";
@@ -118,6 +127,9 @@ internal sealed class MatchProductFilesHandler(
                 if (request.JobId is { } completedJobId)
                     await progressReporter.FileCompletedAsync(completedJobId, index, timeout.Token);
             }
+            foreach (var file in response.Files)
+                file.Rows = reviewOrderer.Order(file.Rows);
+
             var rows = response.Files.SelectMany(f => f.Rows).ToList();
             response.Summary = new ProductMatchingSummary
             {
@@ -127,7 +139,8 @@ internal sealed class MatchProductFilesHandler(
                 TotalRows = rows.Count, Exact = rows.Count(r => r.MatchStatus == "Exact"),
                 Suggested = rows.Count(r => r.MatchStatus == "Suggested"),
                 Ambiguous = rows.Count(r => r.MatchStatus == "Ambiguous"),
-                Unmatched = rows.Count(r => r.MatchStatus == "Unmatched")
+                Unmatched = rows.Count(r => r.MatchStatus == "Unmatched"),
+                AutoCreated = rows.Count(r => r.AutoCreated)
             };
             response.AggregatedProducts = aggregationService.Aggregate(rows);
             return Result.Success(response);
