@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -46,6 +47,6 @@ public class GetPendingReturnApprovalCountEndpoint : ICarterModule
         .WithSummary("Count of pending refund approvals")
         .WithDescription("Returns the number of refund records awaiting approval across all treks. Only counts pending returns on treks whose status is Completed, matching the approvals inbox visibility rule. Intended for sidebar badges.")
         .Produces<GetPendingReturnApprovalCount.CountResponse>(200)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekReturnsView);
     }
 }

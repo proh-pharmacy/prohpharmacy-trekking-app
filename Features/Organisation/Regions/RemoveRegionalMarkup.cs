@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -55,6 +56,6 @@ public class RemoveRegionalMarkupEndpoint : ICarterModule
         .WithSummary("Remove a markup rule from a region")
         .Produces(204)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.RegionalPricingManage);
     }
 }

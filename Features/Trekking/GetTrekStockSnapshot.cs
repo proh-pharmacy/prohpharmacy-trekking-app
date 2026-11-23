@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -147,7 +148,7 @@ public class GetTrekStockSnapshotEndpoint : ICarterModule
         .Produces<GetTrekStockSnapshot.Response>(200)
         .Produces<Error>(400)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockView);
 
         app.MapGet("api/v1/treks/{trekId:guid}/stock-snapshot/pdf",
             async (Guid trekId, ISender sender) =>
@@ -163,7 +164,7 @@ public class GetTrekStockSnapshotEndpoint : ICarterModule
         .WithSummary("Download the trek stock reconciliation snapshot as PDF (admin)")
         .Produces<Error>(400)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockView);
     }
 
     internal static IResult MapResult(Result<GetTrekStockSnapshot.Response> result)

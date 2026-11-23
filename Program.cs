@@ -57,7 +57,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 JWTStartupConfig.ConfigureJwt(builder.Services, builder.Configuration);
 builder.Services.AddSingleton<JWTProvider>(new JWTProvider(appKey));
 builder.Services.AddScoped<AuthProvider>();
-builder.Services.AddAuthorization();
+builder.Services.AddPermissionAuthorization();
 
 // ─── MediatR ─────────────────────────────────────────────────────────────────
 builder.Services.AddMediatR(config => config.RegisterServicesFromAssemblies(assembly));

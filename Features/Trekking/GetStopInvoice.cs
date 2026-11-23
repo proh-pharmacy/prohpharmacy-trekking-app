@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -71,6 +72,6 @@ public class GetStopInvoiceEndpoint : ICarterModule
         .WithSummary("Get the sale invoice for a specific trek stop")
         .Produces<GetInvoice.InvoiceResponse>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.InvoicesViewDetails);
     }
 }

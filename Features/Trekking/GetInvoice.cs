@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using prohpharmacy_trekking_app.Services.Invoicing;
 using prohpharmacy_trekking_app.Features.Trekking.Payments;
 using Carter;
@@ -188,6 +189,6 @@ public class GetInvoiceEndpoint : ICarterModule
         .WithSummary("Get a sale invoice by invoice number")
         .Produces<GetInvoice.InvoiceResponse>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.InvoicesViewDetails);
     }
 }

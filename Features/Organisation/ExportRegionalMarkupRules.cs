@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -107,6 +108,6 @@ public class ExportRegionalMarkupRulesEndpoint : ICarterModule
             "Ordered by region name, with the region-wide rule listed first before product-specific rules.")
         .Produces<FileResult>(200)
         .Produces<Error>(400)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.RegionalPricingExport);
     }
 }

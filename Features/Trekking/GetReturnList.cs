@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -196,6 +197,6 @@ public class GetReturnListEndpoint : ICarterModule
         .WithSummary("List all returns across treks")
         .WithDescription("Cross-trek return list for the approvals inbox. Pending returns are visible only after their parent trek is Completed, matching the per-trek endpoint's rule.")
         .Produces<Paginator.PaginatedData<GetReturnList.ReturnListItem>>(200)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekReturnsView);
     }
 }

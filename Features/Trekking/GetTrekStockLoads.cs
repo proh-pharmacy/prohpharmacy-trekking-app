@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -104,6 +105,6 @@ public class GetTrekStockLoadsEndpoint : ICarterModule
         .WithSummary("Get products loaded for a trek")
         .Produces<List<GetTrekStockLoads.StockLoadItem>>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockView);
     }
 }

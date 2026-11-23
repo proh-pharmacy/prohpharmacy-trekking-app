@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -125,6 +126,6 @@ public class GetVehicleStockLedgerEndpoint : ICarterModule
         .WithDescription("Returns paginated history of all stock changes. Filter by productId, source (ManualLoad, TrekCompletion, ReturnApproval), or date range (from/to on RecordedAt).")
         .Produces<Paginator.PaginatedData<GetVehicleStockLedger.LedgerEntry>>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockViewLedger);
     }
 }

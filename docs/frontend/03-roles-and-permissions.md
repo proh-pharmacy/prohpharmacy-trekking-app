@@ -40,6 +40,38 @@ The system uses permission-based access control. Roles are seeded by the backend
 
 ---
 
+## Stock, billing, refund and pricing permissions
+
+The following admin endpoints now enforce JWT `permission` claims. An unauthenticated request receives 401; an authenticated user without the required permission receives 403. Frontend controls should use these same keys, and handle 403 without assuming that hiding a button enforces access.
+
+| Permission | Admin operations |
+|---|---|
+| `TrekReturns.View` (existing) | Return lists, invoice/trek returns and pending approval count |
+| `TrekReturns.Approve` / `TrekReturns.Reject` | Approve / reject returns and associated refunds |
+| `VehicleStock.View` | Vehicle stock, summaries, individual products and fleet stock overview |
+| `VehicleStock.Load` / `VehicleStock.Remove` / `VehicleStock.Reset` | Load / remove / reset vehicle stock |
+| `VehicleStock.ViewLedger` | Read the vehicle stock ledger |
+| `VehicleStock.Export` | Export stock or stock ledger |
+| `TrekStock.View` | Read allocations, perform availability checks, read/download snapshots |
+| `TrekStock.Manage` | Set or remove trek stock allocations |
+| `Invoices.View` / `Invoices.ViewDetails` / `Invoices.Export` | List / read invoice or stop invoice / export invoices |
+| `Payments.Record` | Record an invoice payment through the admin API |
+| `Receipts.View` | Read a payment receipt through the admin API |
+| `CustomerPricing.View` / `CustomerPricing.Manage` / `CustomerPricing.Export` | Read / set or remove / export customer markup rules |
+| `RegionalPricing.View` / `RegionalPricing.Manage` / `RegionalPricing.Export` | Read / set or remove / export regional markup rules |
+
+Driver-token routes retain their existing token validation and do not require these JWT permissions. The anonymous document-matching endpoint is unchanged. Other legacy admin endpoints are not converted to permission policies by this update.
+
+Default assignments:
+
+- SuperAdmin and OperationsManager: all new permissions.
+- BranchManager: new stock, billing and pricing permissions except stock reset, regional pricing management and refund approval/rejection.
+- CreditOfficer: invoice read/export, payment recording, receipt viewing, returns viewing/approval/rejection, and customer/regional pricing viewing.
+- Auditor: stock and pricing read/export, trek stock viewing, invoice read/export, receipt viewing and returns viewing.
+- Driver and FieldStaff: no changes to their seeded assignments.
+
+No schema migration is needed. Restarting the backend runs the existing role seeder to synchronize predefined roles. That seeder overwrites predefined role permission assignments with the code defaults; custom roles must be granted the new keys explicitly. After role synchronization, refresh the access token or sign in again to receive updated claims. Existing access tokens retain their old permissions until replaced or expired.
+
 ## Available Permissions
 
 All permissions follow `{Module}.{Action}` format.

@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using System.Drawing;
 using Carter;
 using MediatR;
@@ -358,6 +359,6 @@ public class ExportVehicleStockLedgerEndpoint : ICarterModule
         .Produces<FileResult>(200)
         .Produces<Error>(400)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockExport);
     }
 }

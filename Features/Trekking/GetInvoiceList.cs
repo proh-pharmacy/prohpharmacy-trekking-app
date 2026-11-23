@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -101,6 +102,6 @@ public class GetInvoiceListEndpoint : ICarterModule
         .WithGroupName(SwaggerDoc.SwaggerEndpointDefinitions.Trekking)
         .WithSummary("List sale invoices")
         .Produces<Paginator.PaginatedData<GetInvoice.InvoiceResponse>>(200)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.InvoicesView);
     }
 }

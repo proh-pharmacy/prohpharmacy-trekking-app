@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -138,6 +139,6 @@ public class ApproveReturnEndpoint : ICarterModule
         .Produces<ApproveReturn.ApprovalResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekReturnsApprove);
     }
 }

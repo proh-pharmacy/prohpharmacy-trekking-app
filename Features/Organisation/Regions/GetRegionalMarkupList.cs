@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -98,6 +99,6 @@ public class GetRegionalMarkupListEndpoint : ICarterModule
             "Search filters by product name.")
         .Produces<Paginator.PaginatedData<SetRegionalMarkup.MarkupRuleResponse>>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.RegionalPricingView);
     }
 }

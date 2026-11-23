@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -104,6 +105,6 @@ public class GetAllCustomerMarkupListEndpoint : ICarterModule
             "Search matches against customer name or product name. " +
             "Results are ordered by customer name, then customer-wide rules first, then by product name.")
         .Produces<Paginator.PaginatedData<SetCustomerMarkup.CustomerMarkupRuleResponse>>(200)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.CustomerPricingView);
     }
 }
