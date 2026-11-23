@@ -205,6 +205,29 @@ public static class Permissions
     public const string AuditView = "Audit.View";
     public const string AuditExport = "Audit.Export";
 
+    // Stock, billing and pricing
+    public const string VehicleStockView = "VehicleStock.View";
+    public const string VehicleStockLoad = "VehicleStock.Load";
+    public const string VehicleStockRemove = "VehicleStock.Remove";
+    public const string VehicleStockReset = "VehicleStock.Reset";
+    public const string VehicleStockViewLedger = "VehicleStock.ViewLedger";
+    public const string VehicleStockExport = "VehicleStock.Export";
+    public const string TrekStockView = "TrekStock.View";
+    public const string TrekStockManage = "TrekStock.Manage";
+    public const string InvoicesView = "Invoices.View";
+    public const string InvoicesViewDetails = "Invoices.ViewDetails";
+    public const string InvoicesExport = "Invoices.Export";
+    public const string PaymentsRecord = "Payments.Record";
+    public const string ReceiptsView = "Receipts.View";
+    public const string CustomerPricingView = "CustomerPricing.View";
+    public const string CustomerPricingManage = "CustomerPricing.Manage";
+    public const string CustomerPricingExport = "CustomerPricing.Export";
+    public const string RegionalPricingView = "RegionalPricing.View";
+    public const string RegionalPricingManage = "RegionalPricing.Manage";
+    public const string RegionalPricingExport = "RegionalPricing.Export";
+    public const string TrekReturnsApprove = "TrekReturns.Approve";
+    public const string TrekReturnsReject = "TrekReturns.Reject";
+
     public static readonly string[] All =
     [
         UsersView, UsersViewDetails, UsersInvite, UsersResendInvitation, UsersActivate,
@@ -257,6 +280,13 @@ public static class Permissions
         TrackingViewAll, TrackingViewAssigned, TrackingViewLive, TrackingViewHistory, TrackingExport,
 
         ReportsView, ReportsViewCollections, ReportsViewLedger, ReportsViewProducts, ReportsViewTreks, ReportsExport,
+
+        VehicleStockView, VehicleStockLoad, VehicleStockRemove, VehicleStockReset,
+        VehicleStockViewLedger, VehicleStockExport, TrekStockView, TrekStockManage,
+        InvoicesView, InvoicesViewDetails, InvoicesExport, PaymentsRecord,
+        ReceiptsView, CustomerPricingView, CustomerPricingManage, CustomerPricingExport,
+        RegionalPricingView, RegionalPricingManage, RegionalPricingExport, TrekReturnsApprove,
+        TrekReturnsReject,
 
         AuditView, AuditExport
     ];

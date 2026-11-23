@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -149,6 +150,6 @@ public class RemoveVehicleStockEndpoint : ICarterModule
         .Produces<RemoveVehicleStock.RemoveResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockRemove);
     }
 }

@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -106,6 +107,6 @@ public class RejectReturnEndpoint : ICarterModule
         .Produces<RejectReturn.RejectionResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekReturnsReject);
     }
 }

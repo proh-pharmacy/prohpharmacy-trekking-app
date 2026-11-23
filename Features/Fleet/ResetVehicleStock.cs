@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -136,6 +137,6 @@ public class ResetVehicleStockEndpoint : ICarterModule
         .Produces<ResetVehicleStock.ResetResponse>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockReset);
     }
 }

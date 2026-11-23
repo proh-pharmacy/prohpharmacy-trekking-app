@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -100,7 +101,7 @@ public class GetVehicleStockEndpoint : ICarterModule
         .WithDescription("Returns every tracked product ordered by stock-record createdAt descending, with its product metadata, basic and packaging units, prices, active status, and current vehicle quantities.")
         .Produces<List<GetVehicleStock.StockItem>>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockView);
     }
 }
 
@@ -174,7 +175,7 @@ public class GetVehicleStockSummaryEndpoint : ICarterModule
         .WithDescription("Returns the vehicle label in 'Region - Display Name' format plus tracked, in-stock and out-of-stock product counts. A product is out of stock only when both its basic and packaging quantities are zero.")
         .Produces<GetVehicleStockSummary.Response>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockView);
     }
 }
 
@@ -232,6 +233,6 @@ public class GetVehicleProductStockEndpoint : ICarterModule
         .WithDescription("Returns product metadata, basic and packaging units, prices, active status, and current vehicle quantities for one tracked product.")
         .Produces<GetVehicleStock.StockItem>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockView);
     }
 }

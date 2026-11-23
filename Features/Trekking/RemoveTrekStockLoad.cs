@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -61,6 +62,6 @@ public class RemoveTrekStockLoadEndpoint : ICarterModule
         .Produces(204)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockManage);
     }
 }

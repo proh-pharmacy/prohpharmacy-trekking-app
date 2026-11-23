@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
@@ -169,7 +170,7 @@ public class CheckTrekStockLoadsEndpoint : ICarterModule
         .WithDescription("Dry-run — no changes made. Checks basic and packaging quantities and returns their unit names plus any shortfall. Frontend should call this before confirming the load.")
         .Produces<CheckTrekStockLoads.CheckResult>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockView);
 
         app.MapPost("api/v1/treks/{trekId:guid}/stock-loads/check",
             async (Guid trekId, Request request, ISender sender) =>
@@ -187,7 +188,7 @@ public class CheckTrekStockLoadsEndpoint : ICarterModule
         .WithDescription("Browser-compatible dry run. No changes are made. Checks basic and packaging quantities against the trek vehicle's stock.")
         .Produces<CheckTrekStockLoads.CheckResult>(200)
         .Produces<Error>(404)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockView);
     }
 }
 

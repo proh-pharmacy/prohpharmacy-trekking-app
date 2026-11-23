@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
@@ -18,7 +19,7 @@ public sealed class RecordInvoicePayment : ICarterModule
                 return Results.UnprocessableEntity(Error.BadRequest("Authenticated staff identity is missing."));
             var result = await new InvoicePaymentService(db).RecordAsync(invoiceId, request, staffId, null, ct);
             return result.IsFailure ? Results.UnprocessableEntity(result.Error) : Results.Ok(result.Value);
-        }).WithTags("Trekking").RequireAuthorization()
+        }).WithTags("Trekking").RequireAuthorization(Permissions.PaymentsRecord)
           .WithSummary("Record an invoice payment and issue its receipt")
           .Produces<PaymentReceiptResponse>();
 

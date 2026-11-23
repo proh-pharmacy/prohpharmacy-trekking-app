@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -126,6 +127,6 @@ public class ExportCustomerMarkupRulesEndpoint : ICarterModule
             "Optional filter: `regionId`.")
         .Produces<FileResult>(200)
         .Produces<Error>(400)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.CustomerPricingExport);
     }
 }

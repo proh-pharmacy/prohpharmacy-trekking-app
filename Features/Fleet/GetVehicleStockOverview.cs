@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -218,6 +219,6 @@ public class GetVehicleStockOverviewEndpoint : ICarterModule
         .WithDescription("Paginated vehicle list enriched with each vehicle's stock summary (tracked / in-stock / out-of-stock / low-stock counts, hasStockLoaded, lastUpdatedAt). Filter stockState=loaded to show only vehicles with at least one in-stock product, or stockState=empty to show vehicles with no stock loaded. Intended for the vehicle stock management page.")
         .Produces<Paginator.PaginatedData<GetVehicleStockOverview.VehicleStockOverviewItem>>(200)
         .Produces<Error>(400)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.VehicleStockView);
     }
 }

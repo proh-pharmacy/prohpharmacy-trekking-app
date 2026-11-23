@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using FluentValidation;
 using MediatR;
@@ -161,6 +162,6 @@ public class BulkSetTrekStockLoadsEndpoint : ICarterModule
         .Produces<List<GetTrekStockLoads.StockLoadItem>>(200)
         .Produces<Error>(404)
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekStockManage);
     }
 }

@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using Microsoft.EntityFrameworkCore;
 using prohpharmacy_trekking_app.Database;
@@ -15,7 +16,7 @@ public sealed class GetPaymentReceipt : ICarterModule
                 .SingleOrDefaultAsync(p => p.Id == paymentId, ct);
             return payment is null ? Results.NotFound(Error.CreateNotFoundError("Payment not found."))
                 : Results.Ok(PaymentReceiptResponse.From(payment));
-        }).WithTags("Trekking").RequireAuthorization().Produces<PaymentReceiptResponse>();
+        }).WithTags("Trekking").RequireAuthorization(Permissions.ReceiptsView).Produces<PaymentReceiptResponse>();
 
         app.MapGet("api/v1/treks/driver/{token:guid}/payments/{paymentId:guid}/receipt", async (
             Guid token, Guid paymentId, AppDbContext db, CancellationToken ct) =>

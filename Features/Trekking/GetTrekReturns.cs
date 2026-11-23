@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -100,6 +101,6 @@ public class GetTrekReturnsEndpoint : ICarterModule
         .WithSummary("List all returns recorded during a trek")
         .WithDescription("Optional filter by approvalStatus: Pending, Approved, Rejected.")
         .Produces<List<GetTrekReturns.ReturnListItem>>(200)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.TrekReturnsView);
     }
 }

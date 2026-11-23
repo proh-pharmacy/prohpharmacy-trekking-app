@@ -1,3 +1,4 @@
+using prohpharmacy_trekking_app.Features.Identity;
 using Carter;
 using MediatR;
 using Microsoft.AspNetCore.Mvc;
@@ -402,6 +403,6 @@ public class ExportInvoiceListEndpoint : ICarterModule
         .WithSummary("Export sale invoices as Excel or PDF")
         .WithDescription("Streams all invoices matching the filters (same filters as GET /api/v1/invoices, pagination ignored). format=excel|pdf.")
         .Produces<Error>(422)
-        .RequireAuthorization();
+        .RequireAuthorization(Permissions.InvoicesExport);
     }
 }
